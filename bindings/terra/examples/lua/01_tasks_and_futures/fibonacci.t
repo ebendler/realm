@@ -58,7 +58,7 @@ function top_level_task(task, regions, ctx, runtime)
     -- allocates a buffer of the specified type and stores the value
     -- in the buffer.  It is important to note that this buffer is
     -- not actually copied until 'execute_task' is called.  The buffer
-    -- should remain live until the launcher goes out of scope.
+    -- would remain live until the launcher goes out of scope.
     local arg = TaskArgument:new(i, int)
     local launcher = TaskLauncher:new(FIBONACCI_TASK_ID, arg)
     -- To launch a task, a TaskLauncher object is passed to the runtime
@@ -68,10 +68,6 @@ function top_level_task(task, regions, ctx, runtime)
     -- be reused to launch as many tasks as desired, and can be modified
     -- immediately after the 'execute_task' call returns.
     fib_results[i] = runtime:execute_task(ctx, launcher)
-    -- Once the 'execute_task' call returns, the 'TaskArgument' has been
-    -- copied to the runtime and therefore can be deallocated by the 'delete'
-    -- method call.
-    arg:delete()
   end
 
   -- Print out our results
@@ -90,10 +86,6 @@ function top_level_task(task, regions, ctx, runtime)
     -- being returned.
     local result = fib_results[i]:get_result(int)
     print("Fibonacci(" .. i .. ") = " .. result)
-    -- The Lua object of the 'Future' type internally maintains the pointer
-    -- to its C counterparts. We should call the 'delete' method to reclaim
-    -- the memory occupied by this C object,
-    fib_results[i]:delete()
   end
 end
 
@@ -148,15 +140,6 @@ function fibonacci_task(task, regions, ctx, runtime)
   -- to the Legion runtime so we can extract as much task-level
   -- parallelism as possible from the application.
   local value = result:get_result(int)
-
-  f1:delete()
-  arg1:delete()
-
-  f2:delete()
-  arg2:delete()
-
-  result:delete()
-
   return value
 end
 

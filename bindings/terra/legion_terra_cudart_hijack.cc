@@ -13,23 +13,28 @@
  * limitations under the License.
  */
 
-// meta-header for Realm - includes all the individual pieces
+#include "cuda_runtime.h"
 
-#ifndef REALM_H
-#define REALM_H
+extern "C" {
 
-#include "realm/realm_config.h"
+extern void** __cudaRegisterFatBinary(const void *);
 
-#include "realm/profiling.h"
-#include "realm/redop.h"
-#include "realm/event.h"
-#include "realm/reservation.h"
-#include "realm/processor.h"
-#include "realm/memory.h"
-#include "realm/instance.h"
-#include "realm/machine.h"
-#include "realm/runtime.h"
-#include "realm/indexspace.h"
-#include "realm/codedesc.h"
+extern void __cudaRegisterFunction(void**, const void*, char *, const char *,
+    int, uint3 *, uint3 *, dim3 *, dim3 *, int *);
 
-#endif // ifndef REALM_H
+void**
+hijackCudaRegisterFatBinary(const void* fat_bin)
+{
+  return __cudaRegisterFatBinary(fat_bin);
+}
+
+void
+hijackCudaRegisterFunction(void** handle, const void* host_fun,
+                           char* device_fun)
+{
+  return __cudaRegisterFunction(handle, host_fun, device_fun,
+      0, 0, 0, 0, 0, 0, 0);
+}
+
+}
+

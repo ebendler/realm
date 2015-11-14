@@ -13,23 +13,20 @@
  * limitations under the License.
  */
 
-// meta-header for Realm - includes all the individual pieces
 
-#ifndef REALM_H
-#define REALM_H
+#ifndef __LEGION_TERRA_CUDART_HIJACK_H__
+#define __LEGION_TERRA_CUDART_HIJACK_H__
 
-#include "realm/realm_config.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "realm/profiling.h"
-#include "realm/redop.h"
-#include "realm/event.h"
-#include "realm/reservation.h"
-#include "realm/processor.h"
-#include "realm/memory.h"
-#include "realm/instance.h"
-#include "realm/machine.h"
-#include "realm/runtime.h"
-#include "realm/indexspace.h"
-#include "realm/codedesc.h"
+void** hijackCudaRegisterFatBinary(const void*);
 
-#endif // ifndef REALM_H
+void hijackCudaRegisterFunction(void**, const void*, char*);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // __LEGION_TERRA_CUDART_HIJACK_H__

@@ -1,4 +1,4 @@
-/* Copyright 2015 Stanford University
+/* Copyright 2015 Stanford University, NVIDIA Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,21 +13,28 @@
  * limitations under the License.
  */
 
-#ifndef __LISZT_GPU_MAPPER_H__
-#define __LISZT_GPU_MAPPER_H__
+#include "cuda_runtime.h"
 
-//#include <stdbool.h>
-//#include <stddef.h>
-//#include <stdint.h>
-
-#ifdef __cplusplus
 extern "C" {
-#endif
 
-void register_liszt_gpu_mapper();
+extern void** __cudaRegisterFatBinary(const void *);
 
-#ifdef __cplusplus
+extern void __cudaRegisterFunction(void**, const void*, char *, const char *,
+    int, uint3 *, uint3 *, dim3 *, dim3 *, int *);
+
+void**
+hijackCudaRegisterFatBinary(const void* fat_bin)
+{
+  return __cudaRegisterFatBinary(fat_bin);
 }
-#endif
 
-#endif // __LISZT_GPU_MAPPER_H__
+void
+hijackCudaRegisterFunction(void** handle, const void* host_fun,
+                           char* device_fun)
+{
+  return __cudaRegisterFunction(handle, host_fun, device_fun,
+      0, 0, 0, 0, 0, 0, 0);
+}
+
+}
+

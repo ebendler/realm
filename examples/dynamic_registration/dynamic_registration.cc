@@ -45,10 +45,69 @@ enum FieldIDs {
   FID_DERIV,
 };
 
+// Forward declarations
+
+void init_field_task(const Task *task,
+                     const std::vector<PhysicalRegion> &regions,
+                     Context ctx, HighLevelRuntime *runtime);
+
+void stencil_task(const Task *task,
+                  const std::vector<PhysicalRegion> &regions,
+                  Context ctx, HighLevelRuntime *runtime);
+
+void check_task(const Task *task,
+                const std::vector<PhysicalRegion> &regions,
+                Context ctx, HighLevelRuntime *runtime);
+
 void top_level_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions,
                     Context ctx, HighLevelRuntime *runtime)
 {
+  FieldSpace fs = runtime->create_field_space(ctx);
+  {
+    FieldAllocator allocator = 
+      runtime->create_field_allocator(ctx, fs);
+    allocator.allocate_field(sizeof(double),FID_VAL);
+    allocator.allocate_field(sizeof(double),FID_DERIV);
+  }
+  // Make an SOA constraint and use it as the layout constraint for
+  // all the different task variants that we are registering
+  LayoutConstraintRegistrar layout_registrar(fs, "SOA layout");
+  std::vector<DimensionKind> dim_order(2);
+  dim_order[0] = DIM_X;
+  dim_order[1] = DIM_F; // fields go last for SOA
+  layout_registrar.add_constraint(OrderingConstraint(dim_order, false/*contig*/));
+
+  LayoutConstraintID soa_layout_id = runtime->register_layout(layout_registrar);
+
+  // Dynamically register some more tasks
+  TaskVariantRegistrar init_registrar(INIT_FIELD_TASK_ID, true/*global*/,
+                                      "cpu_init_variant");
+  // Add our constraints
+  init_registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC))
+      .add_layout_constraint_set(0/*index*/, soa_layout_id);
+  runtime->register_task_variant<init_field_task>(init_registrar);
+
+  TaskVariantRegistrar stencil_registrar(STENCIL_TASK_ID, true/*global*/,
+                                         "cpu_stencil_variant");
+  stencil_registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC))
+      .add_layout_constraint_set(0/*index*/, soa_layout_id)
+      .add_layout_constraint_set(1/*index*/, soa_layout_id);
+  runtime->register_task_variant<stencil_task>(stencil_registrar);
+
+  TaskVariantRegistrar check_registrar(CHECK_TASK_ID, true/*global*/,
+                                       "cpu_check_variant");
+  check_registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC))
+      .add_layout_constraint_set(0/*index*/, soa_layout_id)
+      .add_layout_constraint_set(1/*index*/, soa_layout_id);
+  runtime->register_task_variant<check_task>(check_registrar);
+
+  // Attach semantic infos to the task names
+  runtime->attach_name(INIT_FIELD_TASK_ID, "init task");
+  runtime->attach_name(STENCIL_TASK_ID, "stencil task");
+  runtime->attach_name(CHECK_TASK_ID, "check task");
+
+
   int num_elements = 1024;
   int num_subregions = 4;
   // Check for any command line arguments
@@ -72,13 +131,7 @@ void top_level_task(const Task *task,
   Rect<1> elem_rect(Point<1>(0),Point<1>(num_elements-1));
   IndexSpace is = runtime->create_index_space(ctx, 
                           Domain::from_rect<1>(elem_rect));
-  FieldSpace fs = runtime->create_field_space(ctx);
-  {
-    FieldAllocator allocator = 
-      runtime->create_field_allocator(ctx, fs);
-    allocator.allocate_field(sizeof(double),FID_VAL);
-    allocator.allocate_field(sizeof(double),FID_DERIV);
-  }
+  
   LogicalRegion stencil_lr = runtime->create_logical_region(ctx, is, fs);
   
   // Make our color_domain based on the number of subregions
@@ -392,14 +445,11 @@ void check_task(const Task *task,
 int main(int argc, char **argv)
 {
   HighLevelRuntime::set_top_level_task_id(TOP_LEVEL_TASK_ID);
-  HighLevelRuntime::register_legion_task<top_level_task>(TOP_LEVEL_TASK_ID,
-      Processor::LOC_PROC, true/*single*/, false/*index*/);
-  HighLevelRuntime::register_legion_task<init_field_task>(INIT_FIELD_TASK_ID,
-      Processor::LOC_PROC, true/*single*/, true/*index*/);
-  HighLevelRuntime::register_legion_task<stencil_task>(STENCIL_TASK_ID,
-      Processor::LOC_PROC, true/*single*/, true/*index*/);
-  HighLevelRuntime::register_legion_task<check_task>(CHECK_TASK_ID,
-      Processor::LOC_PROC, true/*single*/, true/*index*/);
+  // We'll only register our top-level task here
+  TaskVariantRegistrar registrar(TOP_LEVEL_TASK_ID, true/*global*/,
+                                 "top_level_variant");
+  registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+  Runtime::preregister_task_variant<top_level_task>(registrar,"top_level_task");
 
   return HighLevelRuntime::start(argc, argv);
 }

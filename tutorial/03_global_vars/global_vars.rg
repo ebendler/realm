@@ -1,4 +1,4 @@
--- Copyright 2016 Stanford University
+-- Copyright 2017 Stanford University
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -16,15 +16,14 @@ import "regent"
 
 local c = terralib.includec("stdio.h")
 
--- Global constants can be declared at the top scope.
--- (Regent does not support mutable global variables.)
+-- Global constants are simply Lua variables, defined at the top
+-- scope. (Regent does not support mutable global variables.)
 local global_constant = 4
 
--- Function pointers may vary between nodes and runs.
-terra foo() end
+-- Function pointers (such as to printf) may vary between nodes and runs.
 
 task main()
   c.printf("The value of global_constant %d will always be the same\n", global_constant)
-  c.printf("The function pointer to foo %p may be different on different processors\n", foo)
+  c.printf("The function pointer to printf %p may be different on different processors\n", c.printf)
 end
 regentlib.start(main)

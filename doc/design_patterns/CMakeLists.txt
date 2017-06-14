@@ -15,10 +15,13 @@
 #------------------------------------------------------------------------------#
 
 cmake_minimum_required(VERSION 3.1)
-project(LegionDoc_design_patterns)
+project(LegionDoc_glossary)
 
 # Only search if were building stand-alone and not as part of Legion
 if(NOT Legion_SOURCE_DIR)
   find_package(Legion REQUIRED)
 endif()
+
+add_executable(design_patterns markdown)
+target_link_libraries(design_patterns Legion::Legion)
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+
 ifndef LG_RT_DIR
 $(error LG_RT_DIR variable is not defined, aborting build)
 endif
@@ -24,44 +25,21 @@ USE_CUDA        ?= 0		# Include CUDA support (requires CUDA)
 USE_GASNET      ?= 0		# Include GASNet support (requires GASNet)
 USE_HDF         ?= 0		# Include HDF5 support (requires HDF5)
 ALT_MAPPERS     ?= 0		# Include alternative mappers (not recommended)
-USE_SPY         ?= 0    # Include detailed Legion Spy support
 
 # Put the binary file name here
-OUTFILE		?= libregent.so
+OUTFILE		?= test_stl
 # List all the application source files here
-GEN_SRC		?= legion_terra.cc legion_terra_partitions.cc bishop_mapper.cc bishop_c.cc murmur_hash3.cc # .cc files
+GEN_SRC		?= test_stl.cc		# .cc files
 GEN_GPU_SRC	?=		# .cu files
 
-ifeq ($(strip $(USE_CUDA)),1)
-GEN_SRC += legion_terra_cudart_hijack.cc
-endif
+# You can modify these variables, some will be appended to by the runtime makefile
+INC_FLAGS	?=
+CC_FLAGS	?=
+NVCC_FLAGS	?=
+GASNET_FLAGS	?=
+LD_FLAGS	?=
 
-CC_FLAGS ?= #-DPROF_BINDING #-DBOUNDS_CHECKS #-DLEGION_SPY
-NVCC_FLAGS ?=
-GASNET_FLAGS ?=
-INC_FLAGS ?=
-LD_FLAGS ?=
-
-CC_FLAGS += -fPIC
-ifeq ($(shell uname), Darwin)
-	LD_FLAGS += -dynamiclib -single_module -undefined dynamic_lookup -fPIC
-else
-	LD_FLAGS += -shared
-endif
-
-ifeq ($(shell uname), Darwin)
-	LD_FLAGS += -Wl,-force_load,liblegion.a -Wl,-force_load,librealm.a
-else
-	LD_FLAGS += -Wl,--whole-archive -llegion -lrealm -Wl,--no-whole-archive
-endif
-
-ifeq ($(strip $(USE_SPY)),1)
-	CC_FLAGS += -DLEGION_SPY
-endif
-
-# terra already includes LLVM libs, so we don't want them in our .so
-CC_FLAGS += -DREALM_ALLOW_MISSING_LLVM_LIBS
-$(OUTFILE) : LLVM_LIBS=
+CC_FLAGS	+= -std=c++11
 
 ###########################################################################
 #

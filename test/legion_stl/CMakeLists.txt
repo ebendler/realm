@@ -15,19 +15,17 @@
 #------------------------------------------------------------------------------#
 
 cmake_minimum_required(VERSION 3.1)
+project(LegionTest_test_stl)
 
+# Only search if were building stand-alone and not as part of Legion
 if(NOT Legion_SOURCE_DIR)
   find_package(Legion REQUIRED)
 endif()
 
-add_subdirectory(attach_file_mini)
-add_subdirectory(legion_stl)
-add_subdirectory(rendering)
-
-if(Legion_USE_HDF5)
-  add_subdirectory(hdf_attach_subregion_parallel)
-endif()
-
-if(Legion_USE_Python)
-  add_subdirectory(python_bindings)
+add_executable(test_stl test_stl.cc)
+set_property(TARGET test_stl PROPERTY CXX_STANDARD 11)
+set_property(TARGET test_stl PROPERTY CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_stl Legion::Legion)
+if(Legion_ENABLE_TESTING)
+  add_test(NAME test_stl COMMAND ${Legion_TEST_LAUNCHER} $<TARGET_FILE:test_stl>)
 endif()

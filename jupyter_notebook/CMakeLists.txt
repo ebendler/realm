@@ -15,32 +15,18 @@
 #------------------------------------------------------------------------------#
 
 cmake_minimum_required(VERSION 3.1)
+project(LegionJupyter)
 
+# Only search if were building stand-alone and not as part of Legion
 if(NOT Legion_SOURCE_DIR)
   find_package(Legion REQUIRED)
 endif()
 
-# enable build warnings for all tutorials/examples/tests/etc.
-add_compile_options(${CXX_BUILD_WARNING_FLAGS})
-
-add_subdirectory(attach_file_mini)
-add_subdirectory(legion_stl)
-add_subdirectory(output_requirements)
-add_subdirectory(rendering)
-add_subdirectory(realm)
-add_subdirectory(gather_perf)
-add_subdirectory(performance/realm/event_latency)
-add_subdirectory(performance/realm/task_throughput)
-add_subdirectory(legion_redop_test)
-
-if(Legion_USE_HDF5)
-  add_subdirectory(hdf_attach_subregion_parallel)
+# Allow passing extra args to `setup.py` on install like
+# `--single-version-externally-managed --root=/`
+# to work around setuptools changes.
+if (NOT DEFINED Legion_PYTHON_EXTRA_INSTALL_ARGS)
+  set(Legion_PYTHON_EXTRA_INSTALL_ARGS "")
 endif()
-
-if(Legion_USE_Python)
-  add_subdirectory(python_bindings)
-endif()
-
-if(Legion_NETWORKS)
-  add_subdirectory(bug954)
-endif()
+# Use setup.py script to install the Python bindings library
+install(CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/setup.py install --prefix \"\${CMAKE_INSTALL_PREFIX}\" ${Legion_PYTHON_EXTRA_INSTALL_ARGS} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})")

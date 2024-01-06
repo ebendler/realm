@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------#
-# Copyright 2023 Stanford University
+# Copyright 2022 Kitware, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,19 +14,16 @@
 # limitations under the License.
 #------------------------------------------------------------------------------#
 
-cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
-project(LegionJupyter)
+cmake_minimum_required(VERSION 3.1)
+project(LegionExample_collective_writes)
 
 # Only search if were building stand-alone and not as part of Legion
 if(NOT Legion_SOURCE_DIR)
   find_package(Legion REQUIRED)
 endif()
 
-# Allow passing extra args to `setup.py` on install like
-# `--single-version-externally-managed --root=/`
-# to work around setuptools changes.
-if (NOT DEFINED Legion_PYTHON_EXTRA_INSTALL_ARGS)
-  set(Legion_PYTHON_EXTRA_INSTALL_ARGS "--root / --prefix \"\${CMAKE_INSTALL_PREFIX}\"")
+add_executable(collective_writes collective_writes.cc)
+target_link_libraries(collective_writes Legion::Legion)
+if(Legion_ENABLE_TESTING)
+  add_test(NAME collective_writes COMMAND ${Legion_TEST_LAUNCHER} $<TARGET_FILE:collective_writes> ${Legion_TEST_ARGS} -ll:cpu 4)
 endif()
-# Use setup.py script to install the Python bindings library
-install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install --ignore-installed ${Legion_PYTHON_EXTRA_INSTALL_ARGS} . WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} COMMAND_ECHO STDOUT)")

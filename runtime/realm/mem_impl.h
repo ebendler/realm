@@ -289,7 +289,7 @@ namespace Realm {
     using Range = typename BasicRangeAllocator<RT, TT>::Range;
     void add_to_free_list(unsigned index, Range &range);
     void remove_from_free_list(unsigned index, Range &range);
-    void grow_hole(unsigned index, Range& range, RT bound, bool before = false);
+    void grow_hole(unsigned index, Range& range, RT bound, bool before);
 
     static unsigned floor_log2(uint64_t size);
 

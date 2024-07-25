@@ -652,7 +652,7 @@ namespace Realm {
         // case 2 - merge before
         // merge ourselves into the range before
         Range& r_before = this->ranges[pf_idx];
-        grow_hole(pf_idx, r_before, r.last);
+        grow_hole(pf_idx, r_before, r.last, false/*before*/);
         r_before.next = r.next;
         this->ranges[r.next].prev = pf_idx;
         this->free_range(del_idx);
@@ -677,7 +677,7 @@ namespace Realm {
         Range& r_before = this->ranges[pf_idx];
         Range& r_after = this->ranges[nf_idx];
         remove_from_free_list(nf_idx, r_after);
-        grow_hole(pf_idx, r_before, r_after.last);
+        grow_hole(pf_idx, r_before, r_after.last, false/*before*/);
         // adjust both normal list and free list
         r_before.next = r_after.next;
         this->ranges[r_after.next].prev = pf_idx;
@@ -723,7 +723,7 @@ namespace Realm {
         bool merge_prev = (pf_idx != SENTINEL) && (this->ranges[pf_idx].prev_free != pf_idx);
         if (merge_prev) {
           Range &prev = this->ranges[pf_idx];
-          grow_hole(pf_idx, prev, alloc_first);
+          grow_hole(pf_idx, prev, alloc_first, false/*before*/);
           r->first = alloc_first;
           add_to_free_list(pf_idx, prev);
         } else {
@@ -833,7 +833,7 @@ namespace Realm {
   {
     // Check to see if it is going to change bin sizes
     unsigned old_bin = floor_log2(range.last - range.first);
-    size_t new_size = (before ? range.last : bound) - (before ? bound : range.first);
+    RT new_size = (before ? range.last : bound) - (before ? bound : range.first);
     unsigned new_bin = floor_log2(new_size);
     if (old_bin == new_bin) {
       if (before)

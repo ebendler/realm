@@ -858,6 +858,10 @@ namespace Realm {
           range.next_free = next_range.next_free;
           range.prev_free = next_index;
           next_range.next_free = index;
+          // Make sure to handle the case where we're the first entry
+          // in the free lists
+          if (size_based_free_lists[old_bin] == index)
+            size_based_free_lists[old_bin] = next_index;
         }
       }
     } else {

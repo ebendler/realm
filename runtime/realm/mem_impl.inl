@@ -771,7 +771,7 @@ namespace Realm {
       assert(size_based_free_lists[log2_size] == index);
       if (range.next_free != SENTINEL)
         this->ranges[range.next_free].prev_free = SENTINEL;
-      size_based_free_lists[log2_size] = range.prev_free;
+      size_based_free_lists[log2_size] = range.next_free;
     }
   }
 

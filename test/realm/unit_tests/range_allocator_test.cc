@@ -5,78 +5,108 @@
 
 using namespace Realm;
 
-TEST(RangeAllocatorTestsWithParams, SplitRangeEmpty)
+template <typename T>
+class RangeAllocatorTest : public ::testing::Test {
+protected:
+  const unsigned int SENTINEL = BasicRangeAllocator<size_t, int>::SENTINEL;
+  using RangeAllocType = T;
+  RangeAllocType range_alloc;
+};
+
+typedef testing::Types<BasicRangeAllocator<size_t, int>,
+                       SizedRangeAllocator<size_t, int, true>,
+                       SizedRangeAllocator<size_t, int, false>>
+    TestTypes;
+
+TYPED_TEST_SUITE(RangeAllocatorTest, TestTypes);
+
+TYPED_TEST(RangeAllocatorTest, DeallocateNonExistent)
 {
-  BasicRangeAllocator<size_t, int> range_alloc;
-
-  size_t offset = 0;
-  EXPECT_FALSE(range_alloc.allocate(0, 512, 16, offset));
-
-  std::vector<int> tags{2, 3};
-  std::vector<size_t> sizes{512, 256};
-  std::vector<size_t> alignment{16, 16};
-
-  EXPECT_FALSE(range_alloc.split_range(1, tags, sizes, alignment));
+  this->range_alloc.deallocate(42, /*missiok_ok=*/true);
 }
 
-TEST(RangeAllocatorTestsWithParams, SplitRangeIvalidID)
+TYPED_TEST(RangeAllocatorTest, DeallocateNonExistentFail)
 {
-  BasicRangeAllocator<size_t, int> range_alloc;
-  range_alloc.add_range(0, 1024);
-
-  size_t offset = 0;
-  EXPECT_TRUE(range_alloc.allocate(0, 512, 16, offset));
-
-  std::vector<int> tags{2, 3};
-  std::vector<size_t> sizes{512, 256};
-  std::vector<size_t> alignment{16, 16};
-
-  EXPECT_FALSE(range_alloc.split_range(1, tags, sizes, alignment));
+  // TODO(apryakhin): convert to bool return status
+  EXPECT_DEATH({ this->range_alloc.deallocate(42, /*missiok_ok=*/false); }, "");
 }
 
-TEST(RangeAllocatorTestsWithParams, SplitRangeInvalidSize)
+TYPED_TEST(RangeAllocatorTest, LookupEmptyAllocator)
 {
-  BasicRangeAllocator<size_t, int> range_alloc;
-  range_alloc.add_range(0, 1024);
-
-  size_t offset = 0;
-  EXPECT_TRUE(range_alloc.allocate(0, 512, 16, offset));
-
-  std::vector<int> tags{1, 2};
-  std::vector<size_t> sizes{512, 256};
-  std::vector<size_t> alignment{16, 16};
-
-  EXPECT_FALSE(range_alloc.split_range(0, tags, sizes, alignment));
+  size_t start = 0, size = 0;
+  EXPECT_FALSE(this->range_alloc.lookup(0, start, size));
 }
 
-TEST(RangeAllocatorTestsWithParams, SplitRangeValid)
+TYPED_TEST(RangeAllocatorTest, AddRange) { this->range_alloc.add_range(0, 1024); }
+
+TYPED_TEST(RangeAllocatorTest, AddSingleRangeEmpty)
 {
-  BasicRangeAllocator<size_t, int> range_alloc;
-  range_alloc.add_range(0, 1024);
-  EXPECT_TRUE(range_alloc.can_allocate(0, 1024, 16));
+  this->range_alloc.add_range(1024, 1023);
+}
 
+TYPED_TEST(RangeAllocatorTest, AddMultipleRanges)
+{
+  this->range_alloc.add_range(0, 1024);
+  // TODO(apryakhin): convert to bool return status
+  EXPECT_DEATH({ this->range_alloc.add_range(1025, 2048); }, "");
+}
+
+TYPED_TEST(RangeAllocatorTest, Allocate)
+{
+  const int range_tag = 42;
+  const size_t range_size = 1024;
+  const size_t range_align = 16;
   size_t offset = 0;
-  EXPECT_TRUE(range_alloc.allocate(0, 512, 16, offset));
 
-  {
-    size_t start, size;
-    EXPECT_TRUE(range_alloc.lookup(0, start, size));
-    EXPECT_EQ(start, 0);
-    EXPECT_EQ(size, 512);
-  }
+  this->range_alloc.add_range(0, range_size);
+  bool ok = this->range_alloc.allocate(range_tag, range_size, range_align, offset);
 
-  std::vector<int> tags{1, 2};
-  std::vector<size_t> sizes{256, 256};
-  std::vector<size_t> alignment{16, 48};
+  EXPECT_TRUE(ok);
+  EXPECT_EQ(offset, 0);
+}
 
-  EXPECT_TRUE(range_alloc.split_range(0, tags, sizes, alignment));
+TYPED_TEST(RangeAllocatorTest, AllocateTooLarge)
+{
+  const int range_tag = 42;
+  const size_t range_size = 1024;
+  const size_t range_align = 16;
+  size_t offset = 0;
 
-  size_t exp_start = 0;
-  for(size_t i = 0; i < tags.size(); i++) {
-    size_t start, size;
-    EXPECT_TRUE(range_alloc.lookup(tags[i], start, size));
-    EXPECT_EQ(start, exp_start);
-    EXPECT_EQ(size, sizes[i]);
-    exp_start += size;
-  }
+  this->range_alloc.add_range(0, range_size);
+  bool ok = this->range_alloc.allocate(range_tag, range_size * 2, range_align, offset);
+
+  EXPECT_FALSE(ok);
+  EXPECT_EQ(offset, 0);
+}
+
+TYPED_TEST(RangeAllocatorTest, AllocateAndLookupInvalidRange)
+{
+  const int range_tag = 42;
+  size_t offset = 0;
+  size_t start = 0, size = 0;
+
+  this->range_alloc.add_range(0, 1024);
+  bool alloc_ok = this->range_alloc.allocate(range_tag, 512, 16, offset);
+  bool lookup_ok = this->range_alloc.lookup(range_tag - 1, start, size);
+
+  EXPECT_TRUE(alloc_ok);
+  EXPECT_FALSE(lookup_ok);
+}
+
+TYPED_TEST(RangeAllocatorTest, AllocateAndLookupSingleRange)
+{
+  const int range_tag = 42;
+  const size_t range_size = 1024;
+  const size_t range_align = 16;
+  size_t offset = 0;
+  size_t start = 0, size = 0;
+
+  this->range_alloc.add_range(0, range_size);
+  bool alloc_ok = this->range_alloc.allocate(range_tag, range_size, range_align, offset);
+  bool lookup_ok = this->range_alloc.lookup(range_tag, start, size);
+
+  EXPECT_TRUE(alloc_ok);
+  EXPECT_TRUE(lookup_ok);
+  EXPECT_EQ(start, 0);
+  EXPECT_EQ(size, range_size);
 }

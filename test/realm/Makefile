@@ -22,7 +22,7 @@ override LG_RT_DIR := $(patsubst %/,%,$(LG_RT_DIR))
 
 #Flags for directing the runtime makefile what to include
 DEBUG=1                   # Include debugging symbols
-OUTPUT_LEVEL=LEVEL_INFO  # Compile time print level
+OUTPUT_LEVEL ?= LEVEL_INFO  # Compile time print level
 #ALT_MAPPERS=1		  # Compile the alternative mappers
 
 # Put the binary file name here
@@ -93,7 +93,7 @@ TESTS += task_stream
 endif
 
 # can set arguments to be passed to a test when running
-#TESTARGS_inst_chain_redistrict := -ll:csize 1
+TESTARGS_inst_chain_redistrict := -i 2
 TESTARGS_ctxswitch := -ll:io 1 -t 30 -i 10000
 TESTARGS_proc_group := -ll:cpu 4
 TESTARGS_compqueue := -ll:cpu 4 -timeout 120

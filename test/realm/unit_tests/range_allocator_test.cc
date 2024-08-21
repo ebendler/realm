@@ -695,9 +695,8 @@ TYPED_TEST_P(AllocatorSplitParamTest, Base)
       }
     }
 
-    // TODO: FIX
-    // size_t free_size = get_total_free_size();
-    // EXPECT_EQ(test_case.free_size, free_size);
+    auto stats = range_alloc.get_allocator_stats();
+    EXPECT_EQ(test_case.free_size, stats.total_free_size);
 
     if(!test_case.exp_ranges.empty()) {
       // EXPECT_EQ(range_alloc.ranges.size(), test_case.exp_ranges.size());

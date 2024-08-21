@@ -214,6 +214,13 @@ namespace Realm {
     std::vector<off_t> offsets;
   };
 
+  struct MemoryStats {
+    size_t total_size;
+    size_t total_free_size;
+    size_t total_used_size;
+    size_t largest_free_blocksize;
+  };
+
   // manages a basic free list of ranges (using range type RT) and allocated
   //  ranges, which are tagged (tag type TT)
   // NOT thread-safe - must be protected from outside
@@ -259,7 +266,7 @@ namespace Realm {
                        std::vector<RT> &allocs_first);
 
     // TODO(apryakhin@): consider ifdefing for debug builds only
-    void dump_allocator_status();
+    virtual MemoryStats get_allocator_stats();
     bool free_list_has_cycle();
     bool has_invalid_ranges();
 
@@ -298,6 +305,8 @@ namespace Realm {
     void add_to_free_list(unsigned index, Range &range);
     void remove_from_free_list(unsigned index, Range &range);
     void grow_hole(unsigned index, Range &range, RT bound, bool before);
+
+    virtual MemoryStats get_allocator_stats();
 
     static unsigned floor_log2(uint64_t size);
 

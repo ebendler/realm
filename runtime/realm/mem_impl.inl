@@ -351,7 +351,6 @@ namespace Realm {
     size_t largest_free_blocksize = 0;
     size_t total_free_size = 0;
     unsigned free_idx = ranges[SENTINEL].next_free;
-    RT prev_free_last = 0;
     while(free_idx != SENTINEL) {
       unsigned i = free_idx;
       size_t size = ranges[i].last - ranges[i].first;
@@ -360,7 +359,6 @@ namespace Realm {
       if(largest_free_blocksize < size) {
         largest_free_blocksize = size;
       }
-      prev_free_last = ranges[free_idx].last;
       free_idx = ranges[free_idx].next_free;
     }
 
@@ -665,12 +663,10 @@ namespace Realm {
     const auto& ranges = this->ranges;
 
     unsigned range_idx = ranges[SENTINEL].next;
-    RT prev_used_last = 0;
     while(range_idx != SENTINEL) {
       unsigned i = range_idx;
       size_t size = ranges[i].last - ranges[i].first;
       total_size += size;
-      prev_used_last = ranges[range_idx].last;
       range_idx = ranges[range_idx].next;
     }
 

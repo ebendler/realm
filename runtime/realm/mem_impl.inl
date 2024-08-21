@@ -259,7 +259,6 @@ namespace Realm {
     bool has_cycle = free_list_has_cycle();
     bool invalid = has_invalid_ranges();
     if(has_cycle || invalid) {
-      dump_allocator_status();
       assert(has_cycle == false);
       assert(invalid == false);
     }
@@ -318,8 +317,9 @@ namespace Realm {
 
   // TODO(apryakhin@): Consider returning an info struct.
   template <typename RT, typename TT>
-  inline void BasicRangeAllocator<RT, TT>::dump_allocator_status()
+  inline MemoryStats BasicRangeAllocator<RT, TT>::get_allocator_stats()
   {
+    MemoryStats stats;
     size_t total_size = 0;
     unsigned range_idx = ranges[SENTINEL].next;
     RT prev_used_last = 0;
@@ -329,14 +329,9 @@ namespace Realm {
       total_size += size;
       prev_used_last = ranges[range_idx].last;
       range_idx = ranges[range_idx].next;
-
-      std::cerr << "ordered_range_idx:" << i << " first:" << ranges[i].first
-                << " last:" << ranges[i].last << " size:" << size
-                << " gap:" << (ranges[i].first - prev_used_last)
-                << " prev_free:" << ranges[i].prev_free
-                << " next_free:" << ranges[i].next_free << " prev:" << ranges[i].prev
-                << " next:" << ranges[i].next << std::endl;
     }
+
+    stats.total_size = total_size;
 
     size_t largest_used_blocksize = 0;
     size_t total_used_size = 0;
@@ -349,16 +344,10 @@ namespace Realm {
         largest_used_blocksize = size;
       }
       total_used_size += size;
-      std::cerr << "allocated_range_idx:" << i << " first:" << ranges[i].first
-                << " last:" << ranges[i].last << " prev:" << ranges[i].prev
-                << " next:" << ranges[i].next << " prev_free:" << ranges[i].prev_free
-                << " next_free:" << ranges[i].next_free << " range_size:" << size
-                << " total:" << total_used_size << std::endl;
     }
 
-    // size_t num_adjacent_free_blocks = 0;
-    size_t max_size_after_defrag = 0;
-    size_t current_defrag_size = 0;
+    stats.total_used_size = total_used_size;
+
     size_t largest_free_blocksize = 0;
     size_t total_free_size = 0;
     unsigned free_idx = ranges[SENTINEL].next_free;
@@ -367,41 +356,19 @@ namespace Realm {
       unsigned i = free_idx;
       size_t size = ranges[i].last - ranges[i].first;
 
-      if(prev_free_last == ranges[i].first) {
-        // num_adjacent_free_blocks++;
-        current_defrag_size += size;
-      } else {
-        if(current_defrag_size > max_size_after_defrag) {
-          max_size_after_defrag = current_defrag_size;
-        }
-        current_defrag_size = size;
-      }
-
       total_free_size += size;
       if(largest_free_blocksize < size) {
         largest_free_blocksize = size;
       }
       prev_free_last = ranges[free_idx].last;
       free_idx = ranges[free_idx].next_free;
-
-      std::cerr << "free_range_idx:" << i << " first:" << ranges[i].first
-                << " last:" << ranges[i].last << " prev:" << ranges[i].prev
-                << " next:" << ranges[i].next << " size:" << size
-                << " gap:" << (ranges[i].first - prev_free_last) << std::endl;
     }
 
-    if(current_defrag_size > max_size_after_defrag) {
-      max_size_after_defrag = current_defrag_size;
-    }
-
-    std::cerr << "%%Stats%% total_size:" << total_size
-              << " total_used_size:" << total_used_size
-              << " largest_used_blocksize:" << largest_used_blocksize
-              << " total_free_size:" << total_free_size
-              << " large_free_blocksize:" << largest_free_blocksize
-              << " max_defrag_block:" << max_size_after_defrag << std::endl;
+    stats.total_free_size = total_free_size;
+    stats.largest_free_blocksize = largest_free_blocksize;
 
     assert(total_size == total_used_size + total_free_size);
+    return stats;
   }
 
   template <typename RT, typename TT>
@@ -540,10 +507,6 @@ namespace Realm {
       // no, go to next one
       idx = r->next_free;
     }
-
-#ifdef DEBUG_REALM
-    dump_allocator_status();
-#endif
 
     // allocation failed
     return false;
@@ -690,6 +653,67 @@ namespace Realm {
   {
     BasicRangeAllocator<RT,TT>::swap(swap_with);
     size_based_free_lists.swap(swap_with.size_based_free_lists);
+  }
+
+  template <typename RT, typename TT, bool SORTED>
+  inline MemoryStats SizedRangeAllocator<RT,TT,SORTED>::get_allocator_stats()
+  {
+    MemoryStats stats;
+    size_t total_size = 0;
+
+    const auto &allocated = this->allocated;
+    const auto& ranges = this->ranges;
+
+    unsigned range_idx = ranges[SENTINEL].next;
+    RT prev_used_last = 0;
+    while(range_idx != SENTINEL) {
+      unsigned i = range_idx;
+      size_t size = ranges[i].last - ranges[i].first;
+      total_size += size;
+      prev_used_last = ranges[range_idx].last;
+      range_idx = ranges[range_idx].next;
+    }
+
+    stats.total_size = total_size;
+
+    size_t largest_used_blocksize = 0;
+    size_t total_used_size = 0;
+    for(auto alloc_it = allocated.begin(); alloc_it != allocated.end(); ++alloc_it) {
+      if(alloc_it->second == SENTINEL)
+        continue;
+      unsigned i = alloc_it->second;
+      size_t size = ranges[i].last - ranges[i].first;
+      if(largest_used_blocksize < size) {
+        largest_used_blocksize = size;
+      }
+      total_used_size += size;
+    }
+
+    stats.total_used_size = total_used_size;
+
+    size_t largest_free_blocksize = 0;
+    size_t total_free_size = 0;
+
+    for(unsigned idx = 1; idx < size_based_free_lists.size(); idx++) {
+      unsigned index = size_based_free_lists[idx];
+      while(index != SENTINEL) {
+        Range *r = &this->ranges[index];
+        size_t size = r->last - r->first;
+        total_free_size += size;
+        if(largest_free_blocksize < size) {
+          largest_free_blocksize = size;
+        }
+        if(index == r->next_free)
+          break;
+        index = r->next_free;
+      }
+    }
+
+    stats.total_free_size = total_free_size;
+    stats.largest_free_blocksize = stats.largest_free_blocksize;
+
+    assert(total_size == total_used_size + total_free_size);
+    return stats;
   }
 
   template <typename RT, typename TT, bool SORTED>

@@ -322,12 +322,10 @@ namespace Realm {
     MemoryStats stats;
     size_t total_size = 0;
     unsigned range_idx = ranges[SENTINEL].next;
-    RT prev_used_last = 0;
     while(range_idx != SENTINEL) {
       unsigned i = range_idx;
       size_t size = ranges[i].last - ranges[i].first;
       total_size += size;
-      prev_used_last = ranges[range_idx].last;
       range_idx = ranges[range_idx].next;
     }
 

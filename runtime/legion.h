@@ -1355,6 +1355,13 @@ namespace Legion {
       static inline Future from_value(Runtime *rt, const T &value);
       template<typename T>
       static inline Future from_value(const T &value);
+      /**
+       * If you are creating a future from a Domain then you need to
+       * use this method to construct the future in a way to ensure
+       * that the Domain maintains the right lifetime.
+       */
+      static Future from_domain(const Domain &d, bool take_ownership,
+          const char *provenance = NULL, bool shard_local = false);
 
       /**
        * Generates a future from an untyped pointer.  No
@@ -2496,15 +2503,22 @@ namespace Legion {
      */
     struct PoolBounds {
     public:
-      PoolBounds(UnboundPoolScope s) 
-        : size(0), alignment(0), scope(s) { }
+      PoolBounds(UnboundPoolScope u, size_t s = 0)
+        : size(s), alignment(0), scope(u) { }
       PoolBounds(size_t s = 0, uint32_t a = 16)
         : size(s), alignment(a), scope(LEGION_BOUNDED_POOL) { }
       PoolBounds(const PoolBounds&) = default;
       PoolBounds(PoolBounds&&) = default;
       PoolBounds& operator=(const PoolBounds&) = default;
       PoolBounds& operator=(PoolBounds&&) = default;
+      inline bool is_bounded(void) const
+        { return (scope == LEGION_BOUNDED_POOL); }
     public:
+      // If this is a bounded pool then size is the number of bytes in the pool 
+      // If it is an unbounded pool then size is how many free bytes the pool 
+      // is allowed to keep locally from freed instances without returning
+      // them back to the Realm allocator, zero means that all freed instances
+      // are immediately sent back to the Realm allocator
       size_t size; // upper bound of the pool in bytes
       uint32_t alignment; // maximum alignment supported
       UnboundPoolScope scope; // scope for unbound pools
@@ -3737,6 +3751,10 @@ namespace Legion {
       inline DeferredValue<T>& operator=(T value);
     public:
       inline void finalize(Context ctx) const;
+    public:
+      typedef T value_type;
+      typedef T& reference;
+      typedef const T& const_reference;
     protected:
       friend class UntypedDeferredValue;
       DeferredValue(void);
@@ -3763,6 +3781,10 @@ namespace Legion {
       inline void reduce(typename REDOP::RHS val) const;
       __CUDA_HD__
       inline void operator<<=(typename REDOP::RHS val) const;
+    public:
+      typedef typename REDOP::RHS value_type;
+      typedef typename REDOP::RHS& reference;
+      typedef const typename REDOP::RHS& const_reference;
     };
 
     /**
@@ -3790,7 +3812,7 @@ namespace Legion {
       inline operator DeferredReduction<REDOP,EXCLUSIVE>(void) const;
     public:
       void finalize(Context ctx) const;
-      Realm::RegionInstance get_instance() const;
+      Realm::RegionInstance get_instance(void) const;
     private:
       template<PrivilegeMode,typename,int,typename,typename,bool>
       friend class FieldAccessor;
@@ -3873,10 +3895,10 @@ namespace Legion {
                      const T *initial_value = NULL,
                      size_t alignment = std::alignment_of<T>());
     protected:
-      Memory get_memory_from_kind(Memory::Kind kind);
-      void initialize_layout(size_t alignment, bool fortran_order_dims);
-      void initialize(Memory memory,
-                      DomainT<DIM,COORD_T> bounds,
+      inline Memory get_memory_from_kind(Memory::Kind kind);
+      inline void initialize_layout(size_t alignment, bool fortran_order_dims);
+      inline void initialize(Memory memory,
+                             DomainT<DIM,COORD_T> bounds,
                       const T *initial_value);
     public:
       __CUDA_HD__
@@ -3892,18 +3914,23 @@ namespace Legion {
       __CUDA_HD__
       inline T& operator[](const Point<DIM,COORD_T> &p) const;
     public:
-      void destroy();
-      Realm::RegionInstance get_instance() const;
+      inline void destroy(Realm::Event precondition = Realm::Event::NO_EVENT);
+      __CUDA_HD__
+      inline Realm::RegionInstance get_instance(void) const;
+      __CUDA_HD__
+      inline Rect<DIM,COORD_T> get_bounds(void) const;
+    public:
+      typedef T value_type;
+      typedef T& reference;
+      typedef const T& const_reference;
     protected:
       friend class OutputRegion;
       friend class UntypedDeferredBuffer<COORD_T>;
       Realm::RegionInstance instance;
       Realm::AffineAccessor<T,DIM,COORD_T> accessor;
       std::array<DimensionKind,DIM> ordering;
+      Rect<DIM,COORD_T> bounds;
       size_t alignment;
-#ifdef LEGION_BOUNDS_CHECKS
-      DomainT<DIM,COORD_T> bounds;
-#endif
     };
 
     /**
@@ -3951,7 +3978,7 @@ namespace Legion {
       template<typename T, int DIM, bool BC>
       inline operator DeferredBuffer<T,DIM,COORD_T,BC>(void) const;
     public:
-      inline void destroy(void);
+      inline void destroy(Realm::Event precondition = Realm::Event::NO_EVENT);
       inline Realm::RegionInstance get_instance(void) const { return instance; }
     private:
       template<PrivilegeMode,typename,int,typename,typename,bool>
@@ -5082,11 +5109,15 @@ namespace Legion {
        * @param type_tag optional type tag to use for the index space
        * @param provenance an optional string describing the provenance 
        *                   information for this index space
+       * @param take_ownership whether Legion should take ownership of the
+       *                       sparsity map or not, if not then Legion will
+       *                       add its own reference
        * @return the handle for the new index space
        */
       IndexSpace create_index_space(Context ctx, const Domain &bounds,
                                     TypeTag type_tag = 0,
-                                    const char *provenance = NULL);
+                                    const char *provenance = NULL,
+                                    const bool take_ownership = false);
       // Template version
       template<int DIM, typename COORD_T>
       IndexSpaceT<DIM,COORD_T> create_index_space(Context ctx,
@@ -5095,7 +5126,8 @@ namespace Legion {
       template<int DIM, typename COORD_T>
       IndexSpaceT<DIM,COORD_T> create_index_space(Context ctx,
                                     const DomainT<DIM,COORD_T> &bounds,
-                                    const char *provenance = NULL);
+                                    const char *provenance = NULL,
+                                    const bool take_ownership = false);
       ///@}
       ///@{
       /**
@@ -5791,6 +5823,8 @@ namespace Legion {
        * @param color the color of the result of the partition
        * @param provenance an optional string describing the provenance 
        *                   information for this operation
+       * @param take_ownership whether Legion should take ownership of the
+       *                       domains or not
        * @return a new index partition of the parent index space
        */
       IndexPartition create_partition_by_domain(Context ctx,
@@ -5800,7 +5834,8 @@ namespace Legion {
                                   bool perform_intersections = true,
                                   PartitionKind part_kind = LEGION_COMPUTE_KIND,
                                   Color color = LEGION_AUTO_GENERATE_ID,
-                                  const char *provenance = NULL);
+                                  const char *provenance = NULL,
+                                  bool take_ownership = false);
       template<int DIM, typename COORD_T, int COLOR_DIM, typename COLOR_COORD_T>
       IndexPartitionT<DIM,COORD_T> create_partition_by_domain(Context ctx,
                                   IndexSpaceT<DIM,COORD_T> parent,
@@ -5812,7 +5847,8 @@ namespace Legion {
                                   bool perform_intersections = true,
                                   PartitionKind part_kind = LEGION_COMPUTE_KIND,
                                   Color color = LEGION_AUTO_GENERATE_ID,
-                                  const char *provenance = NULL);
+                                  const char *provenance = NULL,
+                                  bool take_ownership = false);
       /**
        * This is an alternate version of create_partition_by_domain that
        * instead takes a future map for the list of domains to be used.
@@ -8455,8 +8491,22 @@ namespace Legion {
        * that you can create an instance of this size as the memory 
        * may be fragmented and the largest hole might be much smaller
        * than the size returned by this function.
+       * @param ctx enclosing task context
+       * @param target the memory being queried
+       * @return the instantaneous remaining size in the target memory
        */
       size_t query_available_memory(Context ctx, Memory target);
+
+      /**
+       * Inform the runtime that a task is done performing memory
+       * allocations in a given memory ahead of the completion of
+       * the task. This will allow the runtime to free up the memory
+       * pool for additional allocations earlier than waiting for
+       * the completion of the task. 
+       * @param ctx enclosing task context
+       * @param memory the memory in which allocations are finished
+       */
+      void release_memory_pool(Context ctx, Memory target);
 
       /**
        * Indicate that data in a particular physical region
@@ -9447,6 +9497,9 @@ namespace Legion {
        *              In general these are tiny and not worth profiling,
        *              but you might still want to see them. They are not
        *              recorded by default.
+       * -lg:prof_no_critical_paths Disable logging for performing critial
+       *              path analysis as it is can greatly increase the size
+       *              of the Legion Prof log files
        *
        * @param argc the number of input arguments
        * @param argv pointer to an array of string arguments of size argc
@@ -10107,6 +10160,24 @@ namespace Legion {
       static void legion_task_postamble(Context ctx,
                                         FutureFunctor *callback_functor,
                                         bool owned = false);
+
+      /**
+       * This is a special variant of Legion task postamble for returning
+       * a Domain as a value from a task. Clients can specify whether Legion
+       * should take ownership of the sparsity map of the domain or not. If
+       * not, then Legion will add its own reference to keep the sparsity
+       * map for the domain alive if necessary.
+       * @param ctx the context for the task
+       * @param domain the domain to return as a reuslt
+       * @param take_ownership whether Legion takes ownership of the domain
+       * @param metadataptr a pointer to host memory that contains metadata
+       *              for the future. The runtime will always make a copy
+       *              of this data if it is not NULL.
+       * @param metadatasize the size of the metadata buffer if non-NULL
+       */
+      static void legion_task_postamble(Context ctx,
+          const Domain &domain, bool take_ownership,
+          const void *metadataptr = NULL, size_t metadatasize = 0);
     public:
       // ------------------ Deprecated task registration -----------------------
       /**
@@ -10315,7 +10386,8 @@ namespace Legion {
       friend class UntypedDeferredBuffer;
       Realm::RegionInstance create_task_local_instance(Memory memory,
                                 Realm::InstanceLayoutGeneric *layout);
-      void destroy_task_local_instance(Realm::RegionInstance instance);
+      void destroy_task_local_instance(Realm::RegionInstance instance,
+                                Realm::Event precondition);
     public:
       // This method is hidden down here and not publicly documented because
       // users shouldn't really need it for anything, however there are some

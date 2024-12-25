@@ -108,6 +108,12 @@ namespace Realm {
     virtual void release_storage_deferrable(RegionInstanceImpl *inst,
 					    Event precondition);
 
+    // reuse storage associated with an instance
+    virtual AllocationResult
+    reuse_storage_deferrable(RegionInstanceImpl *old_inst,
+                             std::vector<RegionInstanceImpl *> &new_insts,
+                             Event precondition);
+
     // should only be called by RegionInstance::DeferredCreate or from
     //  allocate_storage_deferrable
     virtual AllocationResult allocate_storage_immediate(RegionInstanceImpl *inst,
@@ -335,6 +341,11 @@ namespace Realm {
       virtual void release_storage_deferrable(RegionInstanceImpl *inst,
 					      Event precondition);
 
+      virtual AllocationResult
+      reuse_storage_deferrable(RegionInstanceImpl *old_inst,
+                               std::vector<RegionInstanceImpl *> &new_insts,
+                               Event precondition);
+
       virtual AllocationResult allocate_storage_immediate(RegionInstanceImpl *inst,
 							  bool need_alloc_result,
 							  bool poisoned,
@@ -343,9 +354,6 @@ namespace Realm {
       virtual void release_storage_immediate(RegionInstanceImpl *inst,
 					     bool poisoned,
 					     TimeLimit work_until);
-
-      virtual void reuse_allocated_range(RegionInstanceImpl *old_inst,
-                                         std::vector<RegionInstanceImpl *> &new_insts);
 
     protected:
       // for internal use by allocation routines - must be called with
@@ -384,14 +392,16 @@ namespace Realm {
       };
       struct PendingRelease {
 	RegionInstanceImpl *inst;
-	bool is_ready;
-	unsigned seqid;
+        std::vector<RegionInstanceImpl *> redistrict_insts;
+        bool is_ready;
+        unsigned seqid;
 
-	PendingRelease(RegionInstanceImpl *_inst, bool _ready,
-		       unsigned _seqid);
+        PendingRelease(RegionInstanceImpl *_inst, bool _ready, unsigned _seqid);
+        void record_redistrict(const std::vector<RegionInstanceImpl *> &insts);
+        void release(RangeAllocator &allocator, bool missing_ok = false);
       };
-      std::vector<PendingAlloc> pending_allocs;
-      std::vector<PendingRelease> pending_releases;
+      std::deque<PendingAlloc> pending_allocs;
+      std::deque<PendingRelease> pending_releases;
       ProfilingGauges::AbsoluteGauge<size_t> usage, peak_usage, peak_footprint;
     };
 
@@ -400,8 +410,8 @@ namespace Realm {
       static const size_t ALIGNMENT = 256;
 
       LocalCPUMemory(Memory _me, size_t _size, int numa_node, Memory::Kind _lowlevel_kind,
-		     void *prealloc_base = 0,
-		     NetworkSegment *_segment = 0);
+                     void *prealloc_base = 0, NetworkSegment *_segment = 0,
+                     bool enable_ipc = true);
 
       virtual ~LocalCPUMemory(void);
 
@@ -495,6 +505,11 @@ namespace Realm {
 
       virtual void release_storage_deferrable(RegionInstanceImpl *inst,
 					      Event precondition);
+
+      virtual AllocationResult
+      reuse_storage_deferrable(RegionInstanceImpl *old_inst,
+                               std::vector<RegionInstanceImpl *> &new_insts,
+                               Event precondition);
 
       virtual AllocationResult allocate_storage_immediate(RegionInstanceImpl *inst,
 							  bool need_alloc_result,

@@ -50,9 +50,6 @@ namespace Legion {
       static void serialize_null(Serializer &rez);
       static Provenance* deserialize(Deserializer &derez);
     public:
-      inline const char* human_str(void) const { return human.data(); }
-      inline const char* machine_str(void) const { return machine.data(); }
-    public:
       const ProvenanceID pid;
     public:
       std::string full;
@@ -356,9 +353,11 @@ namespace Legion {
     public:
       struct OpProfilingResponse : public ProfilingResponseBase {
       public:
-        OpProfilingResponse(ProfilingResponseHandler *h, 
-                            unsigned s, unsigned d, bool f, bool t = false)
-          : ProfilingResponseBase(h), src(s), dst(d), fill(f), task(t) { }
+        template<typename OP>
+        OpProfilingResponse(OP *op, unsigned s, unsigned d,
+                            bool f, bool t = false)
+          : ProfilingResponseBase(op, op->get_unique_op_id()), 
+            src(s), dst(d), fill(f), task(t) { }
       public:
         unsigned src, dst;
         bool fill;
@@ -521,8 +520,6 @@ namespace Legion {
                        const FieldMask &mask, unsigned parent_req_index);
     public:
       virtual void report_uninitialized_usage(const unsigned index,
-                                              LogicalRegion handle,
-                                              const RegionUsage usage,
                                               const char *field_string,
                                               RtUserEvent reported);
       // Get a reference to our data structure for tracking acquired instances
@@ -539,9 +536,9 @@ namespace Legion {
                                Realm::ProfilingRequestSet &requests, 
                                bool fill, unsigned count = 1);
       // Report a profiling result for this operation
-      virtual void handle_profiling_response(const ProfilingResponseBase *base,
-                                        const Realm::ProfilingResponse &result,
-                                        const void *orig, size_t orig_length);
+      virtual bool handle_profiling_response(
+          const Realm::ProfilingResponse &response, const void *orig,
+          size_t orig_length, LgEvent &fevent, bool &failed_alloc);
       virtual void handle_profiling_update(int count);
       // To notify  
       ApEvent get_completion_event(void);
@@ -641,6 +638,7 @@ namespace Legion {
     public:
       // Support for operations that compute futures
       void compute_task_tree_coordinates(TaskTreeCoordinates &coordinates);
+      virtual ContextCoordinate get_task_tree_coordinate(void) const;
     public: // Support for mapping operations
       static void prepare_for_mapping(PhysicalManager *manager,
                                       MappingInstance &instance);
@@ -1278,9 +1276,9 @@ namespace Legion {
       virtual int add_copy_profiling_request(const PhysicalTraceInfo &info,
                                Realm::ProfilingRequestSet &requests,
                                bool fill, unsigned count = 1);
-      virtual void handle_profiling_response(const ProfilingResponseBase *base,
-                                      const Realm::ProfilingResponse &response,
-                                      const void *orig, size_t orig_length);
+      virtual bool handle_profiling_response(
+          const Realm::ProfilingResponse &response, const void *orig,
+          size_t orig_length, LgEvent &fevent, bool &failed_alloc);
       virtual void handle_profiling_update(int count);
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
@@ -1298,13 +1296,7 @@ namespace Legion {
     protected:
       MapperManager *mapper;
     protected:
-      struct MapProfilingInfo : public Mapping::Mapper::InlineProfilingInfo {
-      public:
-        void *buffer;
-        size_t buffer_size;
-      };
       std::vector<ProfilingMeasurementID>           profiling_requests;
-      std::vector<MapProfilingInfo>                     profiling_info;
       RtUserEvent                                   profiling_reported;
       int                                           profiling_priority;
       int                                           copy_fill_priority;
@@ -1506,9 +1498,9 @@ namespace Legion {
       virtual int add_copy_profiling_request(const PhysicalTraceInfo &info,
                                Realm::ProfilingRequestSet &requests,
                                bool fill, unsigned count = 1);
-      virtual void handle_profiling_response(const ProfilingResponseBase *base,
-                                      const Realm::ProfilingResponse &response,
-                                      const void *orig, size_t orig_length);
+      virtual bool handle_profiling_response(
+          const Realm::ProfilingResponse &response, const void *orig,
+          size_t orig_length, LgEvent &fevent, bool &failed_alloc);
       virtual void handle_profiling_update(int count);
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
@@ -1593,13 +1585,7 @@ namespace Legion {
       std::map<PhysicalManager*,unsigned> acquired_instances;
       std::set<RtEvent> map_applied_conditions;
     protected:
-      struct CopyProfilingInfo : public Mapping::Mapper::CopyProfilingInfo {
-      public:
-        void *buffer;
-        size_t buffer_size;
-      };
       std::vector<ProfilingMeasurementID>         profiling_requests;
-      std::vector<CopyProfilingInfo>                  profiling_info;
       RtUserEvent                                 profiling_reported;
       int                                         profiling_priority;
       int                                         copy_fill_priority;
@@ -1728,6 +1714,8 @@ namespace Legion {
           std::vector<IndirectRecord> &records, const bool sources);
       virtual unsigned find_parent_index(unsigned idx)
         { return owner->find_parent_index(idx); }
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual size_t get_collective_points(void) const;
       virtual bool find_shard_participants(std::vector<ShardID> &shards);
@@ -2175,9 +2163,9 @@ namespace Legion {
       virtual int add_copy_profiling_request(const PhysicalTraceInfo &info,
                                Realm::ProfilingRequestSet &requests,
                                bool fill, unsigned count = 1);
-      virtual void handle_profiling_response(const ProfilingResponseBase *base,
-                                      const Realm::ProfilingResponse &response,
-                                      const void *orig, size_t orig_length);
+      virtual bool handle_profiling_response(
+          const Realm::ProfilingResponse &response, const void *orig,
+          size_t orig_length, LgEvent &fevent, bool &failed_alloc);
       virtual void handle_profiling_update(int count);
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
@@ -2189,13 +2177,7 @@ namespace Legion {
     protected:
       MapperManager *mapper;
     protected:
-      struct CloseProfilingInfo : public Mapping::Mapper::CloseProfilingInfo {
-      public:
-        void *buffer;
-        size_t buffer_size;
-      };
       std::vector<ProfilingMeasurementID>          profiling_requests;
-      std::vector<CloseProfilingInfo>                  profiling_info;
       RtUserEvent                                  profiling_reported;
       int                                          profiling_priority;
       std::atomic<int>                 outstanding_profiling_requests;
@@ -2367,9 +2349,9 @@ namespace Legion {
       virtual int add_copy_profiling_request(const PhysicalTraceInfo &info,
                                Realm::ProfilingRequestSet &requests,
                                bool fill, unsigned count = 1);
-      virtual void handle_profiling_response(const ProfilingResponseBase *base,
-                                      const Realm::ProfilingResponse &response,
-                                      const void *orig, size_t orig_length);
+      virtual bool handle_profiling_response(
+          const Realm::ProfilingResponse &response, const void *orig,
+          size_t orig_length, LgEvent &fevent, bool &failed_alloc);
       virtual void handle_profiling_update(int count);
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
@@ -2383,14 +2365,7 @@ namespace Legion {
     protected:
       MapperManager*    mapper;
     protected:
-      struct AcquireProfilingInfo : 
-        public Mapping::Mapper::AcquireProfilingInfo {
-      public:
-        void *buffer;
-        size_t buffer_size;
-      };
       std::vector<ProfilingMeasurementID>            profiling_requests;
-      std::vector<AcquireProfilingInfo>                  profiling_info;
       RtUserEvent                                    profiling_reported;
       int                                            profiling_priority;
       int                                            copy_fill_priority;
@@ -2483,9 +2458,9 @@ namespace Legion {
       virtual int add_copy_profiling_request(const PhysicalTraceInfo &info,
                                Realm::ProfilingRequestSet &requests,
                                bool fill, unsigned count = 1);
-      virtual void handle_profiling_response(const ProfilingResponseBase *base,
-                                      const Realm::ProfilingResponse &response,
-                                      const void *orig, size_t orig_length);
+      virtual bool handle_profiling_response(
+          const Realm::ProfilingResponse &response, const void *orig,
+          size_t orig_length, LgEvent &fevent, bool &failed_alloc);
       virtual void handle_profiling_update(int count);
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
@@ -2878,7 +2853,8 @@ namespace Legion {
       static void handle_map_task(const void *args);
     protected:
       void distribute_tasks(void);
-      void compute_launch_space(const MustEpochLauncher &launcher);
+      IndexSpace compute_launch_space(const MustEpochLauncher &launcher,
+          Provenance *provenance);
     public:
       static void handle_distribute_task(const void *args);
       static void handle_launch_task(const void *args);
@@ -3516,9 +3492,9 @@ namespace Legion {
                                Realm::ProfilingRequestSet &requests,
                                bool fill, unsigned count = 1);
       // Report a profiling result for this operation
-      virtual void handle_profiling_response(const ProfilingResponseBase *base,
-                                        const Realm::ProfilingResponse &result,
-                                        const void *orig, size_t orig_length);
+      virtual bool handle_profiling_response(
+          const Realm::ProfilingResponse &response, const void *orig,
+          size_t orig_length, LgEvent &fevent, bool &failed_alloc);
       virtual void handle_profiling_update(int count);
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
@@ -3549,20 +3525,13 @@ namespace Legion {
       std::vector<FieldDataDescriptor>  instances;
       std::vector<ApEvent>              index_preconditions;
       std::vector<PointDepPartOp*>      points; 
-      std::atomic<unsigned>             points_completed;
+      std::atomic<int>                  points_completed;
       unsigned                          points_committed;
       bool                              commit_request;
       std::set<RtEvent>                 commit_preconditions;
       ApUserEvent                       intermediate_index_event;
     protected:
-      struct PartitionProfilingInfo :
-        public Mapping::Mapper::PartitionProfilingInfo {
-      public:
-        void *buffer;
-        size_t buffer_size;
-      };
       std::vector<ProfilingMeasurementID>              profiling_requests;
-      std::vector<PartitionProfilingInfo>                  profiling_info;
       RtUserEvent                                      profiling_reported;
       int                                              profiling_priority;
       int                                              copy_fill_priority;
@@ -3600,6 +3569,8 @@ namespace Legion {
       virtual PartitionKind get_partition_kind(void) const;
       virtual unsigned find_parent_index(unsigned idx)
         { return owner->find_parent_index(idx); }
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual size_t get_collective_points(void) const;
       virtual bool find_shard_participants(std::vector<ShardID> &shards);
@@ -3793,6 +3764,8 @@ namespace Legion {
       virtual FillView* get_fill_view(void) const;
       virtual unsigned find_parent_index(unsigned idx)
         { return owner->find_parent_index(idx); }
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual size_t get_collective_points(void) const;
       virtual bool find_shard_participants(std::vector<ShardID> &shards);
@@ -3905,12 +3878,6 @@ namespace Legion {
       void check_privilege(void);
       void compute_parent_index(void);
       void log_requirement(void);
-      ApEvent create_realm_instance(IndexSpaceNode *node,
-                                    const PointerConstraint &pointer,
-                                    const std::vector<FieldID> &set,
-                                    const std::vector<size_t> &sizes,
-                                    const Realm::ProfilingRequestSet &requests,
-                                    PhysicalInstance &instance) const;
       void attach_ready(bool point);
     public:
       ExternalResource resource;
@@ -4026,6 +3993,8 @@ namespace Legion {
       virtual unsigned find_parent_index(unsigned idx)
         { return owner->find_parent_index(idx); }
       virtual bool is_point_attach(void) const { return true; }
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     protected:
       IndexAttachOp *owner;
       DomainPoint index_point;
@@ -4187,6 +4156,8 @@ namespace Legion {
       virtual unsigned find_parent_index(unsigned idx)
         { return owner->find_parent_index(idx); }
       virtual bool is_point_detach(void) const { return true; }
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     protected:
       IndexDetachOp *owner;
       DomainPoint index_point;
@@ -4375,8 +4346,6 @@ namespace Legion {
                                Realm::ProfilingRequestSet &requests,
                                bool fill, unsigned count = 1);
       virtual void report_uninitialized_usage(const unsigned index,
-                                              LogicalRegion handle,
-                                              const RegionUsage usage,
                                               const char *field_string,
                                               RtUserEvent reported);
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
@@ -4471,6 +4440,8 @@ namespace Legion {
       virtual const Task* get_parent_task(void) const;
       virtual const std::string_view& get_provenance_string(
           bool human = true) const;
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual const char* get_logging_name(void) const;
       virtual OpKind get_operation_kind(void) const;
@@ -4599,6 +4570,8 @@ namespace Legion {
       virtual const Task* get_parent_task(void) const;
       virtual const std::string_view& get_provenance_string(
           bool human = true) const;
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual const char* get_logging_name(void) const;
       virtual OpKind get_operation_kind(void) const;
@@ -4655,6 +4628,8 @@ namespace Legion {
       virtual const std::string_view& get_provenance_string(
           bool human = true) const;
       virtual PartitionKind get_partition_kind(void) const;
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual const char* get_logging_name(void) const;
       virtual OpKind get_operation_kind(void) const;
@@ -4687,12 +4662,16 @@ namespace Legion {
       virtual uint64_t get_context_index(void) const;
       virtual void set_context_index(uint64_t index);
       virtual int get_depth(void) const;
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual const char* get_logging_name(void) const;
       virtual OpKind get_operation_kind(void) const;
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
       virtual void unpack(Deserializer &derez);
+    protected:
+      DomainPoint index_point;
     };
 
     /**
@@ -4713,6 +4692,8 @@ namespace Legion {
       virtual uint64_t get_context_index(void) const;
       virtual void set_context_index(uint64_t index);
       virtual int get_depth(void) const;
+      virtual ContextCoordinate get_task_tree_coordinate(void) const
+        { return ContextCoordinate(context_index, index_point); }
     public:
       virtual const char* get_logging_name(void) const;
       virtual OpKind get_operation_kind(void) const;
@@ -4723,6 +4704,8 @@ namespace Legion {
       virtual void pack_remote_operation(Serializer &rez, AddressSpaceID target,
                                          std::set<RtEvent> &applied) const;
       virtual void unpack(Deserializer &derez);
+    protected:
+      DomainPoint index_point;
     };
 
     /**

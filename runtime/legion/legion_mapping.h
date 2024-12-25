@@ -67,6 +67,7 @@ namespace Legion {
       FieldSpace get_field_space(void) const;
       RegionTreeID get_tree_id(void) const;
       LayoutConstraintID get_layout_id(void) const;
+      PointerConstraint get_pointer_constraint(void) const;
     public:
       // See if our instance still exists or if it has been
       // garbage collected, this is just a sample, using the
@@ -497,19 +498,21 @@ namespace Legion {
       public:
         TaskSlice(void) : domain_is(IndexSpace::NO_SPACE), 
           domain(Domain::NO_DOMAIN), proc(Processor::NO_PROC), 
-          recurse(false), stealable(false) { }
-        TaskSlice(const Domain &d, Processor p, bool r, bool s)
+          recurse(false), stealable(false), take_ownership(false) { }
+        TaskSlice(const Domain &d, Processor p, bool r, bool s, 
+                  bool own = false)
           : domain_is(IndexSpace::NO_SPACE), domain(d), 
-            proc(p), recurse(r), stealable(s) { }
+            proc(p), recurse(r), stealable(s), take_ownership(own) { }
         TaskSlice(IndexSpace is, Processor p, bool r, bool s)
           : domain_is(is), domain(Domain::NO_DOMAIN),
-            proc(p), recurse(r), stealable(s) { }
+            proc(p), recurse(r), stealable(s), take_ownership(false) { }
       public:
         IndexSpace                              domain_is;
         Domain                                  domain;
         Processor                               proc;
         bool                                    recurse;
         bool                                    stealable;
+        bool                                    take_ownership;
       };
       struct SliceTaskInput {
         IndexSpace                             domain_is;
@@ -589,6 +592,19 @@ namespace Legion {
        * 'copy_prof_requests' field. The 'profiling_priority' field
        * indicates with which priority the profiling results should
        * be send back to the mapper.
+       *
+       * When selecting a leaf-task variant for the task, the mapper can
+       * use the 'leaf_pool_bounds' to specify sizes of memory pools for
+       * the runtime to allocate to handle dynamic memory allocations during
+       * the execution of the task. These must be big enough to handle all
+       * such dynamic memory allocations in each kind of memory. The mapper
+       * can use the value of zero to indicate that an "unbound" pool should
+       * be created which will block all future memory allocations in that 
+       * memory until the task is done running (this will likely result in
+       * severe performance degradations). If the task variant also has
+       * statically specified pool bounds, then the dynamically sized upper
+       * bound provided by the mapper will override the static bound 
+       * provided at the time of task variant registration.
        *
        * Finally, the mapper can requrest a postmap_task mapper call be
        * performed to make additional copies of any output regions of the
@@ -2000,8 +2016,10 @@ namespace Legion {
     protected:
       // These runtime objects will be created by Legion
       friend class Internal::Runtime;
-      MapperRuntime(void);
+      MapperRuntime(Internal::Runtime *runtime);
       ~MapperRuntime(void);
+    private:
+      Internal::Runtime *const runtime;
     public:
       //------------------------------------------------------------------------
       // Methods for managing access to mapper state in the concurrent model
@@ -2018,6 +2036,13 @@ namespace Legion {
       bool is_reentrant(MapperContext ctx) const;
       void enable_reentrant(MapperContext ctx) const;
       void disable_reentrant(MapperContext ctx) const;
+    public:
+      //------------------------------------------------------------------------
+      // These two methods allow mappers to define their own profile ranges
+      // inside of the profiler. Each start call must be matched with a 
+      // corresponding stop call inside of the same mapper context.
+      void start_profiling_range(MapperContext ctx) const;
+      void stop_profiling_range(MapperContext ctx,const char *provenance) const;
     public:
       //------------------------------------------------------------------------
       // Methods for updating mappable data 
@@ -2124,24 +2149,24 @@ namespace Legion {
         T (*TASK_PTR)(const Task*, const std::vector<PhysicalRegion>&,
                       Context, Runtime*)>
       VariantID register_task_variant(MapperContext ctx,
-                                      const TaskVariantRegistrar &registrar);
+                                  const TaskVariantRegistrar &registrar) const;
       template<typename T, typename UDT,
         T (*TASK_PTR)(const Task*, const std::vector<PhysicalRegion>&,
                       Context, Runtime*, const UDT&)>
       VariantID register_task_variant(MapperContext ctx,
                                       const TaskVariantRegistrar &registrar,
-                                      const UDT &user_data);
+                                      const UDT &user_data) const;
       template<
         void (*TASK_PTR)(const Task*, const std::vector<PhysicalRegion>&,
                          Context, Runtime*)>
       VariantID register_task_variant(MapperContext ctx,
-                                      const TaskVariantRegistrar &registrar);
+                                  const TaskVariantRegistrar &registrar) const;
       template<typename UDT,
         void (*TASK_PTR)(const Task*, const std::vector<PhysicalRegion>&,
                          Context, Runtime*, const UDT&)>
       VariantID register_task_variant(MapperContext ctx,
                                       const TaskVariantRegistrar &registrar,
-                                      const UDT &user_data);
+                                      const UDT &user_data) const;
       VariantID register_task_variant(MapperContext ctx, 
                                       const TaskVariantRegistrar &registrar,
 				      const CodeDescriptor &codedesc,
@@ -2149,7 +2174,7 @@ namespace Legion {
 				      size_t user_len = 0,
                                       size_t return_type_size =
                                               LEGION_MAX_RETURN_SIZE,
-                                      bool has_return_type = false);
+                                      bool has_return_type = false) const;
     public:
       //------------------------------------------------------------------------
       // Methods for accelerating mapping decisions
@@ -2157,17 +2182,17 @@ namespace Legion {
       // Filter variants based on the chosen instances
       void filter_variants(MapperContext ctx, const Task &task,
              const std::vector<std::vector<PhysicalInstance> > &chosen_intances,
-                           std::vector<VariantID>              &variants);
+                           std::vector<VariantID>              &variants) const;
       // Filter instances based on a chosen variant
       void filter_instances(MapperContext ctx, const Task &task,
                                       VariantID chosen_variant, 
                         std::vector<std::vector<PhysicalInstance> > &instances,
-                               std::vector<std::set<FieldID> > &missing_fields);
+                        std::vector<std::set<FieldID> > &missing_fields) const;
       // Filter a specific set of instances for one region requirement
       void filter_instances(MapperContext ctx, const Task &task,
                                       unsigned index, VariantID chosen_variant,
                                       std::vector<PhysicalInstance> &instances,
-                                      std::set<FieldID> &missing_fields);
+                                      std::set<FieldID> &missing_fields) const;
     public:
       //------------------------------------------------------------------------
       // Methods for managing physical instances 
@@ -2282,10 +2307,37 @@ namespace Legion {
       void collect_instances(MapperContext ctx,
                              const std::vector<PhysicalInstance> &instances,
                              std::vector<bool> &collected) const;
+      // This method will attempt to redistrict an instance from one layout
+      // to another one, thereby reusing the memory associated with the first
+      // instance to create the new instance (thereby deleting the original 
+      // instance in the process). This will only be permitted if the original
+      // instance does not not contain any valid data and if the new layout
+      // fits within the footprint of the original instance. The runtime will
+      // return a boolean indicating whether the redistricting was successful.
+      // If the invocation is successful, the 'instance' will be overwritten
+      // with a handle to the new instance.
+      bool redistrict_instance(MapperContext ctx, PhysicalInstance &instance,
+                               const LayoutConstraintSet &constraints,
+                               const std::vector<LogicalRegion> &regions,
+                               bool acquire = true, GCPriority priority = 0,
+                               bool tight_region_bounds = false);
+      bool redistrict_instance(MapperContext ctx, PhysicalInstance &instance,
+                               LayoutConstraintID layout_id,
+                               const std::vector<LogicalRegion> &regions,
+                               bool acquire = true, GCPriority priority = 0,
+                               bool tight_region_bounds = false);
     public:
       // Futures can also be acquired to ensure that they are available in
       // particular memories prior to running a task.
       bool acquire_future(MapperContext ctx, const Future &f, Memory mem) const;
+      // Users can also acquire memory for unbound memory pools when mapping
+      // tasks. These pools will be implicitly used to satisfy any leaf_pool
+      // bounds requested for mapping the task. This interface allows mappers
+      // to discover if leaf pools can be allocated and potentially switch to
+      // an alternative mapping strategy if they cannot.
+      bool acquire_pool(MapperContext ctx, Memory memory,
+                        const PoolBounds &bounds) const;
+      void release_pool(MapperContext ctx, Memory memory);
     public:
       //------------------------------------------------------------------------
       // Methods for creating index spaces which mappers need to do
@@ -2294,7 +2346,8 @@ namespace Legion {
       IndexSpace create_index_space(MapperContext ctx, 
                                     const Domain &bounds,
                                     TypeTag type_tag = 0,
-                                    const char *provenance = NULL) const;
+                                    const char *provenance = NULL,
+                                    bool take_ownership = false) const;
       // Template version
       template<int DIM, typename COORD_T>
       IndexSpaceT<DIM,COORD_T> create_index_space(MapperContext ctx,
@@ -2491,69 +2544,74 @@ namespace Legion {
       //------------------------------------------------------------------------
       bool retrieve_semantic_information(MapperContext ctx, 
           TaskID task_id, SemanticTag tag, const void *&result, size_t &size, 
-          bool can_fail = false, bool wait_until_ready = false);
+          bool can_fail = false, bool wait_until_ready = false) const;
 
       bool retrieve_semantic_information(MapperContext ctx, 
           IndexSpace handle, SemanticTag tag, const void *&result, size_t &size,
-          bool can_fail = false, bool wait_until_ready = false);
+          bool can_fail = false, bool wait_until_ready = false) const;
 
       bool retrieve_semantic_information(MapperContext ctx,
           IndexPartition handle, SemanticTag tag, const void *&result, 
-          size_t &size, bool can_fail = false, bool wait_until_ready = false);
+          size_t &size, bool can_fail = false, 
+          bool wait_until_ready = false) const;
 
       bool retrieve_semantic_information(MapperContext ctx,
           FieldSpace handle, SemanticTag tag, const void *&result, size_t &size,
-          bool can_fail = false, bool wait_until_ready = false);
+          bool can_fail = false, bool wait_until_ready = false) const;
 
       bool retrieve_semantic_information(MapperContext ctx, 
           FieldSpace handle, FieldID fid, SemanticTag tag, const void *&result, 
-          size_t &size, bool can_fail = false, bool wait_until_ready = false);
+          size_t &size, bool can_fail = false,
+          bool wait_until_ready = false) const;
 
       bool retrieve_semantic_information(MapperContext ctx,
           LogicalRegion handle, SemanticTag tag, const void *&result, 
-          size_t &size, bool can_fail = false, bool wait_until_ready = false);
+          size_t &size, bool can_fail = false,
+          bool wait_until_ready = false) const;
 
       bool retrieve_semantic_information(MapperContext ctx,
           LogicalPartition handle, SemanticTag tag, const void *&result, 
-          size_t &size, bool can_fail = false, bool wait_until_ready = false);
+          size_t &size, bool can_fail = false,
+          bool wait_until_ready = false) const;
 
       void retrieve_name(MapperContext ctx, TaskID task_id,
-                                   const char *&result);
+                                   const char *&result) const;
 
       void retrieve_name(MapperContext ctx, IndexSpace handle,
-                                   const char *&result);
+                                   const char *&result) const;
 
       void retrieve_name(MapperContext ctx, IndexPartition handle,
-                                   const char *&result);
+                                   const char *&result) const;
       
       void retrieve_name(MapperContext ctx, FieldSpace handle,
-                                   const char *&result);
+                                   const char *&result) const;
 
       void retrieve_name(MapperContext ctx, FieldSpace handle, 
-                                   FieldID fid, const char *&result);
+                                   FieldID fid, const char *&result) const;
 
       void retrieve_name(MapperContext ctx, LogicalRegion handle,
-                                   const char *&result);
+                                   const char *&result) const;
 
       void retrieve_name(MapperContext ctx, LogicalPartition handle,
-                                   const char *&result);
+                                   const char *&result) const;
     public:
       //------------------------------------------------------------------------
       // Methods for MPI interoperability
       //------------------------------------------------------------------------
-      bool is_MPI_interop_configured(MapperContext ctx);
+      bool is_MPI_interop_configured(MapperContext ctx) const;
       const std::map<int/*rank*/,AddressSpace>& 
-                                    find_forward_MPI_mapping(MapperContext ctx); 
+                              find_forward_MPI_mapping(MapperContext ctx) const;
 
       const std::map<AddressSpace,int/*rank*/>&
-                                    find_reverse_MPI_mapping(MapperContext ctx);
-      int find_local_MPI_rank(MapperContext ctx);
+                              find_reverse_MPI_mapping(MapperContext ctx) const;
+      int find_local_MPI_rank(MapperContext ctx) const;
     public:
       //------------------------------------------------------------------------
       // Support for packing tunable values
       //------------------------------------------------------------------------
       template<typename T>
-      void pack_tunable(const T &result, Mapper::SelectTunableOutput &output)
+      void pack_tunable(const T &result,
+          Mapper::SelectTunableOutput &output) const
       {
         static_assert(std::is_trivially_copyable<T>::value,
                       "tunable type must be trivially copyable");

@@ -90,24 +90,40 @@ void top_level_task(const Task *task,
   Rect<1> elem_rect(0,num_elements-1);
   // IndexSpace is = runtime->create_index_space(ctx, elem_rect, 0, "Element IndexSpace");
   Domain elem_domain = Domain(elem_rect);
-  Future bound_future = Future::from_value<Domain>(elem_domain);
-  std::string is_prov = "Element IndexSpace:" + std::to_string(__LINE__);
+  Future bound_future = Future::from_domain(elem_domain, true/*take ownership*/);
+
+  // human part + empty machine part ["stuff", {}]
+  std::string is_prov = "[\"Element IndexSpace:" + std::to_string(__LINE__) + "\", {}]";
+  printf("PROV: %s\n", is_prov.c_str());
+
   IndexSpace is = runtime->create_index_space(ctx, 1, bound_future, 0, is_prov.c_str()); 
   runtime->attach_name(is, "is");
   Future field_size_future = Future::from_value<size_t>(sizeof(double));
   std::vector<Future> field_sizes{field_size_future, field_size_future};
   std::vector<FieldID> field_ids{FID_X, FID_Y};
-  std::string field_xy_prov = "Element FieldSpace XY:" + std::to_string(__LINE__);
+
+  // empty human part + machine part ["", {"key": "stuff"}]
+  std::string field_xy_prov = "[\"\", {\"key\": \"Element FieldSpace XY:" + std::to_string(__LINE__) + "\"}]";
+  printf("PROV: %s\n", field_xy_prov.c_str());
+
   FieldSpace fs = runtime->create_field_space(ctx, field_sizes, field_ids, 0, field_xy_prov.c_str());
   runtime->attach_name(fs, "fs");
   {
     FieldAllocator allocator = 
       runtime->create_field_allocator(ctx, fs);
+
+    // human part (string) only
     std::string field_z_prov = "Element FieldSpace Z:" + std::to_string(__LINE__);
+    printf("PROV: %s\n", field_z_prov.c_str());
+
     allocator.allocate_field(sizeof(double),FID_Z, 0, false, field_z_prov.c_str());
     runtime->attach_name(fs, FID_Z, "Z");
   }
-  std::string input_lr_prov = "Input LR:" + std::to_string(__LINE__);
+
+  // machine part (object) only
+  std::string input_lr_prov = "{\"key\": \"Input LR:" + std::to_string(__LINE__) + "\"}";
+  printf("PROV: %s\n", input_lr_prov.c_str());
+
   LogicalRegion input_lr = runtime->create_logical_region(ctx, is, fs, false, input_lr_prov.c_str());
   runtime->attach_name(input_lr, "input_lr");
   std::string output_lr_prov = "Output LR:" + std::to_string(__LINE__);
@@ -158,7 +174,7 @@ void top_level_task(const Task *task,
   
   Rect<1> color_bounds(0,num_subregions-1);
   Domain color_domain = Domain(color_bounds);
-  Future color_future = Future::from_value<Domain>(color_domain); 
+  Future color_future = Future::from_domain(color_domain, true/*take ownership*/); 
   std::string color_is_prov = "Color IndexSpace:" + std::to_string(__LINE__);
   IndexSpace color_is = runtime->create_index_space(ctx, 1, color_future, 0, color_is_prov.c_str());
 
@@ -202,7 +218,7 @@ void top_level_task(const Task *task,
   const double alpha = 0.1;
   IndexLauncher daxpy_launcher(DAXPY_TASK_ID, color_is,
                 TaskArgument(&alpha, sizeof(alpha)), arg_map);
-  std::string daxpy_launcher_prov = "Daxpy IndexLauncher:" + std::to_string(__LINE__);
+  std::string daxpy_launcher_prov = "[\"Daxpy IndexLauncher:" + std::to_string(__LINE__) + "\", {\"task\": \"Daxpy\", \"launcher\": \"IndexLauncher\", \"line\": " + std::to_string(__LINE__) + "}]";
   daxpy_launcher.provenance = daxpy_launcher_prov;
   daxpy_launcher.add_region_requirement(
       RegionRequirement(input_lp, 0/*projection ID*/,
@@ -307,7 +323,7 @@ void check_task(const Task *task,
 
   Rect<1> color_bounds(0,3);
   Domain color_domain = Domain(color_bounds);
-  Future color_future = Future::from_value<Domain>(color_domain); 
+  Future color_future = Future::from_domain(color_domain, true/*take ownership*/);
   IndexSpace color_is = runtime->create_index_space(ctx, 1, color_future, 0, "GPU Color IndexSpace");
   ArgumentMap arg_map;
   IndexLauncher gpu_launcher(GPU_TASK_ID, color_is, TaskArgument(NULL, 0), arg_map);

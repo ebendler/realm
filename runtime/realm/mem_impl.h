@@ -303,8 +303,8 @@ namespace Realm {
     bool allocate(TT tag, RT size, RT alignment, RT &first);
     void deallocate(TT tag, bool missing_ok = false);
     size_t split_range(TT old_tag, const std::vector<TT> &new_tags,
-                     const std::vector<RT> &sizes, const std::vector<RT> &alignment,
-                     std::vector<RT> &allocs_first);
+                       const std::vector<RT> &sizes, const std::vector<RT> &alignment,
+                       std::vector<RT> &allocs_first);
 
     static constexpr unsigned SENTINEL = BasicRangeAllocator<RT, TT>::SENTINEL;
     using Range = typename BasicRangeAllocator<RT, TT>::Range;
@@ -379,7 +379,7 @@ namespace Realm {
       //                all pending allocs and releases
       // release: valid if pending_allocs exist - models heap state with
       //                completed allocations and any ready releases
-       //using RangeAllocator = BasicRangeAllocator<size_t, RegionInstance>;
+      // using RangeAllocator = BasicRangeAllocator<size_t, RegionInstance>;
       using RangeAllocator = SizedRangeAllocator<size_t, RegionInstance, false>;
       RangeAllocator current_allocator, future_allocator, release_allocator;
       unsigned cur_release_seqid;

@@ -936,8 +936,24 @@ namespace Realm {
     assert(n == sizes.size() && n == alignments.size());
 
     unsigned index = it->second;
-    Range *r = &this->ranges[index];
+    if (index == SENTINEL) {
+      // this is a zero-sized range so we can redistrict only to zero-sized instances
+      for (size_t i = 0; i < n; i++) {
+        // No need to check for duplicate tags here since they are going
+        // to be assigned the same sentinel value anyway
+        if (sizes[i]) {
+          deallocate(old_tag);
+          return i;
+        }
+        this->allocated[new_tags[i]] = SENTINEL;
+        // Make sure zero-sized instances have a valid offset
+        allocs_first[i] = 0;
+      }
+      deallocate(old_tag);
+      return n;
+    }
 
+    Range *r = &this->ranges[index];
     for (unsigned idx = 0; idx < n; idx++) {
       RT offset = 0;
       if (alignments[idx]) {
@@ -998,7 +1014,17 @@ namespace Realm {
   void SizedRangeAllocator<RT,TT,SORTED>::add_to_free_list(unsigned index, Range& range)
   {
     RT size = range.last - range.first;
-    unsigned log2_size = size > 0 ? floor_log2(size) : 0;
+    if(size == 0) {
+      // This can happen when we are splitting a range and the remainder ends up
+      // being empty, in which case there is no "hole" to add to the free list
+      // and we just need to remove this entry from the list of ranges and
+      // recycle the tag for later
+      this->ranges[range.prev].next = range.next;
+      this->ranges[range.next].prev = range.prev;
+      this->free_range(index);
+      return;
+    }
+    unsigned log2_size = floor_log2(size);
     if (size_based_free_lists.size() <= log2_size)
       size_based_free_lists.resize(log2_size+1, SENTINEL);
     if (SORTED) {

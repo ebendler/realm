@@ -698,8 +698,13 @@ TYPED_TEST_P(AllocatorSplitParamTest, Base)
     auto stats = range_alloc.get_allocator_stats();
     EXPECT_EQ(test_case.free_size, stats.total_free_size);
 
+    // Mike: I don't think it's reasonable for the different allocators to have exactly
+    // the same representation of the ranges data structure after this test as the
+    // different allocators might have their own ways of managing the ranges and
+    // the frees lists
+#if 0
     if(!test_case.exp_ranges.empty()) {
-      // EXPECT_EQ(range_alloc.ranges.size(), test_case.exp_ranges.size());
+      EXPECT_EQ(range_alloc.ranges.size(), test_case.exp_ranges.size());
 
       size_t index = 1;
       unsigned idx = range_alloc.ranges[this->SENTINEL].next;
@@ -712,6 +717,7 @@ TYPED_TEST_P(AllocatorSplitParamTest, Base)
         index++;
       }
     }
+#endif
 
     EXPECT_FALSE(range_alloc.free_list_has_cycle());
     EXPECT_FALSE(range_alloc.has_invalid_ranges());

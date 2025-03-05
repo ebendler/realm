@@ -14,7 +14,7 @@
 # limitations under the License.
 #------------------------------------------------------------------------------#
 
-cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.22 FATAL_ERROR)
 project(LegionTest_realm_unittest)
 
 if(NOT Legion_SOURCE_DIR)
@@ -22,6 +22,12 @@ if(NOT Legion_SOURCE_DIR)
 endif()
 
 list(APPEND REALM_TESTS
+  memcpy_channel_test.cc
+  indirect_iterator_test.cc
+  comp_queue_test.cc
+  ucx_mpool_test.cc
+  indexspace_iterator_test.cc
+  barrier_test.cc
   event_test.cc
   path_cache_test.cc
   transfer_utils_test.cc
@@ -32,13 +38,23 @@ list(APPEND REALM_TESTS
   range_allocator_test.cc
   pri_queue_test.cc
   intrusive_list_test.cc
+  point_test.cc
   repl_heap_test.cc
   nodeset_test.cc
   transfer_iterator_test.cc
   lowlevel_dma_test.cc
   circ_queue_test.cc
   gather_scatter_test.cc
+  rectlist_test.cc
+  sparsity_map_test.cc
+  ucx_mpool_test.cc
+  topology_test.cc
  )
+
+list(APPEND UCX_SOURCES
+   ${Legion_SOURCE_DIR}/runtime/realm/ucx/mpool.h
+   ${Legion_SOURCE_DIR}/runtime/realm/ucx/mpool.cc
+)
 
 if(NOT WIN32)
 list(APPEND REALM_TESTS
@@ -56,6 +72,8 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 add_executable(realm_tests ${REALM_TESTS})
+
+target_sources(realm_tests PRIVATE ${UCX_SOURCES})
 
 list(APPEND REALM_UNIT_TESTS_LIST
   realm_tests

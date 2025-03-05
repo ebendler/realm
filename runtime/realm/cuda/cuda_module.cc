@@ -1000,14 +1000,14 @@ namespace Realm {
       if (_gpu->info->has_numa_preference) {
         // Pick the first numa domain in the retrieved numa mask that is available
         // TODO: pass the mask directly to params instead of picking the first one
-        const Realm::CoreMap::DomainMap& available_domains = crs.get_core_map()->by_domain;
+        const Realm::HardwareTopology *topology = crs.get_core_map();
         for (size_t numa_idx = 0; numa_idx < _gpu->info->MAX_NUMA_NODE_LEN; numa_idx++) {
           int numa_domain = 0;
           bool found_numa = false;
           for (size_t numa_offset = 0; numa_offset < sizeof(_gpu->info->numa_node_affinity[0]); numa_offset++) {
             numa_domain = numa_offset + numa_idx * sizeof(_gpu->info->numa_node_affinity[0]);
-            if ((_gpu->info->numa_node_affinity[numa_idx] & (1UL << numa_offset)) &&
-                available_domains.find(numa_domain) != available_domains.end()) {
+            if((_gpu->info->numa_node_affinity[numa_idx] & (1UL << numa_offset)) &&
+               topology->numa_domain_has_processors(numa_domain)) {
               found_numa = true;
               break;
             }
@@ -3323,11 +3323,12 @@ namespace Realm {
                                 << pci_info.busId << "(" << std::hex
                                 << pci_info.pciDeviceId << "), ignoring...";
                 }
-              } else if((info == infos[0]) && (dev_type == NVML_NVLINK_DEVICE_TYPE_SWITCH)) {
+              } else if(dev_type == NVML_NVLINK_DEVICE_TYPE_SWITCH) {
                 // Accumulate the link bandwidth for one gpu and assume symmetry
                 // across all GPUs, and all GPus have access to the NVSWITCH fabric
                 info->nvswitch_bandwidth += nvlink_rate;
-              } else if((info == infos[0]) && (dev_type == NVML_NVLINK_DEVICE_TYPE_IBMNPU)) {
+              } else if((info == infos[0]) &&
+                        (dev_type == NVML_NVLINK_DEVICE_TYPE_IBMNPU)) {
                 // TODO: use the npu_bandwidth for sysmem affinities
                 // npu_bandwidth += nvlink_bandwidth;
               }

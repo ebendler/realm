@@ -14,7 +14,7 @@
 # limitations under the License.
 #------------------------------------------------------------------------------#
 
-cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.22 FATAL_ERROR)
 
 if(NOT Legion_SOURCE_DIR)
   find_package(Legion REQUIRED)
@@ -37,6 +37,8 @@ add_subdirectory(predication)
 add_subdirectory(inline_tasks)
 add_subdirectory(local_function_tasks)
 add_subdirectory(layout_constraints)
+add_subdirectory(point_wise_dependence_analysis)
+add_subdirectory(streaming)
 add_subdirectory(provenance)
 add_subdirectory(tiling)
 add_subdirectory(padded_instances)

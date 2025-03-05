@@ -260,9 +260,8 @@ namespace Legion {
       public:
         static const LgTaskID TASK_ID = LG_DEFER_PHYSICAL_MANAGER_TASK_ID;
       public:
-        DeferPhysicalManagerArgs(DistributedID d,
-            Memory m, PhysicalInstance i, size_t f, IndexSpaceExpression *lx,
-            const PendingRemoteExpression &pending, FieldSpace h, 
+        DeferPhysicalManagerArgs(DistributedID d, Memory m, PhysicalInstance i,
+            size_t f, IndexSpaceExpression *lx, FieldSpace h, 
             RegionTreeID tid, LayoutConstraintID l, ApEvent use, LgEvent unique,
             InstanceKind kind, ReductionOpID redop, const void *piece_list,
             size_t piece_list_size, GarbageCollectionState state);
@@ -271,7 +270,6 @@ namespace Legion {
         const Memory mem;
         const PhysicalInstance inst;
         const size_t footprint;
-        const PendingRemoteExpression pending;
         IndexSpaceExpression *local_expr;
         const FieldSpace handle;
         const RegionTreeID tree_id;
@@ -379,7 +377,7 @@ namespace Legion {
       bool remove_valid_reference(int cnt);
 #endif
       void notify_valid(bool need_check);
-      bool notify_invalid(void);
+      bool notify_invalid(AutoLock &i_lock);
     public:
       virtual void send_manager(AddressSpaceID target);
       static void handle_manager_request(Deserializer &derez, Runtime *runtime);
@@ -394,12 +392,11 @@ namespace Legion {
                    AutoLock *i_lock = NULL);
       void notify_remote_deletion(void);
       RtEvent set_garbage_collection_priority(MapperID mapper_id, Processor p, 
-                                  AddressSpaceID source, GCPriority priority);
+                                              GCPriority priority);
+      RtEvent broadcast_garbage_collection_priority_update(GCPriority priority);
       RtEvent perform_deletion(AddressSpaceID source, 
           PhysicalInstance *hole = NULL, AutoLock *i_lock = NULL);
       void force_deletion(void);
-      RtEvent update_garbage_collection_priority(AddressSpaceID source,
-                                                 GCPriority priority);
       RtEvent attach_external_instance(void);
       void detach_external_instance(void);
       bool has_visible_from(const std::set<Memory> &memories) const;
@@ -671,6 +668,7 @@ namespace Legion {
       void *piece_list;
       size_t piece_list_size;
     public:
+      LgEvent caller_fevent;
       LgEvent current_unique_event;
       bool valid;
       bool allocated;

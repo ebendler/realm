@@ -610,6 +610,11 @@ namespace Legion {
        * performed to make additional copies of any output regions of the
        * task for resilience purposes by setting the 'postmap_task' flag
        * to true.
+       *
+       * If the mapper decides that it wants to abort the mapping of the
+       * task it can do that by setting the 'abort_mapping' flag. This
+       * will return the task back to the ready queue presented to the
+       * mapper by select_tasks_to_map mapper call.
        */
       struct MapTaskInput {
         std::vector<std::vector<PhysicalInstance> > valid_instances;
@@ -637,6 +642,7 @@ namespace Legion {
         ProfilingRequest                            task_prof_requests;
         ProfilingRequest                            copy_prof_requests;
         bool                                        postmap_task; // = false
+        bool                                        abort_mapping; // = false
       };
       //------------------------------------------------------------------------
       virtual void map_task(MapperContext            ctx,
@@ -1014,6 +1020,16 @@ namespace Legion {
        * of instances that must be investigated for performing the indirect
        * copies which can improve overall performance and scalability. The
        * default is not to compute the preimages.
+       *
+       * If the mapper has opted to compute preimages, a further option is
+       * available to create shadow indirection instances in the same memory
+       * as the source/destination instances being gather/scattered to/from.
+       * This incurs some additional latency for the instance allocation but
+       * may result in better Realm gather/scatter performance for the copies.
+       * We recommend only enabling this mode when running with tracing. The
+       * default is for this to be disabled. Note that if there is not enough
+       * space in the memory where the source/destination instance is then
+       * this will silently fall back to using the original indirect instance.
        */
       struct MapCopyInput {
         std::vector<std::vector<PhysicalInstance> >   src_instances;
@@ -1042,6 +1058,7 @@ namespace Legion {
         RealmPriority                                 profiling_priority;
         RealmPriority                                 copy_fill_priority;
         bool                                          compute_preimages;
+        bool                                          shadow_indirections;
       };
       //------------------------------------------------------------------------
       virtual void map_copy(MapperContext            ctx,
@@ -1672,6 +1689,48 @@ namespace Legion {
        * field of the 'select_task_options' mapper call. If this is set 
        * to false then the child mappers cannot change the priority of
        * the parent task.
+       *
+       * The 'auto_tracing_enabled' parameter allows the mapper to direct
+       * Legion whether it should attempt to automatically identify traces in 
+       * the sequence of operations and sub-tasks launched by this task. This
+       * defaults to true and can be disabled by setting the flag to 'false'.
+       *
+       * The `auto_tracing_window_size` parameter specifies the size
+       * of the window for the Legion's automatic tracing functionality to
+       * consider when looking for repeated sequences of tasks/operations.
+       * Note that this can be (but doesn't have to be) larger than the 
+       * window size for the context to look for traces that span more 
+       * than one window's worth of sub-tasks/operations.
+       *
+       * The 'auto_tracing_ruler_function' specifies the ruler function
+       * ( https://en.wikipedia.org/wiki/Ruler_function )
+       * that should be used for looking for traces that occur in a subset
+       * of the auto tracing window of operations/tasks. There is a trade-off
+       * with this parameter. The smaller you make it the more rapidly you will
+       * discover small traces and be able to replay them quickly, but the
+       * longer it will take to identify larger traces that might be more
+       * efficient at replaying. Making the multi-scale factor smaller will 
+       * also result in higher overhead for checking for automatic traces 
+       * in the window when traces are not being replayed.
+       *
+       * The 'auto_tracing_min_trace_length' specifies the minimum length
+       * trace that can be found by automatic tracing.
+       *
+       * The 'auto_tracing_max_trace_length' specifies the maximum length
+       * trace that can be found by automatic tracing. This value is always
+       * bounded above by the auto_tracing_window_size since we cannot find
+       * any traces larger than the window size. If this value is less than
+       * the auto tracing window size and a sequence of repeated tasks/ops
+       * is found larger than this value, then Legion will break the sequence
+       * into traces of this size and replay them consecutively.
+       *
+       * The 'auto_tracing_visit_threshold' specifies how many times a trace
+       * needs to be observed before it becomes eligible for replay. The
+       * tradeoff here is that a smaller value may lead to finding and
+       * replaying traces sooner, but those traces might be local maximas,
+       * while a larger value will cause you to wait longer to start replaying
+       * traces but could lead to finding more robust traces that are going
+       * to be replayed for the duration of the application.
        */
       struct ContextConfigOutput {
         unsigned                                max_window_size; // = 1024
@@ -1682,6 +1741,12 @@ namespace Legion {
         unsigned                                meta_task_vector_width; // = 16
         unsigned                                max_templates_per_trace; // = 16
         bool                                    mutable_priority; // = false
+        bool                                    auto_tracing_enabled; // = true
+        unsigned                                auto_tracing_window_size; // = 1000
+        unsigned                                auto_tracing_ruler_function; // = 100
+        unsigned                                auto_tracing_min_trace_length; // = 5
+        unsigned                                auto_tracing_max_trace_length; // = UINT_MAX
+        unsigned                                auto_tracing_visit_threshold; // = 10
       };
       //------------------------------------------------------------------------
       virtual void configure_context(MapperContext               ctx,

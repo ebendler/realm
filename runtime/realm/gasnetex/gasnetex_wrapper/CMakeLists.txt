@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #------------------------------------------------------------------------------#
-cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.22 FATAL_ERROR)
 
 project(GasNetExWrapper
         LANGUAGES C CXX
@@ -54,7 +54,7 @@ else()
   add_library(realm_gex_wrapper STATIC)
   target_compile_definitions(realm_gex_wrapper_objs PUBLIC GEX_STATIC_DEFINE)
 endif()
-target_link_libraries(realm_gex_wrapper PRIVATE realm_gex_wrapper_objs)
+target_link_libraries(realm_gex_wrapper PUBLIC realm_gex_wrapper_objs)
 target_compile_definitions(realm_gex_wrapper PRIVATE <IF:$<BOOL:GEX_DEBUG>,DEBUG_REALM_GEX,>)
 
 generate_export_header(realm_gex_wrapper_objs BASE_NAME GEX EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/exports/gex_export.h)

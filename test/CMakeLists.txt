@@ -14,7 +14,7 @@
 # limitations under the License.
 #------------------------------------------------------------------------------#
 
-cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.22 FATAL_ERROR)
 
 if(NOT Legion_SOURCE_DIR)
   find_package(Legion REQUIRED)
@@ -34,6 +34,7 @@ add_subdirectory(performance/realm/task_ubench)
 add_subdirectory(performance/realm/memcpy)
 add_subdirectory(legion_redop_test)
 add_subdirectory(disjoint_complete)
+add_subdirectory(trie)
 add_subdirectory(nested_replication)
 add_subdirectory(mapper)
 add_subdirectory(prealm)

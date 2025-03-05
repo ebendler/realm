@@ -1096,6 +1096,33 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
+    RegionRequirement::RegionRequirement(RegionRequirement &&rhs) noexcept
+      : region(rhs.region), partition(rhs.partition), privilege(rhs.privilege),
+        prop(rhs.prop), parent(rhs.parent), redop(rhs.redop), tag(rhs.tag),
+        flags(rhs.flags), handle_type(rhs.handle_type), 
+        projection(rhs.projection), projection_args(rhs.projection_args),
+        projection_args_size(rhs.projection_args_size)
+    //--------------------------------------------------------------------------
+    {
+      static_assert(std::is_trivially_copyable<decltype(region)>::value);
+      static_assert(std::is_trivially_copyable<decltype(partition)>::value);
+      static_assert(std::is_trivially_copyable<decltype(privilege)>::value);
+      static_assert(std::is_trivially_copyable<decltype(prop)>::value);
+      static_assert(std::is_trivially_copyable<decltype(parent)>::value);
+      static_assert(std::is_trivially_copyable<decltype(redop)>::value);
+      static_assert(std::is_trivially_copyable<decltype(tag)>::value);
+      static_assert(std::is_trivially_copyable<decltype(flags)>::value);
+      static_assert(std::is_trivially_copyable<decltype(handle_type)>::value);
+      static_assert(std::is_trivially_copyable<decltype(projection)>::value);
+      static_assert(std::is_trivially_copyable<decltype(projection_args)>::value);
+      static_assert(std::is_trivially_copyable<decltype(projection_args_size)>::value);
+      privilege_fields.swap(rhs.privilege_fields);
+      instance_fields.swap(rhs.instance_fields);
+      rhs.projection_args = nullptr;
+      rhs.projection_args_size = 0;
+    }
+
+    //--------------------------------------------------------------------------
     RegionRequirement::~RegionRequirement(void)
     //--------------------------------------------------------------------------
     {
@@ -1131,6 +1158,31 @@ namespace Legion {
         projection_args = malloc(projection_args_size);
         memcpy(projection_args, rhs.projection_args, projection_args_size);
       }
+      return *this;
+    }
+
+    //--------------------------------------------------------------------------
+    RegionRequirement& RegionRequirement::operator=(RegionRequirement &&rhs) noexcept
+    //--------------------------------------------------------------------------
+    {
+      region = rhs.region;
+      partition = rhs.partition;
+      privilege_fields.swap(rhs.privilege_fields);
+      instance_fields.swap(rhs.instance_fields);
+      privilege = rhs.privilege;
+      prop = rhs.prop;
+      parent = rhs.parent;
+      redop = rhs.redop;
+      tag = rhs.tag;
+      flags = rhs.flags;
+      handle_type = rhs.handle_type;
+      projection = rhs.projection;
+      if (projection_args_size > 0)
+        free(projection_args);
+      projection_args_size = rhs.projection_args_size;
+      projection_args = rhs.projection_args;
+      rhs.projection_args = nullptr;
+      rhs.projection_args_size = 0;
       return *this;
     }
 
@@ -1622,14 +1674,14 @@ namespace Legion {
 
     //--------------------------------------------------------------------------
     IndexTaskLauncher::IndexTaskLauncher(void)
-      : task_id(0), launch_domain(Domain::NO_DOMAIN), 
-        launch_space(IndexSpace::NO_SPACE), 
-        sharding_space(IndexSpace::NO_SPACE), global_arg(UntypedBuffer()), 
-        argument_map(ArgumentMap()), predicate(Predicate::TRUE_PRED), 
-        concurrent(false), must_parallelism(false), map_id(0), tag(0),
-        static_dependences(NULL), enable_inlining(false),
-        independent_requirements(false), elide_future_return(false), 
-        silence_warnings(false)
+      : task_id(0), launch_domain(Domain::NO_DOMAIN),
+        launch_space(IndexSpace::NO_SPACE),
+        sharding_space(IndexSpace::NO_SPACE), global_arg(UntypedBuffer()),
+        argument_map(ArgumentMap()), predicate(Predicate::TRUE_PRED),
+        concurrent_functor(0), concurrent(false), must_parallelism(false),
+        map_id(0), tag(0), static_dependences(NULL), enable_inlining(false),
+        independent_requirements(false), silence_warnings(false),
+        elide_future_return(false)
     //--------------------------------------------------------------------------
     {
     }
@@ -1643,12 +1695,12 @@ namespace Legion {
                                      MappingTagID t /*=0*/, UntypedBuffer marg,
                                      const char *prov)
       : task_id(tid), launch_domain(dom), launch_space(IndexSpace::NO_SPACE),
-        sharding_space(IndexSpace::NO_SPACE), global_arg(global), 
-        argument_map(map), predicate(pred), concurrent(false), 
-        must_parallelism(must), map_id(mid), tag(t), map_arg(marg),
-        provenance(prov), static_dependences(NULL), enable_inlining(false),
-        independent_requirements(false), elide_future_return(false),
-        silence_warnings(false)
+        sharding_space(IndexSpace::NO_SPACE), global_arg(global),
+        argument_map(map), predicate(pred), concurrent_functor(0),
+        concurrent(false), must_parallelism(must), map_id(mid), tag(t),
+        map_arg(marg), provenance(prov), static_dependences(NULL),
+        enable_inlining(false), independent_requirements(false),
+        silence_warnings(false), elide_future_return(false)
     //--------------------------------------------------------------------------
     {
     }
@@ -1663,12 +1715,12 @@ namespace Legion {
                                      MappingTagID t /*=0*/, UntypedBuffer marg,
                                      const char *prov)
       : task_id(tid), launch_domain(Domain::NO_DOMAIN), launch_space(space),
-        sharding_space(IndexSpace::NO_SPACE), global_arg(global), 
-        argument_map(map), predicate(pred), concurrent(false),
-        must_parallelism(must), map_id(mid), tag(t), map_arg(marg),
-        provenance(prov), static_dependences(NULL), enable_inlining(false),
-        independent_requirements(false), elide_future_return(false),
-        silence_warnings(false)
+        sharding_space(IndexSpace::NO_SPACE), global_arg(global),
+        argument_map(map), predicate(pred), concurrent_functor(0),
+        concurrent(false), must_parallelism(must), map_id(mid), tag(t),
+        map_arg(marg), provenance(prov), static_dependences(NULL),
+        enable_inlining(false), independent_requirements(false),
+        silence_warnings(false), elide_future_return(false)
     //--------------------------------------------------------------------------
     {
     }
@@ -2991,15 +3043,14 @@ namespace Legion {
 
     //--------------------------------------------------------------------------
     UntypedDeferredValue::UntypedDeferredValue(void)
-      : instance(Realm::RegionInstance::NO_INST), field_size(0)
+      : instance(Realm::RegionInstance::NO_INST)
     //--------------------------------------------------------------------------
     {
     }
 
     //--------------------------------------------------------------------------
-    UntypedDeferredValue::UntypedDeferredValue(size_t fs, Memory memory,
+    UntypedDeferredValue::UntypedDeferredValue(size_t field_size, Memory memory,
                                     const void *initial_value, size_t alignment) 
-      : field_size(fs)
     //--------------------------------------------------------------------------
     {
       const Realm::Point<1,coord_t> zero(0);
@@ -3012,8 +3063,7 @@ namespace Legion {
         Realm::InstanceLayoutGeneric::choose_instance_layout(bounds, 
             constraints, dim_order);
       layout->alignment_reqd = alignment;
-      Runtime *runtime = Runtime::get_runtime();
-      instance = runtime->create_task_local_instance(memory, layout);
+      instance = allocate_instance(memory, layout);
       if (initial_value != NULL)
       {
         Realm::ProfilingRequestSet no_requests; 
@@ -3027,23 +3077,74 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    UntypedDeferredValue::UntypedDeferredValue(size_t fs, Memory::Kind memkind,
-                                    const void *initial_value, size_t alignment) 
-      : field_size(fs)
+    UntypedDeferredValue::UntypedDeferredValue(size_t field_size,
+        Memory::Kind memkind, const void *initial_value, size_t alignment) 
     //--------------------------------------------------------------------------
     {
+      const Memory memory = get_memory_from_kind(memkind, true);
+      const Realm::Point<1,coord_t> zero(0);
+      Realm::IndexSpace<1,coord_t> bounds = Realm::Rect<1,coord_t>(zero, zero);
+      const std::vector<size_t> field_sizes(1, field_size);
+      Realm::InstanceLayoutConstraints constraints(field_sizes, 0/*blocking*/);
+      int dim_order[1];
+      dim_order[0] = 0;
+      Realm::InstanceLayoutGeneric *layout = 
+        Realm::InstanceLayoutGeneric::choose_instance_layout(bounds, 
+            constraints, dim_order);
+      layout->alignment_reqd = alignment;
+      instance = allocate_instance(memory, layout);
+      if (initial_value != NULL)
+      {
+        Realm::ProfilingRequestSet no_requests; 
+        std::vector<Realm::CopySrcDstField> dsts(1);
+        dsts[0].set_field(instance, 0/*field id*/, field_size);
+        const Internal::LgEvent wait_on(
+            bounds.fill(dsts, no_requests, initial_value, field_size));
+        if (wait_on.exists())
+          wait_on.wait();
+      }
+    }
+
+    //--------------------------------------------------------------------------
+    UntypedDeferredValue::UntypedDeferredValue(const UntypedDeferredValue &rhs)
+      : instance(rhs.instance)
+    //--------------------------------------------------------------------------
+    {
+    }
+
+    //--------------------------------------------------------------------------
+    void UntypedDeferredValue::finalize(Context ctx) const
+    //--------------------------------------------------------------------------
+    {
+      const size_t size = field_size();
+      Runtime::legion_task_postamble(ctx, instance.pointer_untyped(0, size),
+                                     size, true/*owner*/, instance);
+    }
+
+    //--------------------------------------------------------------------------
+    Realm::RegionInstance UntypedDeferredValue::get_instance() const
+    //--------------------------------------------------------------------------
+    {
+      return instance;
+    }
+
+    //--------------------------------------------------------------------------
+    /*static*/ Memory UntypedDeferredValue::get_memory_from_kind(
+        Memory::Kind kind, bool value)
+    //--------------------------------------------------------------------------
+    {
+      // Construct an instance of the right size in the corresponding memory
       Machine machine = Realm::Machine::get_machine();
       Machine::MemoryQuery finder(machine);
-      Runtime *runtime = Runtime::get_runtime();
       Context ctx = Runtime::get_context();
-      const Processor exec_proc = runtime->get_executing_processor(ctx);
-      finder.best_affinity_to(exec_proc);
-      finder.only_kind(memkind);
+      const Processor executing_processor = ctx->get_executing_processor();
+      finder.best_affinity_to(executing_processor);
+      finder.only_kind(kind);
       if (finder.count() == 0)
       {
         finder = Machine::MemoryQuery(machine);
-        finder.has_affinity_to(exec_proc);
-        finder.only_kind(memkind);
+        finder.has_affinity_to(executing_processor);
+        finder.only_kind(kind);
       }
       if (finder.count() == 0)
       {
@@ -3059,47 +3160,53 @@ namespace Legion {
         };
         REPORT_LEGION_ERROR(ERROR_DEFERRED_ALLOCATION_FAILURE,
             "Unable to find associated %s memory for %s processor when "
-            "performing an UntypedDeferredValue creation in task %s (UID %lld)",
-            mem_names[memkind], proc_names[exec_proc.kind()],
+            "performing an Deferred%s creation in task %s (UID %lld)",
+            mem_names[kind], proc_names[executing_processor.kind()],
+            value ? "Value" : "Buffer",
             ctx->get_task_name(), ctx->get_unique_id());
+        assert(false);
       }
-      const Memory memory = finder.first();
-      const Realm::Point<1,coord_t> zero(0);
-      Realm::IndexSpace<1,coord_t> bounds = Realm::Rect<1,coord_t>(zero, zero);
-      const std::vector<size_t> field_sizes(1, field_size);
-      Realm::InstanceLayoutConstraints constraints(field_sizes, 0/*blocking*/);
-      int dim_order[1];
-      dim_order[0] = 0;
-      Realm::InstanceLayoutGeneric *layout = 
-        Realm::InstanceLayoutGeneric::choose_instance_layout(bounds, 
-            constraints, dim_order);
-      layout->alignment_reqd = alignment;
-      instance = runtime->create_task_local_instance(memory, layout);
-      if (initial_value != NULL)
-      {
-        Realm::ProfilingRequestSet no_requests; 
-        std::vector<Realm::CopySrcDstField> dsts(1);
-        dsts[0].set_field(instance, 0/*field id*/, field_size);
-        const Internal::LgEvent wait_on(
-            bounds.fill(dsts, no_requests, initial_value, field_size));
-        if (wait_on.exists())
-          wait_on.wait();
-      }
+      return finder.first();
     }
 
     //--------------------------------------------------------------------------
-    void UntypedDeferredValue::finalize(Context ctx) const
+    /*static*/ Realm::RegionInstance UntypedDeferredValue::allocate_instance(
+        Memory memory, Realm::InstanceLayoutGeneric *layout)
     //--------------------------------------------------------------------------
     {
-      Runtime::legion_task_postamble(ctx,instance.pointer_untyped(0,field_size),
-                                     field_size, true/*owner*/, instance);
+      if (Internal::implicit_context == NULL)
+        REPORT_LEGION_ERROR(ERROR_DEFERRED_ALLOCATION_FAILURE,
+            "It is illegal to request the creation of DeferredBuffer, Deferred"
+            "Value, or DeferredReduction objects outside of Legion tasks.")
+      return 
+         Internal::implicit_context->create_task_local_instance(memory, layout);
     }
 
     //--------------------------------------------------------------------------
-    Realm::RegionInstance UntypedDeferredValue::get_instance() const
+    /*static*/ void UntypedDeferredValue::destroy_instance(
+        Realm::RegionInstance instance, Realm::Event precondition)
     //--------------------------------------------------------------------------
     {
-      return instance;
+      if (Internal::implicit_context == NULL)
+        REPORT_LEGION_ERROR(ERROR_DEFERRED_ALLOCATION_FAILURE,
+            "It is illegal to request the destruction of DeferredBuffer, "
+            "Deferred Value, or DeferredReduction objects outside of "
+            "Legion tasks.")
+      // Don't trust events passed in by users to be safe from poison
+      if (precondition.exists())
+        return Internal::implicit_context->destroy_task_local_instance(instance,
+            Internal::RtEvent(Realm::Event::ignorefaults(precondition)));
+      else
+        return Internal::implicit_context->destroy_task_local_instance(
+            instance, Internal::RtEvent::NO_RT_EVENT);
+    }
+
+    //--------------------------------------------------------------------------
+    /*static*/ Domain UntypedDeferredValue::get_index_space_bounds(
+                                                               IndexSpace space)
+    //--------------------------------------------------------------------------
+    {
+      return Runtime::get_runtime()->get_index_space_domain(space);
     }
 
     /////////////////////////////////////////////////////////////
@@ -3977,7 +4084,23 @@ namespace Legion {
           "Invocation of 'ShardingFunctor::invert_points' method "
           "without a user-provided override");
     }
-    
+
+    /////////////////////////////////////////////////////////////
+    // Concurrent Coloring Functor
+    /////////////////////////////////////////////////////////////
+
+    //--------------------------------------------------------------------------
+    ConcurrentColoringFunctor::ConcurrentColoringFunctor(void)
+    //--------------------------------------------------------------------------
+    {
+    }
+
+    //--------------------------------------------------------------------------
+    ConcurrentColoringFunctor::~ConcurrentColoringFunctor(void)
+    //--------------------------------------------------------------------------
+    {
+    }
+
     /////////////////////////////////////////////////////////////
     // Legion Runtime 
     /////////////////////////////////////////////////////////////
@@ -6512,7 +6635,7 @@ namespace Legion {
     {
       TimingLauncher launcher(LEGION_MEASURE_SECONDS);
       launcher.add_precondition(precondition);
-      return runtime->issue_timing_measurement(ctx, launcher);
+      return ctx->issue_timing_measurement(launcher);
     }
 
     //--------------------------------------------------------------------------
@@ -6521,7 +6644,7 @@ namespace Legion {
     {
       TimingLauncher launcher(LEGION_MEASURE_MICRO_SECONDS);
       launcher.add_precondition(pre);
-      return runtime->issue_timing_measurement(ctx, launcher);
+      return ctx->issue_timing_measurement(launcher);
     }
 
     //--------------------------------------------------------------------------
@@ -6530,7 +6653,7 @@ namespace Legion {
     {
       TimingLauncher launcher(LEGION_MEASURE_NANO_SECONDS);
       launcher.add_precondition(pre);
-      return runtime->issue_timing_measurement(ctx, launcher);
+      return ctx->issue_timing_measurement(launcher);
     }
 
     //--------------------------------------------------------------------------
@@ -6538,7 +6661,7 @@ namespace Legion {
                                              const TimingLauncher &launcher)
     //--------------------------------------------------------------------------
     {
-      return runtime->issue_timing_measurement(ctx, launcher);
+      return ctx->issue_timing_measurement(launcher);
     }
 
     //--------------------------------------------------------------------------
@@ -6807,6 +6930,55 @@ namespace Legion {
     //--------------------------------------------------------------------------
     {
       return Internal::Runtime::get_sharding_functor(sid);
+    }
+
+    //--------------------------------------------------------------------------
+    ConcurrentID Runtime::generate_dynamic_concurrent_id(void)
+    //--------------------------------------------------------------------------
+    {
+      return runtime->generate_dynamic_concurrent_id();
+    }
+
+    //--------------------------------------------------------------------------
+    ConcurrentID Runtime::generate_library_concurrent_ids(const char *name,
+                                                          size_t count)
+    //--------------------------------------------------------------------------
+    {
+      return runtime->generate_library_concurrent_ids(name, count);
+    }
+
+    //--------------------------------------------------------------------------
+    /*static*/ ConcurrentID Runtime::generate_static_concurrent_id(void)
+    //--------------------------------------------------------------------------
+    {
+      return Internal::Runtime::generate_static_concurrent_id();
+    }
+
+    //--------------------------------------------------------------------------
+    void Runtime::register_concurrent_coloring_functor(ConcurrentID cid,
+                                            ConcurrentColoringFunctor *functor,
+                                            bool silence_warnings,
+                                            const char *warning_string)
+    //--------------------------------------------------------------------------
+    {
+      runtime->register_concurrent_functor(cid, functor, silence_warnings,
+                                           warning_string);
+    }
+
+    //--------------------------------------------------------------------------
+    /*static*/ void Runtime::preregister_concurrent_coloring_functor(
+                           ConcurrentID cid, ConcurrentColoringFunctor *functor)
+    //--------------------------------------------------------------------------
+    {
+      Internal::Runtime::preregister_concurrent_functor(cid, functor);
+    }
+
+    //--------------------------------------------------------------------------
+    /*static*/ ConcurrentColoringFunctor* 
+                      Runtime::get_concurrent_coloring_functor(ConcurrentID cid)
+    //--------------------------------------------------------------------------
+    {
+      return Internal::Runtime::get_concurrent_functor(cid);
     }
 
     //--------------------------------------------------------------------------
@@ -7121,38 +7293,6 @@ namespace Legion {
     //--------------------------------------------------------------------------
     {
       runtime->log_once(ctx, message);
-    }
-
-    //--------------------------------------------------------------------------
-    Realm::RegionInstance Runtime::create_task_local_instance(Memory memory,
-                                           Realm::InstanceLayoutGeneric *layout)
-    //--------------------------------------------------------------------------
-    {
-      if (Internal::implicit_context == NULL)
-        REPORT_LEGION_ERROR(ERROR_DEFERRED_ALLOCATION_FAILURE,
-            "It is illegal to request the creation of DeferredBuffer, Deferred"
-            "Value, or DeferredReduction objects outside of Legion tasks.")
-      return 
-         Internal::implicit_context->create_task_local_instance(memory, layout);
-    }
-
-    //--------------------------------------------------------------------------
-    void Runtime::destroy_task_local_instance(Realm::RegionInstance instance,
-                                              Realm::Event precondition)
-    //--------------------------------------------------------------------------
-    {
-      if (Internal::implicit_context == NULL)
-        REPORT_LEGION_ERROR(ERROR_DEFERRED_ALLOCATION_FAILURE,
-            "It is illegal to request the destruction of DeferredBuffer, "
-            "Deferred Value, or DeferredReduction objects outside of "
-            "Legion tasks.")
-      // Don't trust events passed in by users to be safe from poison
-      if (precondition.exists())
-        return Internal::implicit_context->destroy_task_local_instance(instance,
-            Internal::RtEvent(Realm::Event::ignorefaults(precondition)));
-      else
-        return Internal::implicit_context->destroy_task_local_instance(
-            instance, Internal::RtEvent::NO_RT_EVENT);
     }
 
     //--------------------------------------------------------------------------

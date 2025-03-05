@@ -49,8 +49,9 @@ namespace Legion {
       : DistributedCollectable(rt, id, perform_registration, mapping),
         owner_task(owner), regions(reqs), output_reqs(out_reqs), depth(d),
         executing_processor(Processor::NO_PROC), inlined_tasks(0),
-        overhead_profiler(NULL), implicit_task_profiler(NULL), 
-        task_executed(false), mutable_priority(false), inline_task(inline_t),
+        total_tunable_count(0), overhead_profiler(NULL),
+        implicit_task_profiler(NULL), task_executed(false),
+        mutable_priority(false), inline_task(inline_t),
         implicit_task(implicit_t)
     //--------------------------------------------------------------------------
     {
@@ -256,6 +257,13 @@ namespace Legion {
     //--------------------------------------------------------------------------
     {
       return runtime->generate_dynamic_sharding_id(false/*check context*/);
+    }
+
+    //--------------------------------------------------------------------------
+    ConcurrentID TaskContext::generate_dynamic_concurrent_id(void)
+    //--------------------------------------------------------------------------
+    {
+      return runtime->generate_dynamic_concurrent_id(false/*check context*/);
     }
 
     //--------------------------------------------------------------------------
@@ -1277,7 +1285,8 @@ namespace Legion {
       IndexSpaceNode *launch_node = runtime->forest->get_node(launch_space);
       FutureMapImpl *result = new FutureMapImpl(this, runtime,
           launch_node, runtime->get_available_distributed_id(),
-          InnerContext::NO_BLOCKING_INDEX, provenance);
+          InnerContext::NO_BLOCKING_INDEX, std::optional<uint64_t>(),
+          provenance);
       if (launcher.predicate_false_future.impl != NULL)
       {
         for (Domain::DomainPointIterator itr(launch_domain); itr; itr++)
@@ -1399,12 +1408,13 @@ namespace Legion {
     /////////////////////////////////////////////////////////////
     
     //--------------------------------------------------------------------------
-    InnerContext::InnerContext(Runtime *rt, SingleTask *owner,int d,bool finner,
+    InnerContext::InnerContext(const Mapper::ContextConfigOutput &config,
+                               Runtime *rt, SingleTask *owner,int d,bool finner,
                                const std::vector<RegionRequirement> &reqs,
                                const std::vector<OutputRequirement> &out_reqs,
                                const std::vector<unsigned> &parent_indexes,
                                const std::vector<bool> &virt_mapped,
-                               ApEvent exec_fence, 
+                               TaskPriority task_priority, ApEvent exec_fence, 
                                DistributedID id, bool inline_task, 
                                bool implicit_task, bool concurrent,
                                CollectiveMapping *mapping)
@@ -1416,13 +1426,11 @@ namespace Legion {
         tree_context(rt->allocate_region_tree_context()),
         full_inner_context(finner), concurrent_context(concurrent), 
         finished_execution(false), has_inline_accessor(false),
-        next_created_index(reqs.size()), parent_req_indexes(parent_indexes),
-        virtual_mapped(virt_mapped), total_children_count(0),
-        next_blocking_index(0), total_tunable_count(0),
+        next_created_index(reqs.size()), context_configuration(config),
+        parent_req_indexes(parent_indexes), virtual_mapped(virt_mapped), 
+        total_children_count(0), next_blocking_index(0),
         outstanding_prepipeline_tasks(0),
         enqueue_task_comp_queue(CompletionQueue::NO_QUEUE),
-        distribute_task_comp_queue(CompletionQueue::NO_QUEUE),
-        launch_task_comp_queue(CompletionQueue::NO_QUEUE),
         trigger_execution_comp_queue(CompletionQueue::NO_QUEUE),
         deferred_execution_comp_queue(CompletionQueue::NO_QUEUE),
         deferred_mapped_comp_queue(CompletionQueue::NO_QUEUE),
@@ -1436,23 +1444,10 @@ namespace Legion {
         current_mapping_fence_index(0), 
         current_execution_fence_event(exec_fence),
         current_execution_fence_index(0), last_implicit_creation(NULL),
-        last_implicit_creation_gen(0)
+        last_implicit_creation_gen(0), current_priority(task_priority)
     //--------------------------------------------------------------------------
     {
-      // Set some of the default values for a context
-      context_configuration.max_window_size = 
-        runtime->initial_task_window_size;
-      context_configuration.hysteresis_percentage = 
-        runtime->initial_task_window_hysteresis;
-      context_configuration.max_outstanding_frames = 0;
-      context_configuration.min_tasks_to_schedule = 
-        runtime->initial_tasks_to_schedule;
-      context_configuration.min_frames_to_schedule = 0;
-      context_configuration.meta_task_vector_width = 
-        runtime->initial_meta_task_vector_width;
-      context_configuration.max_templates_per_trace =
-        LEGION_DEFAULT_MAX_TEMPLATES_PER_TRACE;
-      context_configuration.mutable_priority = false;
+      mutable_priority = context_configuration.mutable_priority;
       // If we have an owner, clone our local fields from its context
       // and also compute the coordinates for this context in the task tree
       if (owner != NULL)
@@ -1491,10 +1486,6 @@ namespace Legion {
       runtime->free_region_tree_context(tree_context);
       if (enqueue_task_comp_queue.exists())
         enqueue_task_comp_queue.destroy();
-      if (distribute_task_comp_queue.exists())
-        distribute_task_comp_queue.destroy();
-      if (launch_task_comp_queue.exists())
-        launch_task_comp_queue.destroy();
       if (trigger_execution_comp_queue.exists())
         trigger_execution_comp_queue.destroy();
       if (deferred_execution_comp_queue.exists())
@@ -7158,7 +7149,7 @@ namespace Legion {
       const DistributedID did = runtime->get_available_distributed_id();
       IndexSpaceNode *launch_node = runtime->forest->get_node(space);
       FutureMapImpl *impl = new FutureMapImpl(this, runtime, launch_node, did,
-        NO_BLOCKING_INDEX, provenance);
+        NO_BLOCKING_INDEX, std::optional<uint64_t>(), provenance);
       for (std::map<DomainPoint,UntypedBuffer>::const_iterator it =
             data.begin(); it != data.end(); it++)
       {
@@ -8478,7 +8469,9 @@ namespace Legion {
         bool unordered, bool outermost)
     //--------------------------------------------------------------------------
     {
-      LgPriority priority = LG_THROUGHPUT_WORK_PRIORITY; 
+      GenerationID pointwise_generation = 0;
+      std::map<DomainPoint,RtUserEvent> pending_pointwise;
+      LgPriority priority = LG_THROUGHPUT_WORK_PRIORITY;
       // If this is ordered, we need to record this in the reorder buffer
       // and determine if we need to perform a window wait or not
       if (!unordered)
@@ -8505,20 +8498,31 @@ namespace Legion {
               previous_trace->record_intermediate_fence();
           }
         }
-        // Get the context index for this new operation
-        const size_t context_index = total_children_count++;
-        op->set_context_index(context_index);
         // Set the trace for the operation
         if (current_trace != NULL)
           op->set_trace(current_trace, dependences);
         // Enqueue this in the reorder buffer and then see if we need to
         // perform a window wait because there are too many outstanding ops
         AutoLock child_lock(child_op_lock);
+        // Get the context index for this new operation
+        const size_t context_index = total_children_count++;
+        op->set_context_index(context_index);
 #ifdef DEBUG_LEGION
         assert(reorder_buffer.empty() ||
             ((reorder_buffer.back().operation_index+1) == context_index));
 #endif
         reorder_buffer.emplace_back(ReorderBufferEntry(op, context_index));
+        if (!pending_pointwise_dependences.empty())
+        {
+          std::map<uint64_t,std::map<DomainPoint,RtUserEvent> >::iterator 
+            finder = pending_pointwise_dependences.find(context_index);
+          if (finder != pending_pointwise_dependences.end())
+          {
+            pending_pointwise.swap(finder->second);
+            pending_pointwise_dependences.erase(finder);
+            pointwise_generation = op->get_generation();
+          }
+        }
         // Check to see if we need to perform a window wait
         // Only need to check if we are not tracing by frames
         // and not inside of a trace that might be replayed
@@ -8545,6 +8549,14 @@ namespace Legion {
       // Launch the task to perform the prepipeline stage for the operation
       if (op->has_prepipeline_stage())
         add_to_prepipeline_queue(op);
+      // Trigger any pending pointwise dependences
+      if (!pending_pointwise.empty())
+      {
+        for (std::map<DomainPoint,RtUserEvent>::const_iterator it =
+              pending_pointwise.begin(); it != pending_pointwise.end(); it++)
+          op->find_pointwise_dependence(it->first, pointwise_generation,
+                                        it->second);
+      }
       RtEvent precondition;
       RtEvent commit_event;
       bool issue_task = false;
@@ -8828,11 +8840,11 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    void InnerContext::add_to_task_queue(TaskOp *task, RtEvent ready)
+    void InnerContext::add_to_task_queue(SingleTask *task, RtEvent ready)
     //--------------------------------------------------------------------------
     {
-      add_to_queue<TaskOp*,DeferredEnqueueTaskArgs,false/*has bounds*/>(
-          QueueEntry<TaskOp*>(task, ready), enqueue_task_lock,
+      add_to_queue<SingleTask*,DeferredEnqueueTaskArgs,false/*has bounds*/>(
+          QueueEntry<SingleTask*>(task, ready), enqueue_task_lock,
           enqueue_task_queue, enqueue_task_comp_queue);
     }
 
@@ -8842,11 +8854,11 @@ namespace Legion {
                                                   long long performed)
     //--------------------------------------------------------------------------
     {
-      std::vector<TaskOp*> to_perform;
-      TaskOp *next = process_queue<TaskOp*>(enqueue_task_lock, precondition,
-          enqueue_task_queue, enqueue_task_comp_queue,
+      std::vector<SingleTask*> to_perform;
+      SingleTask *next = process_queue<SingleTask*>(enqueue_task_lock,
+          precondition, enqueue_task_queue, enqueue_task_comp_queue,
           to_perform, previous_fevent, performed);
-      for (std::vector<TaskOp*>::const_iterator it =
+      for (std::vector<SingleTask*>::const_iterator it =
             to_perform.begin(); it != to_perform.end(); it++)
       {
         implicit_provenance = (*it)->get_unique_op_id();
@@ -8855,79 +8867,6 @@ namespace Legion {
       if (next != NULL)
       {
         DeferredEnqueueTaskArgs args(next, this, precondition, performed);
-        runtime->issue_runtime_meta_task(args,
-            LG_THROUGHPUT_WORK_PRIORITY, precondition);
-        return false;
-      }
-      else
-        return true;
-    }
-
-    //--------------------------------------------------------------------------
-    void InnerContext::add_to_distribute_task_queue(TaskOp *task, RtEvent ready)
-    //--------------------------------------------------------------------------
-    {
-      add_to_queue<TaskOp*,DeferredDistributeTaskArgs,false/*has bounds*/>(
-          QueueEntry<TaskOp*>(task, ready), distribute_task_lock,
-          distribute_task_queue, distribute_task_comp_queue);
-    }
-
-    //--------------------------------------------------------------------------
-    bool InnerContext::process_distribute_task_queue(RtEvent precondition,
-                                                     LgEvent previous_fevent,
-                                                     long long performed)
-    //--------------------------------------------------------------------------
-    {
-      std::vector<TaskOp*> to_perform;
-      TaskOp *next = process_queue<TaskOp*>(distribute_task_lock, precondition,
-                distribute_task_queue, distribute_task_comp_queue,
-                to_perform, previous_fevent, performed);
-      for (std::vector<TaskOp*>::const_iterator it =
-            to_perform.begin(); it != to_perform.end(); it++)
-      {
-        implicit_provenance = (*it)->get_unique_op_id();
-        if ((*it)->distribute_task())
-          (*it)->launch_task();
-      }
-      if (next != NULL)
-      {
-        DeferredDistributeTaskArgs args(next, this, precondition, performed);
-        runtime->issue_runtime_meta_task(args,
-            LG_THROUGHPUT_WORK_PRIORITY, precondition);
-        return false;
-      }
-      else
-        return true;
-    }
-
-    //--------------------------------------------------------------------------
-    void InnerContext::add_to_launch_task_queue(TaskOp *task, RtEvent ready)
-    //--------------------------------------------------------------------------
-    {
-      add_to_queue<TaskOp*,DeferredLaunchTaskArgs,false/*has bounds*/>(
-          QueueEntry<TaskOp*>(task, ready), launch_task_lock,
-          launch_task_queue, launch_task_comp_queue);
-    }
-
-    //--------------------------------------------------------------------------
-    bool InnerContext::process_launch_task_queue(RtEvent precondition,
-                                                 LgEvent previous_fevent,
-                                                 long long performed)
-    //--------------------------------------------------------------------------
-    {
-      std::vector<TaskOp*> to_perform;
-      TaskOp *next = process_queue<TaskOp*>(launch_task_lock, precondition,
-                    launch_task_queue, launch_task_comp_queue,
-                    to_perform, previous_fevent, performed);
-      for (std::vector<TaskOp*>::const_iterator it =
-            to_perform.begin(); it != to_perform.end(); it++)
-      {
-        implicit_provenance = (*it)->get_unique_op_id();
-        (*it)->launch_task();
-      }
-      if (next != NULL)
-      {
-        DeferredLaunchTaskArgs args(next, this, precondition, performed);
         runtime->issue_runtime_meta_task(args,
             LG_THROUGHPUT_WORK_PRIORITY, precondition);
         return false;
@@ -9292,22 +9231,35 @@ namespace Legion {
         ready_operations.insert(ready_operations.begin(), complete);
         previous_trace = NULL;
       }
+      std::map<Operation*,GenerationID> pending_generations;
+      std::map<Operation*,std::map<DomainPoint,RtUserEvent> > pending_pointwise;
       if (runtime->program_order_execution)
       {
         while (!ready_operations.empty())
         {
           Operation *op = ready_operations.back();
           ready_operations.pop_back();
-          const size_t context_index = total_children_count++;
-          op->set_context_index(context_index);
           // Record it in the reorder buffer
           {
             AutoLock child_lock(child_op_lock);
+            const size_t context_index = total_children_count++;
+            op->set_context_index(context_index);
 #ifdef DEBUG_LEGION
             assert(reorder_buffer.empty() || 
                 ((reorder_buffer.back().operation_index+1) == context_index));
 #endif       
             reorder_buffer.emplace_back(ReorderBufferEntry(op, context_index));
+            if (!pending_pointwise_dependences.empty())
+            {
+              std::map<uint64_t,std::map<DomainPoint,RtUserEvent> >::iterator   
+                finder = pending_pointwise_dependences.find(context_index);
+              if (finder != pending_pointwise_dependences.end())
+              {
+                pending_pointwise[op].swap(finder->second);
+                pending_pointwise_dependences.erase(finder);
+                pending_generations[op] = op->get_generation();
+              }
+            }
           }
 #ifdef DEBUG_LEGION
           assert(dependence_queue.empty());
@@ -9342,6 +9294,17 @@ namespace Legion {
               ((reorder_buffer.back().operation_index+1) == context_index));
 #endif       
           reorder_buffer.emplace_back(ReorderBufferEntry(*it, context_index));
+          if (!pending_pointwise_dependences.empty())
+          {
+            std::map<uint64_t,std::map<DomainPoint,RtUserEvent> >::iterator   
+              finder = pending_pointwise_dependences.find(context_index);
+            if (finder != pending_pointwise_dependences.end())
+            {
+              pending_pointwise[*it].swap(finder->second);
+              pending_pointwise_dependences.erase(finder);
+              pending_generations[*it] = (*it)->get_generation();
+            }
+          }
           if (dependence_queue.empty())
           {
             DependenceArgs args(*it, this);
@@ -9353,20 +9316,64 @@ namespace Legion {
         }
         ready_operations.clear();
       }
+      if (!pending_pointwise.empty())
+      {
+        d_lock.release();
+        for (std::map<Operation*,
+              std::map<DomainPoint,RtUserEvent> >::const_iterator pit =
+              pending_pointwise.begin(); pit != pending_pointwise.end(); pit++)
+        {
+          std::map<Operation*,GenerationID>::const_iterator finder =
+            pending_generations.find(pit->first);
+#ifdef DEBUG_LEGION
+          assert(finder != pending_generations.end());
+#endif
+          for (std::map<DomainPoint,RtUserEvent>::const_iterator it =
+                pit->second.begin(); it != pit->second.end(); it++)
+            pit->first->find_pointwise_dependence(
+                it->first, finder->second, it->second);
+        }
+        d_lock.reacquire();
+      }
+    }
+
+    //--------------------------------------------------------------------------
+    unsigned InnerContext::minimize_repeat_results(unsigned ready, 
+                                                   bool &double_wait_interval)
+    //--------------------------------------------------------------------------
+    {
+      double_wait_interval = false;
+      return ready;
     }
 
     //--------------------------------------------------------------------------
     void InnerContext::register_executing_child(Operation *op)
     //--------------------------------------------------------------------------
     {
+      AutoLock child_lock(child_op_lock);
       const size_t context_index = total_children_count++;
       op->set_context_index(context_index);
-      AutoLock child_lock(child_op_lock);
 #ifdef DEBUG_LEGION
       assert(reorder_buffer.empty() ||
             ((reorder_buffer.back().operation_index+1) == context_index));
 #endif
       reorder_buffer.emplace_back(ReorderBufferEntry(op, context_index));
+      if (!pending_pointwise_dependences.empty())
+      {
+        std::map<uint64_t,std::map<DomainPoint,RtUserEvent> >::iterator
+          finder = pending_pointwise_dependences.end();
+        if (finder != pending_pointwise_dependences.end())
+        {
+          std::map<DomainPoint,RtUserEvent> to_trigger;
+          to_trigger.swap(finder->second);
+          pending_pointwise_dependences.erase(finder);
+          const GenerationID generation = op->get_generation();
+          child_lock.release();
+          for (std::map<DomainPoint,RtUserEvent>::const_iterator it =
+                to_trigger.begin(); it != to_trigger.end(); it++)
+            op->find_pointwise_dependence(it->first, generation, it->second);
+        }
+      }
     }
 
     //--------------------------------------------------------------------------
@@ -10105,13 +10112,18 @@ namespace Legion {
     //--------------------------------------------------------------------------
     void InnerContext::begin_trace(TraceID tid, bool logical_only,
         bool static_trace, const std::set<RegionTreeID> *trees,
-        bool deprecated, Provenance *provenance)
+        bool deprecated, Provenance *provenance, bool from_application)
     //--------------------------------------------------------------------------
     {
       if (runtime->no_tracing) return;
       if (runtime->no_physical_tracing) logical_only = true;
 
-      AutoRuntimeCall call(this);
+      if (from_application) {
+        AutoRuntimeCall call(this);
+        this->begin_trace(tid, logical_only, static_trace, trees, deprecated, 
+            provenance, false /* from application */);
+        return;
+      }
 #ifdef DEBUG_LEGION
       log_run.debug("Beginning a trace in task %s (ID %lld)",
                     get_task_name(), get_unique_id());
@@ -10204,12 +10216,18 @@ namespace Legion {
 
     //--------------------------------------------------------------------------
     void InnerContext::end_trace(TraceID tid, bool deprecated,
-                                 Provenance *provenance)
+                                 Provenance *provenance, bool from_application)
     //--------------------------------------------------------------------------
     {
       if (runtime->no_tracing) return;
 
-      AutoRuntimeCall call(this);
+      if (from_application) 
+      {
+        AutoRuntimeCall call(this);
+        InnerContext::end_trace(tid, deprecated, provenance, 
+                                false/*from_app*/);
+        return;
+      }
 #ifdef DEBUG_LEGION
       log_run.debug("Ending a trace in task %s (ID %lld)",
                     get_task_name(), get_unique_id());
@@ -10238,7 +10256,8 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    void InnerContext::record_blocking_call(uint64_t blocking_index)
+    void InnerContext::record_blocking_call(uint64_t blocking_index,
+                                            bool invalidate_trace)
     //--------------------------------------------------------------------------
     {
       // It's only a blocking call if the wait occurs from an operation 
@@ -10246,7 +10265,7 @@ namespace Legion {
       // were produced before the trace or in the case of inline mappings
       // we know those operations are not traceable so they had to be 
       // issued before we started capturing the trace
-      if ((current_trace != NULL) && 
+      if ((current_trace != NULL) && invalidate_trace &&
           (blocking_index != NO_BLOCKING_INDEX) &&
           (current_trace_blocking_index <= blocking_index))
       {
@@ -10702,56 +10721,6 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    void InnerContext::configure_context(MapperManager *mapper, TaskPriority p)
-    //--------------------------------------------------------------------------
-    {
-      mapper->invoke_configure_context(owner_task, context_configuration);
-      // Do a little bit of checking on the output.  Make
-      // sure that we only set one of the two cases so we
-      // are counting by frames or by outstanding tasks.
-      if ((context_configuration.min_tasks_to_schedule == 0) && 
-          (context_configuration.min_frames_to_schedule == 0))
-        REPORT_LEGION_ERROR(ERROR_INVALID_MAPPER_OUTPUT,
-                      "Invalid mapper output from call 'configure_context' "
-                      "on mapper %s. One of 'min_tasks_to_schedule' and "
-                      "'min_frames_to_schedule' must be non-zero for task "
-                      "%s (ID %lld)", mapper->get_mapper_name(),
-                      get_task_name(), get_unique_id())
-      // Hysteresis percentage is an unsigned so can't be less than 0
-      if (context_configuration.hysteresis_percentage > 100)
-        REPORT_LEGION_ERROR(ERROR_INVALID_MAPPER_OUTPUT,
-                      "Invalid mapper output from call 'configure_context' "
-                      "on mapper %s. The 'hysteresis_percentage' %d is not "
-                      "a value between 0 and 100 for task %s (ID %lld)",
-                      mapper->get_mapper_name(), 
-                      context_configuration.hysteresis_percentage,
-                      get_task_name(), get_unique_id())
-      if (context_configuration.meta_task_vector_width == 0)
-        REPORT_LEGION_ERROR(ERROR_INVALID_MAPPER_OUTPUT,
-                      "Invalid mapper output from call 'configure context' "
-                      "on mapper %s for task %s (ID %lld). The "
-                      "'meta_task_vector_width' must be a non-zero value.",
-                      mapper->get_mapper_name(),
-                      get_task_name(), get_unique_id())
-      if (context_configuration.max_templates_per_trace == 0)
-        REPORT_LEGION_ERROR(ERROR_INVALID_MAPPER_OUTPUT,
-                      "Invalid mapper output from call 'configure context' "
-                      "on mapper %s for task %s (ID %lld). The "
-                      "'max_templates_per_trace' must be a non-zero value.",
-                      mapper->get_mapper_name(),
-                      get_task_name(), get_unique_id())
-
-      // If we're counting by frames set min_tasks_to_schedule to zero
-      if (context_configuration.min_frames_to_schedule > 0)
-        context_configuration.min_tasks_to_schedule = 0;
-      // otherwise we know min_frames_to_schedule is zero
-
-      // See if we permit priority mutations from child operation mapppers
-      mutable_priority = context_configuration.mutable_priority;
-      current_priority = p;
-    }
-
-    //--------------------------------------------------------------------------
     void InnerContext::initialize_region_tree_contexts(
                       const std::vector<RegionRequirement> &clone_requirements,
                       const LegionVector<VersionInfo> &version_infos,
@@ -10977,15 +10946,16 @@ namespace Legion {
 
     //--------------------------------------------------------------------------
     void InnerContext::invalidate_created_requirement_contexts(
-        const bool is_top, std::set<RtEvent> &applied_events,
+        const bool is_top, std::set<RtEvent> &applied,
         const ShardMapping *shard_mapping, ShardID source_shard)
     //--------------------------------------------------------------------------
     {
-      std::map<LogicalRegion,EqKDTree*> return_regions;
+      std::map<RegionNode*,EqKDTree*> return_regions;
       for (std::map<unsigned,RegionRequirement>::const_iterator it = 
             created_requirements.begin(); it != 
             created_requirements.end(); it++)
       {
+        RegionNode *node = runtime->forest->get_node(it->second.region);
 #ifdef DEBUG_LEGION
         assert(returnable_privileges.find(it->first) !=
                 returnable_privileges.end());
@@ -10998,21 +10968,27 @@ namespace Legion {
         if (returnable_privileges[it->first] && !is_top)
         {
 #ifdef DEBUG_LEGION
-          assert(return_regions.find(it->second.region) == 
-                  return_regions.end());
+          assert(return_regions.find(node) == return_regions.end());
 #endif
           finder->second.tree->add_reference();
-          return_regions[it->second.region] = finder->second.tree;
+          return_regions[node] = finder->second.tree;
           equivalence_set_trees.erase(finder);
         }
         else
         {
           // Not returning so just remove it which will delete the tree
 #ifdef DEBUG_LEGION
-          assert(return_regions.find(it->second.region) == 
-                  return_regions.end());
+          assert(return_regions.find(node) == return_regions.end());
 #endif
+          const FieldMask close_mask =
+            node->column_source->get_field_mask(it->second.privilege_fields);
+          std::vector<RtEvent> applied_events;
+          node->row_source->invalidate_equivalence_set_kd_tree(
+            finder->second.tree, finder->second.lock,
+            close_mask, applied_events, false/*move to previous*/);
           equivalence_set_trees.erase(finder);
+          if (!applied_events.empty())
+            applied.insert(applied_events.begin(), applied_events.end());
         }
       }
       if (!return_regions.empty())
@@ -11021,16 +10997,15 @@ namespace Legion {
         created_nodes.reserve(return_regions.size());
         std::vector<EqKDTree*> created_trees;
         created_trees.reserve(return_regions.size());
-        for (std::map<LogicalRegion,EqKDTree*>::const_iterator it =
+        for (std::map<RegionNode*,EqKDTree*>::const_iterator it =
               return_regions.begin(); it != return_regions.end(); it++)
         {
-          created_nodes.push_back(runtime->forest->get_node(it->first));
+          created_nodes.push_back(it->first);
           created_trees.push_back(it->second);
         }
         InnerContext *parent_ctx = find_parent_context();   
         parent_ctx->receive_created_region_contexts(
-            created_nodes, created_trees, applied_events, 
-            shard_mapping, source_shard);
+            created_nodes, created_trees, applied, shard_mapping, source_shard);
         for (std::vector<EqKDTree*>::const_iterator it =
               created_trees.begin(); it != created_trees.end(); it++)
           if (((*it) != NULL) && (*it)->remove_reference())
@@ -11161,6 +11136,60 @@ namespace Legion {
 #endif
       to_delete.swap(timeouts);
       return false;
+    }
+
+    //--------------------------------------------------------------------------
+    std::pair<bool,bool> InnerContext::has_pointwise_dominance(
+        ProjectionSummary *one, ProjectionSummary *two)
+    //--------------------------------------------------------------------------
+    {
+      // Do the analysis in both directions
+      ProjectionNode *t1 = one->get_tree();
+      ProjectionNode *t2 = two->get_tree();
+      return std::make_pair(t1->pointwise_dominates(t2), 
+                            t2->pointwise_dominates(t1));
+    }
+
+    //--------------------------------------------------------------------------
+    RtEvent InnerContext::find_pointwise_dependence(uint64_t context_index,
+        const DomainPoint &point, ShardID shard, RtUserEvent to_trigger)
+    //--------------------------------------------------------------------------
+    {
+      Operation *op;
+      GenerationID gen;
+      {
+        // We 're just reading so only need the lock in read-only mode
+        AutoLock child_lock(child_op_lock,1,false/*exclusive*/);
+        // If the context index is less than what is at the front of the
+        // reorder buffer then this operation was already retired
+        if (reorder_buffer.empty() ||
+            (context_index < reorder_buffer.front().operation_index))
+        {
+          if (to_trigger.exists())
+            Runtime::trigger_event(to_trigger);
+          return RtEvent::NO_RT_EVENT;
+        }
+#ifdef DEBUG_LEGION
+        assert(context_index <= reorder_buffer.back().operation_index);
+#endif
+        size_t offset = context_index - reorder_buffer.front().operation_index;
+        const ReorderBufferEntry &entry = reorder_buffer[offset];
+        if (entry.complete)
+        {
+          if (to_trigger.exists())
+            Runtime::trigger_event(to_trigger);
+          return RtEvent::NO_RT_EVENT;
+        }
+#ifdef DEBUG_LEGION
+        assert(entry.operation_index == context_index);
+#endif
+        op = entry.operation;
+        // Have to do this while holding the lock to ensure it isn't
+        // committed while we're getting the generation
+        gen = op->get_generation();
+      }
+      // Now we can do the base call to get the operation
+      return op->find_pointwise_dependence(point, gen, to_trigger);
     }
 
     //--------------------------------------------------------------------------
@@ -12346,30 +12375,6 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    /*static*/ void InnerContext::handle_distribute_task_queue(const void *args)
-    //--------------------------------------------------------------------------
-    {
-      const DeferredDistributeTaskArgs *dargs = 
-        (const DeferredDistributeTaskArgs*)args;
-      if (dargs->context->process_distribute_task_queue(
-            dargs->precondition, dargs->previous_fevent, dargs->performed) &&
-          dargs->context->remove_base_resource_ref(META_TASK_REF))
-        delete dargs->context;
-    }
-
-    //--------------------------------------------------------------------------
-    /*static*/ void InnerContext::handle_launch_task_queue(const void *args)
-    //--------------------------------------------------------------------------
-    {
-      const DeferredLaunchTaskArgs *dargs = 
-        (const DeferredLaunchTaskArgs*)args;
-      if (dargs->context->process_launch_task_queue(
-            dargs->precondition, dargs->previous_fevent, dargs->performed) &&
-          dargs->context->remove_base_resource_ref(META_TASK_REF))
-        delete dargs->context;
-    }
-
-    //--------------------------------------------------------------------------
     /*static*/ void InnerContext::handle_trigger_execution_queue(
                                                                const void *args)
     //--------------------------------------------------------------------------
@@ -12701,13 +12706,14 @@ namespace Legion {
     /////////////////////////////////////////////////////////////
 
     //--------------------------------------------------------------------------
-    TopLevelContext::TopLevelContext(Runtime *rt, Processor p, 
-        coord_t normal_id, coord_t implicit_id, 
+    TopLevelContext::TopLevelContext(Runtime *rt, Processor p,
+        coord_t normal_id, coord_t implicit_id,
         DistributedID id, CollectiveMapping *mapping)
-      : InnerContext(rt, NULL, -1, false/*full inner*/,
+      : InnerContext(configure_toplevel_context(rt), rt, NULL/*owner*/,
+                     -1/*depth*/, false/*full inner*/,
                      dummy_requirements, dummy_output_requirements,
-                     dummy_indexes, dummy_mapped, ApEvent::NO_AP_EVENT,
-                     id, false, false, false, mapping),
+                     dummy_indexes, dummy_mapped, 0/*priority*/,
+                     ApEvent::NO_AP_EVENT, id, false, false, false, mapping),
         root_uid(rt->get_unique_operation_id())
     //--------------------------------------------------------------------------
     {
@@ -12719,6 +12725,35 @@ namespace Legion {
       // launched by this instance of the Legion runtime
       context_coordinates.emplace_back(ContextCoordinate(0/*context index*/,
             DomainPoint(Point<2>(normal_id, implicit_id))));
+    }
+
+    //--------------------------------------------------------------------------
+    /*static*/ Mapper::ContextConfigOutput
+                   TopLevelContext::configure_toplevel_context(Runtime *runtime)
+    //--------------------------------------------------------------------------
+    {
+      // We don't need to consult with a mapper to configure the top-level
+      // context because there's always going to be exactly one task in this
+      // context which is the top-level task
+      Mapper::ContextConfigOutput configuration;
+      configuration.max_window_size = runtime->initial_task_window_size;
+      configuration.hysteresis_percentage = 
+        runtime->initial_task_window_hysteresis;
+      configuration.max_outstanding_frames = 0;
+      configuration.min_tasks_to_schedule = runtime->initial_tasks_to_schedule;
+      configuration.min_frames_to_schedule = 0;
+      configuration.meta_task_vector_width = 
+        runtime->initial_meta_task_vector_width;
+      configuration.max_templates_per_trace =
+        LEGION_DEFAULT_MAX_TEMPLATES_PER_TRACE;
+      configuration.mutable_priority = false;
+      configuration.auto_tracing_enabled = false;
+      configuration.auto_tracing_window_size = 0;
+      configuration.auto_tracing_ruler_function = 0;
+      configuration.auto_tracing_min_trace_length = 0;
+      configuration.auto_tracing_max_trace_length = 0;
+      configuration.auto_tracing_visit_threshold = 0;
+      return configuration;
     }
 
     //--------------------------------------------------------------------------
@@ -12790,17 +12825,19 @@ namespace Legion {
     /////////////////////////////////////////////////////////////
 
     //--------------------------------------------------------------------------
-    ReplicateContext::ReplicateContext(Runtime *rt, 
-                                 ShardTask *owner, int d, bool full,
+    ReplicateContext::ReplicateContext(
+                                 const Mapper::ContextConfigOutput &config,
+                                 Runtime *rt, ShardTask *owner, int d,bool full,
                                  const std::vector<RegionRequirement> &reqs,
                                  const std::vector<OutputRequirement> &out_reqs,
                                  const std::vector<unsigned> &parent_indexes,
                                  const std::vector<bool> &virt_mapped,
-                                 ApEvent exec_fence,
+                                 TaskPriority priority, ApEvent exec_fence,
                                  ShardManager *manager, bool inline_task,
                                  bool implicit_task, bool concurrent)
-      : InnerContext(rt, owner, d, full, reqs, out_reqs, parent_indexes,
-         virt_mapped, exec_fence, 0, inline_task, implicit_task, concurrent),
+      : InnerContext(config, rt, owner, d, full, reqs, out_reqs, parent_indexes,
+         virt_mapped, priority, exec_fence, 0, inline_task, 
+         implicit_task, concurrent),
         owner_shard(owner), shard_manager(manager),
         total_shards(shard_manager->total_shards),
         next_close_mapped_bar_index(0), next_refinement_ready_bar_index(0),
@@ -12813,7 +12850,7 @@ namespace Legion {
         next_logical_collective_index(1), next_physical_template_index(0), 
         next_replicate_bar_index(0), next_logical_bar_index(0),
         unordered_ops_counter(0), unordered_ops_epoch(MIN_UNORDERED_OPS_EPOCH),
-        unordered_collective(NULL)
+        unordered_collective(NULL), minimize_repeats_collective(NULL)
     //--------------------------------------------------------------------------
     {
 #ifdef DEBUG_LEGION_COLLECTIVES
@@ -12850,6 +12887,11 @@ namespace Legion {
         returned_resource_mapped_barrier.destroy_barrier();
       if (returned_resource_execution_barrier.exists())
         returned_resource_execution_barrier.destroy_barrier();
+      if (minimize_repeats_collective != NULL)
+      {
+        minimize_repeats_collective->wait_all_reduce();
+        delete minimize_repeats_collective;
+      }
     }
 
     //--------------------------------------------------------------------------
@@ -13304,6 +13346,40 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
+    ConcurrentID ReplicateContext::generate_dynamic_concurrent_id(void)
+    //--------------------------------------------------------------------------
+    {
+      // If we're inside a registration callback we don't care
+      if (inside_registration_callback)
+        return TaskContext::generate_dynamic_concurrent_id();
+      for (int i = 0; runtime->safe_control_replication && (i < 2) &&
+            ((current_trace == NULL) || !current_trace->is_fixed()); i++)
+      {
+        HashVerifier hasher(this, runtime->safe_control_replication > 1, i > 0);
+        hasher.hash(REPLICATE_GENERATE_DYNAMIC_CONCURRENT_ID, __func__);
+        if (hasher.verify(__func__))
+          break;
+      }
+      // Otherwise have one shard make it and broadcast it to everyone else
+      ConcurrentID result;
+      if (owner_shard->shard_id == dynamic_id_allocator_shard)
+      {
+        ValueBroadcast<ConcurrentID> collective(this, COLLECTIVE_LOC_68);
+        result = runtime->generate_dynamic_sharding_id(false/*check context*/);
+        collective.broadcast(result);
+      }
+      else
+      {
+        ValueBroadcast<ConcurrentID> collective(this,dynamic_id_allocator_shard,
+                                                COLLECTIVE_LOC_68);
+        result = collective.get_value();
+      }
+      if (++dynamic_id_allocator_shard == total_shards)
+        dynamic_id_allocator_shard = 0;
+      return result;
+    }
+
+    //--------------------------------------------------------------------------
     TaskID ReplicateContext::generate_dynamic_task_id(void)
     //--------------------------------------------------------------------------
     {
@@ -13705,6 +13781,8 @@ namespace Legion {
             launcher.argument_map.impl->freeze(this, hasher.provenance),
                         "argument_map");
       hash_predicate(hasher, launcher.predicate, "predicate");
+      hasher.hash(launcher.concurrent, "concurrent");
+      hasher.hash(launcher.concurrent_functor, "concurrent_functor");
       hasher.hash(launcher.must_parallelism, "must_parallelism");
       hasher.hash(launcher.map_id, "map_id");
       hasher.hash(launcher.tag, "tag");
@@ -15639,7 +15717,7 @@ namespace Legion {
       {
         Domain color_space = runtime->get_index_partition_color_space(handle1);
         // This code will only work if the color space has type coord_t
-        TypeTag type_tag;
+        TypeTag type_tag = 0;
         switch (color_space.get_dim())
         {
 #define DIMFUNC(DIM) \
@@ -18305,6 +18383,30 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
+    unsigned ReplicateContext::minimize_repeat_results(unsigned ready,
+                                                     bool &double_wait_interval)
+    //--------------------------------------------------------------------------
+    {
+      unsigned result = 0;
+      if (minimize_repeats_collective != NULL)
+      {
+        result = minimize_repeats_collective->get_result();
+#ifdef DEBUG_LEGION
+        assert(result <= ready);
+#endif
+        ready -= result;
+        double_wait_interval = (result == 0);
+      }
+      else
+        double_wait_interval = false;
+      minimize_repeats_collective =
+        new AllReduceCollective<MinReduction<unsigned>,false>(
+            COLLECTIVE_LOC_106, this);
+      minimize_repeats_collective->async_all_reduce(ready);
+      return result;
+    }
+
+    //--------------------------------------------------------------------------
     Future ReplicateContext::execute_task(const TaskLauncher &launcher,
                                         std::vector<OutputRequirement> *outputs)
     //--------------------------------------------------------------------------
@@ -18717,7 +18819,7 @@ namespace Legion {
             get_task_name(), get_unique_id())
         const DistributedID did = runtime->get_available_distributed_id();
         result = FutureMap(new FutureMapImpl(this, runtime, domain_node, did,
-              NO_BLOCKING_INDEX, provenance));
+              NO_BLOCKING_INDEX, std::optional<uint64_t>(), provenance));
       }
       for (std::map<DomainPoint,UntypedBuffer>::const_iterator it =
             data.begin(); it != data.end(); it++)
@@ -19998,10 +20100,14 @@ namespace Legion {
     //--------------------------------------------------------------------------
     void ReplicateContext::begin_trace(TraceID tid, bool logical_only,
                         bool static_trace, const std::set<RegionTreeID> *trees,
-                        bool deprecated, Provenance *provenance)
+                        bool deprecated, Provenance *provenance, bool from_application)
     //--------------------------------------------------------------------------
     {
-      AutoRuntimeCall call(this);
+      if (from_application) {
+        AutoRuntimeCall call(this);
+        this->begin_trace(tid, logical_only, static_trace, trees, deprecated, provenance, false /* from_application */);
+        return;
+      }
       for (int i = 0; runtime->safe_control_replication && (i < 2); i++)
       {
         HashVerifier hasher(this, runtime->safe_control_replication > 1,
@@ -20084,10 +20190,14 @@ namespace Legion {
 
     //--------------------------------------------------------------------------
     void ReplicateContext::end_trace(TraceID tid, bool deprecated,
-                                     Provenance *provenance)
+                                     Provenance *provenance, bool from_application)
     //--------------------------------------------------------------------------
     {
-      AutoRuntimeCall call(this);
+      if (from_application) {
+        AutoRuntimeCall call(this);
+        this->end_trace(tid, deprecated, provenance, false /* from application */);
+        return;
+      }
       for (int i = 0; runtime->safe_control_replication && (i < 2); i++)
       {
         HashVerifier hasher(this, runtime->safe_control_replication > 1,
@@ -20524,6 +20634,113 @@ namespace Legion {
       exchange = new TimeoutMatchExchange(this, COLLECTIVE_LOC_79);
       exchange->perform_exchange(timeouts, previous_ready);
       return double_latency;
+    }
+
+    //--------------------------------------------------------------------------
+    std::pair<bool,bool> ReplicateContext::has_pointwise_dominance(
+        ProjectionSummary *one, ProjectionSummary *two)
+    //--------------------------------------------------------------------------
+    {
+      std::pair<bool,bool> local = 
+        InnerContext::has_pointwise_dominance(one, two);
+      PointwiseAllreduce allreduce(this,
+        get_next_collective_index(COLLECTIVE_LOC_109, true/*logical*/), local);
+      allreduce.perform_collective_sync();
+      return local;
+    }
+
+    //--------------------------------------------------------------------------
+    RtEvent ReplicateContext::find_pointwise_dependence(uint64_t context_index,
+        const DomainPoint &point, ShardID shard, RtUserEvent to_trigger)
+    //--------------------------------------------------------------------------
+    {
+      Operation *op;
+      GenerationID gen;
+      if (shard == owner_shard->shard_id)
+      {
+        // We 're just reading so only need the lock in read-only mode
+        AutoLock child_lock(child_op_lock,1,false/*exclusive*/);
+        if (reorder_buffer.empty())
+        {
+          // Already been retired so there is nothing to do
+          if (context_index < total_children_count)
+          {
+            if (to_trigger.exists())
+              Runtime::trigger_event(to_trigger);
+            return RtEvent::NO_RT_EVENT;
+          }
+          // Since shards execute independently, we could get a request
+          // for a pointwise dependence for an operation that this shard
+          // has not even created yet
+          std::map<DomainPoint,RtUserEvent> &pending_points = 
+            pending_pointwise_dependences[context_index];
+          std::map<DomainPoint,RtUserEvent>::const_iterator finder =
+            pending_points.find(point);
+          if (finder == pending_points.end())
+          {
+            if (!to_trigger.exists())
+              to_trigger = Runtime::create_rt_user_event();
+            pending_points.emplace(std::make_pair(point, to_trigger));
+            return to_trigger;
+          }
+          else
+          {
+            if (to_trigger.exists())
+              Runtime::trigger_event(to_trigger, finder->second);
+            return finder->second;
+          }
+        }
+        // Operation has already been retired
+        if (context_index < reorder_buffer.front().operation_index)
+        {
+          if (to_trigger.exists())
+            Runtime::trigger_event(to_trigger);
+          return RtEvent::NO_RT_EVENT;
+        }
+        if (reorder_buffer.back().operation_index < context_index)
+        {
+          // Since shards execute independently, we could get a request
+          // for a pointwise dependence for an operation that this shard
+          // has not even created yet
+          std::map<DomainPoint,RtUserEvent> &pending_points = 
+            pending_pointwise_dependences[context_index];
+          std::map<DomainPoint,RtUserEvent>::const_iterator finder =
+            pending_points.find(point);
+          if (finder == pending_points.end())
+          {
+            if (!to_trigger.exists())
+              to_trigger = Runtime::create_rt_user_event();
+            pending_points.emplace(std::make_pair(point, to_trigger));
+            return to_trigger;
+          }
+          else
+          {
+            if (to_trigger.exists())
+              Runtime::trigger_event(to_trigger, finder->second);
+            return finder->second;
+          }
+        }
+        size_t offset = context_index - reorder_buffer.front().operation_index;
+        const ReorderBufferEntry &entry = reorder_buffer[offset];
+        if (entry.complete)
+        {
+          if (to_trigger.exists())
+            Runtime::trigger_event(to_trigger);
+          return RtEvent::NO_RT_EVENT;
+        }
+#ifdef DEBUG_LEGION
+        assert(entry.operation_index == context_index);
+#endif
+        op = entry.operation;
+        // Have to do this while holding the lock to ensure it isn't
+        // committed while we're getting the generation
+        gen = op->get_generation();
+        // Fall through and do the local call without the lock
+      }
+      else
+        return shard_manager->find_pointwise_dependence(
+            context_index, point, shard, to_trigger);
+      return op->find_pointwise_dependence(point, gen, to_trigger);
     }
 
     //--------------------------------------------------------------------------
@@ -22960,15 +23177,47 @@ namespace Legion {
     //--------------------------------------------------------------------------
     RemoteContext::RemoteContext(DistributedID id, Runtime *rt,
                                  CollectiveMapping *mapping)
-      : InnerContext(rt, NULL, -1, false/*full inner*/, remote_task.regions,
+      : InnerContext(configure_remote_context(rt), rt, NULL/*owner*/, 
+                     -1/*depth*/, false/*full inner*/, remote_task.regions,
                      remote_task.output_regions, local_parent_req_indexes,
-                     local_virtual_mapped, ApEvent::NO_AP_EVENT, id,
-                     false, false, false, mapping),
+                     local_virtual_mapped, 0/*priority*/, ApEvent::NO_AP_EVENT,
+                     id, false, false, false, mapping),
         parent_ctx(NULL), shard_manager(NULL), provenance(NULL),
         top_level_context(false), remote_task(RemoteTask(this)),
         remote_uid(0), repl_id(0)
     //--------------------------------------------------------------------------
     {
+    }
+
+    //--------------------------------------------------------------------------
+    /*static*/ Mapper::ContextConfigOutput
+                       RemoteContext::configure_remote_context(Runtime *runtime)
+    //--------------------------------------------------------------------------
+    {
+      // Remote contexts are never going to have to act as a context in the
+      // normal sense, but we do still need them to help progress the mapping.
+      // Therefore we sill need to configure them to map outstanding tasks.
+      // We're going to ignore frames here for now and just use the default
+      // configuration for how far to map into the future.
+      Mapper::ContextConfigOutput configuration;
+      configuration.max_window_size = runtime->initial_task_window_size;
+      configuration.hysteresis_percentage = 
+        runtime->initial_task_window_hysteresis;
+      configuration.max_outstanding_frames = 0;
+      configuration.min_tasks_to_schedule = runtime->initial_tasks_to_schedule;
+      configuration.min_frames_to_schedule = 0;
+      configuration.meta_task_vector_width = 
+        runtime->initial_meta_task_vector_width;
+      configuration.max_templates_per_trace =
+        LEGION_DEFAULT_MAX_TEMPLATES_PER_TRACE;
+      configuration.mutable_priority = false;
+      configuration.auto_tracing_enabled = false;
+      configuration.auto_tracing_window_size = 0;
+      configuration.auto_tracing_ruler_function = 0;
+      configuration.auto_tracing_min_trace_length = 0;
+      configuration.auto_tracing_max_trace_length = 0;
+      configuration.auto_tracing_visit_threshold = 0;
+      return configuration;
     }
 
     //--------------------------------------------------------------------------
@@ -23252,6 +23501,26 @@ namespace Legion {
         runtime->send_remote_context_refine_equivalence_sets(owner_space, rez);
         applied_events.push_back(done);
       }
+    }
+
+    //--------------------------------------------------------------------------
+    RtEvent RemoteContext::find_pointwise_dependence(uint64_t context_index,
+        const DomainPoint &point, ShardID shard, RtUserEvent to_trigger)
+    //--------------------------------------------------------------------------
+    {
+      if (!to_trigger.exists())
+        to_trigger = Runtime::create_rt_user_event();
+      Serializer rez;
+      {
+        RezCheck z(rez);
+        rez.serialize(did);
+        rez.serialize(context_index);
+        rez.serialize(point);
+        rez.serialize(shard);
+        rez.serialize(to_trigger);
+      }
+      runtime->send_remote_context_pointwise_dependence(owner_space, rez);
+      return to_trigger;
     }
 
     //--------------------------------------------------------------------------
@@ -23708,6 +23977,26 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
+    /*static*/ void RemoteContext::handle_pointwise_dependence(
+                                          Deserializer &derez, Runtime *runtime)
+    //--------------------------------------------------------------------------
+    {
+      DerezCheck z(derez);
+      DistributedID context_did;
+      derez.deserialize(context_did);
+      InnerContext *local = runtime->find_or_request_inner_context(context_did);
+      uint64_t context_index;
+      derez.deserialize(context_index);
+      DomainPoint point;
+      derez.deserialize(point);
+      ShardID shard;
+      derez.deserialize(shard);
+      RtUserEvent to_trigger;
+      derez.deserialize(to_trigger);
+      local->find_pointwise_dependence(context_index, point, shard, to_trigger);
+    }
+
+    //--------------------------------------------------------------------------
     /*static*/ void RemoteContext::handle_find_trace_local_sets_request(
         Deserializer &derez, Runtime *runtime, AddressSpaceID source)
     //--------------------------------------------------------------------------
@@ -23981,6 +24270,17 @@ namespace Legion {
     //--------------------------------------------------------------------------
     {
       return true;
+    }
+
+    //--------------------------------------------------------------------------
+    RtEvent LeafContext::find_pointwise_dependence(uint64_t context_index,
+        const DomainPoint &point, ShardID shard, RtUserEvent to_trigger)
+    //--------------------------------------------------------------------------
+    {
+      // The only reason we're here is if we're inlining index tasks
+      if (to_trigger.exists())
+        Runtime::trigger_event(to_trigger);
+      return RtEvent::NO_RT_EVENT;
     }
 
     //--------------------------------------------------------------------------
@@ -24757,6 +25057,7 @@ namespace Legion {
                                      std::vector<OutputRequirement> *outputs)
     //--------------------------------------------------------------------------
     {
+      AutoRuntimeCall call(this);
       AutoProvenance provenance(launcher.provenance);
       if (launcher.enable_inlining)
       {
@@ -24785,6 +25086,7 @@ namespace Legion {
                                         std::vector<OutputRequirement> *outputs)
     //--------------------------------------------------------------------------
     {
+      AutoRuntimeCall call(this);
       AutoProvenance provenance(launcher.provenance);
       if (!launcher.must_parallelism && launcher.enable_inlining)
       {
@@ -24818,6 +25120,7 @@ namespace Legion {
                                         std::vector<OutputRequirement> *outputs)
     //--------------------------------------------------------------------------
     {
+      AutoRuntimeCall call(this);
       AutoProvenance provenance(launcher.provenance);
       if (!launcher.must_parallelism && launcher.enable_inlining)
       {
@@ -25106,20 +25409,70 @@ namespace Legion {
     Future LeafContext::issue_timing_measurement(const TimingLauncher &launcher)
     //--------------------------------------------------------------------------
     {
-      REPORT_LEGION_ERROR(ERROR_ILLEGAL_TIMING_MEASUREMENT,
-        "Illegal timing measurement operation in leaf task %s"
-                     "(ID %lld)", get_task_name(), get_unique_id())
-      return Future();
+      AutoRuntimeCall call(this);
+      AutoProvenance provenance(launcher.provenance);
+      // We can permit timing operations in leaf tasks since they should 
+      // just be done immediately. We can ignore any incoming futures on
+      // the launcher since we know they will have already triggered since
+      // the only futures made in leaf tasks are for inline execution.
+      FutureImpl *future = new FutureImpl(this, runtime, true/*register*/,
+          runtime->get_available_distributed_id(), provenance);
+      switch (launcher.measurement)
+      {
+        case LEGION_MEASURE_SECONDS:
+          {
+            double value = Realm::Clock::current_time();
+            future->set_local(&value, sizeof(value));
+            break;
+          }
+        case LEGION_MEASURE_MICRO_SECONDS:
+          {
+            long long value = Realm::Clock::current_time_in_microseconds();
+            future->set_local(&value, sizeof(value));
+            break;
+          }
+        case LEGION_MEASURE_NANO_SECONDS:
+          {
+            long long value = Realm::Clock::current_time_in_nanoseconds();
+            future->set_local(&value, sizeof(value));
+            break;
+          }
+        default:
+          std::abort();
+      }
+      return Future(future);
     }
 
     //--------------------------------------------------------------------------
     Future LeafContext::select_tunable_value(const TunableLauncher &launcher)
     //--------------------------------------------------------------------------
     {
-      REPORT_LEGION_ERROR(ERROR_LEAF_TASK_VIOLATION,
-        "Illegal tunable value operation request in leaf task %s (ID %lld)",
-        get_task_name(), get_unique_id())
-      return Future();
+      AutoRuntimeCall call(this);
+      AutoProvenance provenance(launcher.provenance);
+      // We can permit timing operations in leaf tasks since they should 
+      // just be done immediately. We can ignore any incoming futures on
+      // the launcher since we know they will have already triggered since
+      // the only futures made in leaf tasks are for inline execution.
+      FutureImpl *future = new FutureImpl(this, runtime, true/*register*/,
+          runtime->get_available_distributed_id(), provenance);
+      MapperManager *mapper =
+        runtime->find_mapper(get_executing_processor(), launcher.mapper);
+      Mapper::SelectTunableInput input;
+      Mapper::SelectTunableOutput output;
+      input.tunable_id = launcher.tunable;
+      input.mapping_tag = launcher.tag;
+      input.futures = launcher.futures;
+      input.args = launcher.arg.get_ptr();
+      input.size = launcher.arg.get_size();
+      output.value = NULL;
+      output.size = 0;
+      output.take_ownership = true;
+      mapper->invoke_select_tunable_value(owner_task, input, output);
+      if (runtime->legion_spy_enabled)
+        LegionSpy::log_tunable_value(get_unique_id(),
+                        get_tunable_index(), output.value, output.size);
+      future->set_local(output.value, output.size, output.take_ownership);
+      return Future(future);
     }
 
     //--------------------------------------------------------------------------
@@ -25256,7 +25609,7 @@ namespace Legion {
     //--------------------------------------------------------------------------
     void LeafContext::begin_trace(TraceID tid, bool logical_only,
         bool static_trace, const std::set<RegionTreeID> *trees,
-        bool deprecated, Provenance *provenance)
+        bool deprecated, Provenance *provenance, bool from_application)
     //--------------------------------------------------------------------------
     {
       REPORT_LEGION_ERROR(ERROR_ILLEGAL_LEGION_BEGIN_TRACE,
@@ -25266,7 +25619,7 @@ namespace Legion {
 
     //--------------------------------------------------------------------------
     void LeafContext::end_trace(TraceID tid, bool deprecated,
-                                Provenance *provenance)
+                                Provenance *provenance, bool from_application)
     //--------------------------------------------------------------------------
     {
       REPORT_LEGION_ERROR(ERROR_ILLEGAL_LEGION_END_TRACE,
@@ -25275,7 +25628,8 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    void LeafContext::record_blocking_call(uint64_t blocking_index)
+    void LeafContext::record_blocking_call(uint64_t blocking_index,
+                                           bool invalidate_trace)
     //--------------------------------------------------------------------------
     {
     }
@@ -25674,10 +26028,17 @@ namespace Legion {
       task_local_instances.erase(finder);
       std::map<Memory,MemoryPool*>::const_iterator pool_finder =
         memory_pools.find(instance.get_location());
-#ifdef DEBUG_LEGION
-      assert(pool_finder != memory_pools.end());
-#endif
-      pool_finder->second->free_instance(instance, precondition);
+      if (pool_finder == memory_pools.end())
+      {
+        // This case occurs when the user has taken the unsafe path in
+        // the instance creation code above and needs to delete this
+        // instance that is not associated with any pool
+        MemoryManager *manager = 
+          runtime->find_memory_manager(instance.get_location());
+        manager->free_task_local_instance(instance, precondition);
+      }
+      else
+        pool_finder->second->free_instance(instance, precondition);
     }
 
     //--------------------------------------------------------------------------

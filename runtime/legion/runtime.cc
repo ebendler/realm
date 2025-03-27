@@ -1404,8 +1404,11 @@ namespace Legion {
       if (empty.load())
         pending_instances.emplace(std::make_pair(target, 
               PendingInstance(instance, task_uid)));
-      else
+      else if (future_size > 0)
         record_instance(instance, task_uid);
+      // Future is zero-sized so don't need the instance
+      else if (!instance->defer_deletion(ApEvent::NO_AP_EVENT))
+        delete instance;
       return true;
     }
 
@@ -1534,8 +1537,11 @@ namespace Legion {
       if (empty.load())
         pending_instances.emplace(std::make_pair(runtime->runtime_system_memory,
               PendingInstance(instance, op->get_unique_op_id())));
-      else
+      else if (future_size > 0)
         record_instance(instance, op->get_unique_op_id());
+      // Future is zero-sized so don't need the instance
+      else if (!instance->defer_deletion(ApEvent::NO_AP_EVENT))
+        delete instance;
     }
 
     //--------------------------------------------------------------------------
@@ -3781,8 +3787,9 @@ namespace Legion {
 #endif
         PhysicalInstance result;
         const RtEvent inst_ready(PhysicalInstance::create_external_instance(
-              result, alt_resource->suggested_memory(), ilg,
+              result, alt_resource->suggested_memory(), *ilg,
               *alt_resource, requests));
+        delete ilg;
         if (inst_ready.exists() && (implicit_profiler != NULL))
           implicit_profiler->record_instance_ready(inst_ready, unique_event);
 #ifndef LEGION_UNDO_FUTURE_INSTANCE_HACK
@@ -3828,7 +3835,8 @@ namespace Legion {
         // If it is not an external allocation then ignore suggested_memory
         // because we know we're making this on top of an existing instance
         use_event = RtEvent(PhysicalInstance::create_external_instance(instance,
-              resource->suggested_memory(), ilg, *resource, requests));
+              resource->suggested_memory(), *ilg, *resource, requests));
+        delete ilg;
         own_instance = true;
         if (use_event.exists() && (implicit_profiler != NULL))
           implicit_profiler->record_instance_ready(use_event, unique_event);
@@ -6593,7 +6601,7 @@ namespace Legion {
             // We don't have an existing instance so we need to make one
             const RtEvent ready(
                 Realm::RegionInstance::create_instance(instance,
-                  manager->memory_manager->memory, layout, requests));
+                  manager->memory_manager->memory, *layout, requests));
             if (ready.exists() && (implicit_profiler != NULL))
               implicit_profiler->record_instance_ready(ready,
                   manager->get_unique_event());
@@ -6680,7 +6688,7 @@ namespace Legion {
             PhysicalInstance instance;
             const RtEvent ready(
               Realm::RegionInstance::create_instance(instance,
-                manager->memory_manager->memory, layout, requests));
+                manager->memory_manager->memory, *layout, requests));
             if (ready.exists() && (implicit_profiler != NULL))
               implicit_profiler->record_instance_ready(ready,
                   manager->get_unique_event());
@@ -8839,7 +8847,8 @@ namespace Legion {
     ConcretePool::ConcretePool(PhysicalInstance inst, size_t remain,
         size_t alignment, RtEvent use, MemoryManager *man)
       : MemoryPool(alignment), manager(man), limit(remain),
-        remaining_bytes(remain), first_unused_range(SENTINEL), released(false)
+        remaining_bytes(remain), first_unused_range(SENTINEL),
+        ranges_initialized(false), released(false)
     //--------------------------------------------------------------------------
     {
 #ifdef DEBUG_LEGION
@@ -8848,29 +8857,25 @@ namespace Legion {
 #endif
       // Might not have an instance if this is a zero-sized pool
       if (inst.exists())
-      {
         backing_instances.emplace(std::make_pair(inst, use));
-        // If we're on the local node for the instance then set up the ranges
-        const void *base = inst.pointer_untyped(0, 0);
-        if (base != NULL)
-        {
-          // Initialize the first range with the full allocated space
-          Range &r = ranges.emplace_back(Range());
-          r.first = reinterpret_cast<uintptr_t>(base);
-          r.last = r.first + limit;
-          r.prev = r.next = r.prev_free = r.next_free = SENTINEL;
-          r.instance = inst;
-          const unsigned log2_size = floor_log2(limit);
-          size_based_free_lists.resize(log2_size+1, SENTINEL);
-          size_based_free_lists[log2_size] = 0;
-        }
-      }
     }
 
     //--------------------------------------------------------------------------
     ConcretePool::~ConcretePool(void)
     //--------------------------------------------------------------------------
     {
+    }
+
+    //--------------------------------------------------------------------------
+    ApEvent ConcretePool::get_ready_event(void) const
+    //--------------------------------------------------------------------------
+    {
+      if (backing_instances.empty())
+        return ApEvent::NO_AP_EVENT;
+#ifdef DEBUG_LEGION
+      assert(backing_instances.size() == 1);
+#endif
+      return ApEvent(backing_instances.begin()->second);
     }
 
     //--------------------------------------------------------------------------
@@ -8955,11 +8960,12 @@ namespace Legion {
       if (layout->bytes_used == 0)
       {
         // Special case for empty instances
-        Realm::InstanceLayoutGeneric *layout = create_layout(0, 1);
+        Realm::InstanceLayoutGeneric *empty_layout = create_layout(0, 1);
         PhysicalInstance instance;
         const Realm::ProfilingRequestSet empty_requests;
         use_event = RtEvent(PhysicalInstance::create_instance(
-              instance, manager->memory, layout->clone(), empty_requests));
+              instance, manager->memory, *empty_layout, empty_requests));
+        delete empty_layout;
 #ifdef DEBUG_LEGION
         assert(instance.exists());
         assert(allocated.find(instance) == allocated.end());
@@ -8992,7 +8998,7 @@ namespace Legion {
         // name the memory but since we know this pool is backed by
         // a normal Realm instance we can use that memory
         use_event = RtEvent(PhysicalInstance::create_external_instance(
-              instance, manager->memory, layout->clone(), *external_resource,
+              instance, manager->memory, *layout, *external_resource,
               empty_requests, backing_instances[range.instance]));
 #ifdef DEBUG_LEGION
         assert(instance.exists());
@@ -9162,6 +9168,38 @@ namespace Legion {
 #ifdef DEBUG_LEGION
       assert(size > 0);
 #endif
+      // Make sure we've inserted the initial range if from the backing
+      // instance if we haven't already done that
+      if (!ranges_initialized)
+      {
+        if (!backing_instances.empty())
+        {
+          
+#ifdef DEBUG_LEGION
+          assert(backing_instances.size() == 1);
+#endif
+          std::map<PhysicalInstance,RtEvent>::const_iterator it =
+            backing_instances.begin();
+#ifdef DEBUG_LEGION
+          assert(it->second.has_triggered());
+#endif
+          // If we're on the local node for the instance then set up the ranges
+          const void *base = it->first.pointer_untyped(0, 0);
+          if (base != NULL)
+          {
+            // Initialize the first range with the full allocated space
+            Range &r = ranges.emplace_back(Range());
+            r.first = reinterpret_cast<uintptr_t>(base);
+            r.last = r.first + limit;
+            r.prev = r.next = r.prev_free = r.next_free = SENTINEL;
+            r.instance = it->first;
+            const unsigned log2_size = floor_log2(limit);
+            size_based_free_lists.resize(log2_size+1, SENTINEL);
+            size_based_free_lists[log2_size] = 0;
+          }
+        }
+        ranges_initialized = true;
+      }
       bool try_again = true;
       while (try_again)
       {
@@ -9952,6 +9990,13 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
+    ApEvent UnboundPool::get_ready_event(void) const
+    //--------------------------------------------------------------------------
+    {
+      return ApEvent::NO_AP_EVENT;
+    }
+
+    //--------------------------------------------------------------------------
     size_t UnboundPool::query_memory_limit(void)
     //--------------------------------------------------------------------------
     {
@@ -10088,7 +10133,7 @@ namespace Legion {
         PhysicalInstance instance;
         const Realm::ProfilingRequestSet empty_requests;
         use_event = RtEvent(PhysicalInstance::create_instance(
-              instance, manager->memory, layout->clone(), empty_requests));
+              instance, manager->memory, *layout, empty_requests));
         return instance;
       }
       if (!freed_instances.empty())
@@ -13776,7 +13821,7 @@ namespace Legion {
                 instance, layout, requests, alloc_precondition));
         else
           use_event = RtEvent(PhysicalInstance::create_instance(instance,
-                    memory, layout->clone(), requests, alloc_precondition));
+                    memory, *layout, requests, alloc_precondition));
         if (allocator.succeeded())
         {
           // Only record this if we succeeded in the allocation
@@ -13800,8 +13845,8 @@ namespace Legion {
           instance = PhysicalInstance::NO_INST;
         }
 #else
-        use_event = allocate_legion_instance(layout->clone(), 
-            requests, instance);
+        use_event = allocate_legion_instance(layout, 
+            requests, instance, unique_event);
         if (instance.exists())
         {
           // Only record this if we succeeded in the allocation
@@ -13814,7 +13859,7 @@ namespace Legion {
 #endif
 #endif
             remaining_capacity.fetch_sub(layout->bytes_used);
-#ifdef DEBUG_LEGIOn
+#ifdef DEBUG_LEGION
           assert(layout->bytes_used <= previous);
 #endif
           break;
@@ -14212,7 +14257,7 @@ namespace Legion {
 #ifdef LEGION_MALLOC_INSTANCES
     //--------------------------------------------------------------------------
     RtEvent MemoryManager::allocate_legion_instance(
-                                Realm::InstanceLayoutGeneric *layout,
+                                const Realm::InstanceLayoutGeneric *layout,
                                 const Realm::ProfilingRequestSet &requests,
                                 PhysicalInstance &instance,
                                 LgEvent unique_event, bool needs_deferral)
@@ -14238,7 +14283,7 @@ namespace Legion {
                 (uintptr_t)ptr, footprint, false/*read only*/);
             result = 
               RtEvent(PhysicalInstance::create_external_instance(instance,
-                  resource.suggested_memory(), layout, resource, requests));
+                  resource.suggested_memory(), *layout, resource, requests));
             break;
           }
         case Memory::REGDMA_MEM:
@@ -14254,7 +14299,7 @@ namespace Legion {
                 (uintptr_t)ptr, footprint, false/*read only*/);
             result = 
               RtEvent(PhysicalInstance::create_external_instance(instance,
-                  resource.suggested_memory(), layout, resource, requests));
+                  resource.suggested_memory(), *layout, resource, requests));
             break;
           }
 #ifdef LEGION_USE_CUDA
@@ -14288,7 +14333,7 @@ namespace Legion {
                     device, (uintptr_t)ptr, footprint, false/*read only*/);
                 result = 
                   RtEvent(PhysicalInstance::create_external_instance(instance,
-                    resource.suggested_memory(), layout, resource, requests));
+                    resource.suggested_memory(), *layout, resource, requests));
               }
               else
               {
@@ -14307,7 +14352,7 @@ namespace Legion {
                     (uintptr_t)ptr, footprint, false/*read only*/);
                 result =
                   RtEvent(PhysicalInstance::create_external_instance(instance,
-                    resource.suggested_memory(), layout, resource, requests));
+                    resource.suggested_memory(), *layout, resource, requests));
               }
             }
             break;
@@ -14344,7 +14389,7 @@ namespace Legion {
                     device, (uintptr_t)ptr, footprint, false/*read only*/);
                 result =
                   RtEvent(PhysicalInstance::create_external_instance(instance,
-                    resource.suggested_memory(), layout, resource, requests));
+                    resource.suggested_memory(), *layout, resource, requests));
               }
               else
               {
@@ -14363,7 +14408,7 @@ namespace Legion {
                     (uintptr_t)ptr, footprint, false/*read only*/);
                 result =
                   RtEvent(PhysicalInstance::create_external_instance(instance,
-                    resource.suggested_memory(), layout, resource, requests));
+                    resource.suggested_memory(), *layout, resource, requests));
               }
             }
             break;
@@ -14497,6 +14542,7 @@ namespace Legion {
       const RtEvent ready = margs->manager->allocate_legion_instance(
           margs->layout, *(margs->requests), *(margs->instance), 
           margs->unique_event, false/*needs defer*/);
+      delete margs->layout;
       if (ready.exists() && !ready.has_triggered())
         ready.wait();
     }

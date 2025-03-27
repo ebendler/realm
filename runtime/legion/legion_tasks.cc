@@ -4250,8 +4250,7 @@ namespace Legion {
       // If we'r recording then record the replay map task
       if (is_recording())
         trace_info.record_replay_mapping(single_task_termination,
-            TASK_OP_KIND, (get_task_kind() != INDIVIDUAL_TASK_KIND),
-            map_applied_conditions);
+            TASK_OP_KIND, map_applied_conditions);
       ApEvent init_precondition = compute_sync_precondition(trace_info);
       // After we've got our results, apply the state to the region tree
       size_t region_count = get_region_count();
@@ -5676,10 +5675,17 @@ namespace Legion {
       }
       else
       {
+        for (std::map<Memory,MemoryPool*>::const_iterator it =
+              leaf_memory_pools.begin(); it != leaf_memory_pools.end(); it++)
+        {
+          const ApEvent ready = it->second->get_ready_event();
+          if (ready.exists())
+            launch_events.insert(ready);
+        }
         LeafContext *leaf_ctx = new LeafContext(runtime, this, 
             std::move(leaf_memory_pools), inline_task);
-        leaf_memory_pools.clear();
         leaf_ctx->add_base_gc_ref(SINGLE_TASK_REF);
+        leaf_memory_pools.clear();
         return leaf_ctx;
       }
     }
@@ -9169,9 +9175,17 @@ namespace Legion {
       }
       else
       {
+        for (std::map<Memory,MemoryPool*>::const_iterator it =
+              leaf_memory_pools.begin(); it != leaf_memory_pools.end(); it++)
+        {
+          const ApEvent ready = it->second->get_ready_event();
+          if (ready.exists())
+            launch_events.insert(ready);
+        }
         execution_context = new LeafContext(runtime, this, 
             std::move(leaf_memory_pools), inline_task);
         execution_context->add_base_gc_ref(SINGLE_TASK_REF);
+        leaf_memory_pools.clear();
       }
       return execution_context;
     }

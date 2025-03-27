@@ -22,6 +22,7 @@ if(NOT Legion_SOURCE_DIR)
 endif()
 
 list(APPEND REALM_TESTS
+  addrsplit_channel_test.cc
   memcpy_channel_test.cc
   indirect_iterator_test.cc
   comp_queue_test.cc
@@ -62,13 +63,13 @@ list(APPEND REALM_TESTS
 )
 endif()
 
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+CPMFindPackage(
+  NAME googletest
+  GITHUB_REPOSITORY google/googletest
+  GIT_TAG v1.14.0
+  VERSION 1.14.0
+  OPTIONS "INSTALL_GTEST OFF" "gtest_force_shared_crt"
 )
-
-FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 add_executable(realm_tests ${REALM_TESTS})

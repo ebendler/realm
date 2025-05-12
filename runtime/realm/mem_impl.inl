@@ -927,10 +927,12 @@ namespace Realm {
                                                         const std::vector<TT> &new_tags,
                                                         const std::vector<RT> &sizes,
                                                         const std::vector<RT> &alignments,
-                                                        std::vector<RT> &allocs_first)
+                                                        std::vector<RT> &allocs_first,
+                                                        bool missing_ok)
   {
     typename std::map<TT, unsigned>::iterator it = this->allocated.find(old_tag);
     if(it == this->allocated.end()) {
+      assert(missing_ok);
       return 0;
     }
 

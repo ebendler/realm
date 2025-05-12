@@ -53,6 +53,7 @@
 #include <sstream>
 #include <fstream>
 #include <csignal>
+#include <filesystem>
 
 #if defined(REALM_ON_LINUX) || defined(REALM_ON_MACOS) || defined(REALM_ON_FREEBSD)
 #include <unistd.h>
@@ -154,7 +155,8 @@ namespace Realm {
   Logger log_collective("collective");
   extern Logger log_task; // defined in proc_impl.cc
   extern Logger log_taskreg; // defined in proc_impl.cc
-  
+  extern Logger log_machine; // defined in machine_impl.cc
+
   ////////////////////////////////////////////////////////////////////////
   //
   // hacks to force linkage of things
@@ -779,9 +781,9 @@ namespace Realm {
       return ((RuntimeImpl *)impl)->create_configs(argc, argv);
     }
 
-    ModuleConfig* Runtime::get_module_config(const std::string name)
+    ModuleConfig *Runtime::get_module_config(const std::string &name) const
     {
-      return ((RuntimeImpl *)impl)->get_module_config(name);
+      return (static_cast<const RuntimeImpl *>(impl))->get_module_config(name);
     }
 
     Module *Runtime::get_module_untyped(const char *name)
@@ -822,6 +824,7 @@ namespace Realm {
     config_map.insert({"regmem", &reg_mem_size});
     config_map.insert({"report_sparsity_leaks", &report_sparsity_leaks});
     config_map.insert({"barrier_broadcast_radix", &barrier_broadcast_radix});
+    config_map.insert({"diskmem", &disk_mem_size});
 
     resource_map.insert({"cpu", &res_num_cpus});
     resource_map.insert({"sysmem", &res_sysmem_size});
@@ -2100,11 +2103,12 @@ namespace Realm {
       DiskMemory *diskmem;
       if(config->disk_mem_size > 0) {
         char file_name[30];
-        snprintf(file_name, sizeof file_name, "disk_file%d.tmp", Network::my_node_id);
+        snprintf(file_name, sizeof file_name, "realm_disk_file%d.data",
+                 Network::my_node_id);
+        std::filesystem::path disk_file = std::filesystem::temp_directory_path();
+        disk_file /= file_name;
         Memory m = get_runtime()->next_local_memory_id();
-        diskmem = new DiskMemory(m,
-                                 config->disk_mem_size,
-                                 std::string(file_name));
+        diskmem = new DiskMemory(m, config->disk_mem_size, disk_file);
         get_runtime()->add_memory(diskmem);
       } else
         diskmem = 0;
@@ -2313,6 +2317,16 @@ namespace Realm {
       machine->update_kind_maps();
       // and the mem_mem affinities
       machine->enumerate_mem_mem_affinities();
+
+      if(log_machine.want_debug()) {
+        // Print the machine model
+        if(Network::my_node_id == 0) {
+          for(int i = 0; i < Network::max_node_id + 1; i++) {
+            const Node &node = nodes[i];
+            log_machine.debug() << "Node " << i << ":\n" << node;
+          }
+        }
+      }
 
       // Then update the path caches
       if (Config::path_cache_lru_size) {
@@ -2926,9 +2940,9 @@ namespace Realm {
       return true;
     }
 
-    ModuleConfig* RuntimeImpl::get_module_config(const std::string name)
+    ModuleConfig *RuntimeImpl::get_module_config(const std::string &name) const
     {
-      std::map<std::string, ModuleConfig*>::iterator it;
+      std::map<std::string, ModuleConfig *>::const_iterator it;
       it = module_configs.find(name);
       if (it == module_configs.end()) {
         return NULL;
@@ -3380,6 +3394,28 @@ namespace Realm {
           proc_groups) {
         delete atomic_proc_group.load();
       }
+    }
+
+    std::ostream &operator<<(std::ostream &os, const Node &node)
+    {
+      for(const ProcessorImpl *processor : node.processors) {
+        os << "Processor:" << processor->me << ", " << processor->kind << std::endl;
+      }
+      for(const MemoryImpl *memory : node.memories) {
+        os << "Memory:" << memory->me << ", " << memory->me.kind()
+           << ", capacity: " << memory->size << std::endl;
+      }
+      for(const MemoryImpl *memory : node.ib_memories) {
+        os << "IB Memory:" << memory->me << ", " << memory->me.kind()
+           << ", capacity: " << memory->size << std::endl;
+      }
+      for(const Channel *channel : node.dma_channels) {
+        os << "Channel: " << channel->kind << std::endl;
+        for(const Channel::SupportedPath &path : channel->get_paths()) {
+          os << "-Supported Path: " << path << std::endl;
+        }
+      }
+      return os;
     }
 
   ////////////////////////////////////////////////////////////////////////

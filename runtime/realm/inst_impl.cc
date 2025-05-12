@@ -21,6 +21,8 @@
 #include "realm/runtime_impl.h"
 #include "realm/deppart/inst_helper.h"
 
+#include <filesystem>
+
 TYPE_IS_SERIALIZABLE(Realm::InstanceLayoutGeneric::FieldLayout);
 
 namespace Realm {
@@ -80,10 +82,21 @@ namespace Realm {
   void RegionInstanceImpl::DeferredDestroy::event_triggered(bool poisoned,
 							    TimeLimit work_until)
   {
-    if(poisoned)
-      log_poison.info() << "poisoned deferred instance destruction skipped - POSSIBLE LEAK - inst=" << inst;
-    
-    mem->release_storage_immediate(inst, poisoned, work_until);
+    if(inst->deferred_redistrict.empty()) {
+      if(poisoned) {
+        log_poison.info()
+            << "poisoned deferred instance destruction skipped - POSSIBLE LEAK - inst="
+            << inst;
+      }
+      mem->release_storage_immediate(inst, poisoned, work_until);
+    } else {
+      if(poisoned) {
+        log_poison.info()
+            << "poisoned deferred instance redistrict skipped - POSSIBLE LEAK - inst="
+            << inst;
+      }
+      mem->reuse_storage_immediate(inst, inst->deferred_redistrict, poisoned, work_until);
+    }
   }
 
   void RegionInstanceImpl::DeferredDestroy::print(std::ostream& os) const
@@ -816,7 +829,9 @@ namespace Realm {
       MemoryImpl *m_impl = get_runtime()->get_memory_impl(memory);
       RegionInstanceImpl *impl = m_impl->new_instance(prs);
       // we can fail to get a valid pointer if we are out of instance slots
-      if(!impl) {
+      // we can also fail if there is not enough space for the instance
+      // or if the alignment is insufficient for external instance creation
+      if(!impl || ((res != nullptr) && !res->satisfies(*ilg))) {
         inst = RegionInstance::NO_INST;
         delete ilg;
         // generate a poisoned event for completion
@@ -995,15 +1010,15 @@ namespace Realm {
       //  instance metadata (whether the allocation succeeded or not) after
       //  this point)
       Event ready_event;
+      RegionInstanceImpl *last = insts.back();
       switch(m_impl->reuse_storage_deferrable(this, insts, wait_on)) {
       case MemoryImpl::ALLOC_INSTANT_SUCCESS:
       {
         ready_event = Event::NO_EVENT;
         break;
       }
-
-      case MemoryImpl::ALLOC_INSTANT_FAILURE:
       case MemoryImpl::ALLOC_CANCELLED:
+      case MemoryImpl::ALLOC_INSTANT_FAILURE:
       {
         // generate a poisoned event for completion
         // NOTE: it is unsafe to look at the impl->metadata or the
@@ -1018,10 +1033,51 @@ namespace Realm {
 
       case MemoryImpl::ALLOC_DEFERRED:
       {
-        // We've done all the work to make set up the new instances
-        // they will be ready the instant the deferral event triggers
-        // as that is when we'll switch from the old mode to the new mode
-        ready_event = wait_on;
+        // we will probably need an event to track when it is ready
+        GenEventImpl *ev = GenEventImpl::create_genevent();
+        ready_event = ev->current_event();
+        bool alloc_done, alloc_successful;
+        // use mutex to avoid race on allocation callback
+        {
+          // Whatever the ready event is for the last new instance
+          // will be the point where the deferred redistrict is done
+          // since we always notify instances in order
+          AutoLock<> al(last->mutex);
+          switch(last->metadata.inst_offset) {
+          case RegionInstanceImpl::INSTOFFSET_UNALLOCATED:
+          case RegionInstanceImpl::INSTOFFSET_DELAYEDALLOC:
+          case RegionInstanceImpl::INSTOFFSET_DELAYEDDESTROY:
+          {
+            alloc_done = false;
+            alloc_successful = false;
+            last->metadata.ready_event = ready_event;
+            break;
+          }
+          case RegionInstanceImpl::INSTOFFSET_FAILED:
+          {
+            alloc_done = true;
+            alloc_successful = false;
+            break;
+          }
+          default:
+          {
+            alloc_done = true;
+            alloc_successful = true;
+            break;
+          }
+          }
+        }
+        if(alloc_done) {
+          // lost the race to the notification callback, so we trigger the
+          //  ready event ourselves
+          if(alloc_successful) {
+            GenEventImpl::trigger(ready_event, false /*!poisoned*/);
+            ready_event = Event::NO_EVENT;
+          } else {
+            // poison the ready event and still return it
+            GenEventImpl::trigger(ready_event, true /*poisoned*/);
+          }
+        }
         break;
       }
 
@@ -1555,6 +1611,14 @@ namespace Realm {
       , read_only(true)
     {}
 
+    bool ExternalMemoryResource::satisfies(const InstanceLayoutGeneric &layout) const
+    {
+      if(size_in_bytes < layout.bytes_used)
+        return false;
+      const size_t max_alignment = (base & -base);
+      return (layout.alignment_reqd <= max_alignment);
+    }
+
     // returns the suggested memory in which this resource should be created
     Memory ExternalMemoryResource::suggested_memory() const
     {
@@ -1597,6 +1661,15 @@ namespace Realm {
     , offset(_offset)
     , mode(_mode)
   {}
+
+  bool ExternalFileResource::satisfies(const InstanceLayoutGeneric &layout) const
+  {
+    // Good as long as the file is big enough
+    if(mode == REALM_FILE_CREATE)
+      return true;
+    else
+      return ((offset + layout.bytes_used) <= std::filesystem::file_size(filename));
+  }
 
   // returns the suggested memory in which this resource should be created
   Memory ExternalFileResource::suggested_memory() const

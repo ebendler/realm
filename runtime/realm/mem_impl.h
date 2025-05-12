@@ -311,7 +311,7 @@ namespace Realm {
     void deallocate(TT tag, bool missing_ok = false);
     size_t split_range(TT old_tag, const std::vector<TT> &new_tags,
                        const std::vector<RT> &sizes, const std::vector<RT> &alignment,
-                       std::vector<RT> &allocs_first);
+                       std::vector<RT> &allocs_first, bool missing_ok = false);
 
     static constexpr unsigned SENTINEL = BasicRangeAllocator<RT, TT>::SENTINEL;
     using Range = typename BasicRangeAllocator<RT, TT>::Range;

@@ -96,6 +96,14 @@ namespace Realm {
       // returns the finish event for the currently running task
       static Event get_current_finish_event(void);
 
+      // Set an event to serve as the precondition for triggering
+      // the finish event for the currently running task. This allows
+      // for other asynchronous effects from the task to be accumulated
+      // into its completion event. Only call this method once per task.
+      // If invoked multiple times only the last invocation will
+      // serve as the precondition for the finish event.
+      static void set_finish_event_precondition(Event precondition);
+
       // a scheduler lock prevents the current thread from releasing its
       //  execution resources even when waiting on an Event - multiple
       //  nested calls to 'enable_scheduler_lock' are permitted, but a

@@ -32,6 +32,7 @@ namespace Realm {
                        const ProfilingRequestSet &_requests)
     : finish_event(_finish_event)
     , finish_gen(_finish_gen)
+    , finish_event_precondition(Event::NO_EVENT)
     , refcount(1)
     , state(ProfilingMeasurements::OperationStatus::WAITING)
     , requests(_requests)
@@ -314,9 +315,17 @@ namespace Realm {
   void Operation::trigger_finish_event(bool poisoned)
   {
     if(finish_event) {
-      // don't spend a long time here triggering events
-      finish_event->trigger(finish_gen, Network::my_node_id, poisoned,
-			    TimeLimit::responsive());
+      if(!poisoned && finish_event_precondition.exists()) {
+        EventMerger &merger = finish_event->merger;
+        merger.prepare_merger(finish_event->make_event(finish_gen),
+                              false /*ignore faults*/, 1 /*count*/);
+        merger.add_precondition(finish_event_precondition);
+        merger.arm_merger();
+      } else {
+        // don't spend a long time here triggering events
+        finish_event->trigger(finish_gen, Network::my_node_id, poisoned,
+                              TimeLimit::responsive());
+      }
     }
 #ifndef REALM_USE_OPERATION_TABLE
     // no operation table to decrement the refcount, so do it ourselves

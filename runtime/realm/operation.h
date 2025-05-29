@@ -120,7 +120,7 @@ namespace Realm {
     atomic<int> refcount;
   public:
     Event get_finish_event(void) const;
-    void set_finish_event_precondition(Event precondition);
+    RealmStatus_t set_finish_event_precondition(Event precondition, bool overwrite);
 
   protected:
     typedef ProfilingMeasurements::OperationStatus Status;

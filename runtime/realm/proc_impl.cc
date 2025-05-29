@@ -121,11 +121,13 @@ namespace Realm {
       return op->get_finish_event();
     }
 
-    /*static*/ void Processor::set_finish_event_precondition(Event precondition)
+    /*static*/ RealmStatus_t Processor::set_finish_event_precondition(Event precondition,
+                                                                      bool overwrite)
     {
       Operation *op = Thread::self()->get_operation();
-      assert(op != 0);
-      op->set_finish_event_precondition(precondition);
+      if(op == nullptr)
+        return REALM_PROCESSOR_ERROR_OUTSIDE_TASK;
+      return op->set_finish_event_precondition(precondition, overwrite);
     }
 
     AddressSpace Processor::address_space(void) const

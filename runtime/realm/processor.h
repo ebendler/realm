@@ -100,9 +100,10 @@ namespace Realm {
       // the finish event for the currently running task. This allows
       // for other asynchronous effects from the task to be accumulated
       // into its completion event. Only call this method once per task.
-      // If invoked multiple times only the last invocation will
-      // serve as the precondition for the finish event.
-      static void set_finish_event_precondition(Event precondition);
+      // You can invoke it multiple times by setting overwrite=true in
+      // which case the last invocation will serve as the precondition.
+      static RealmStatus_t set_finish_event_precondition(Event precondition,
+                                                         bool overwrite = false);
 
       // a scheduler lock prevents the current thread from releasing its
       //  execution resources even when waiting on an Event - multiple

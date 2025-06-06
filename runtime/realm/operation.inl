@@ -80,14 +80,6 @@ namespace Realm {
     return finish_event != nullptr ? finish_event->make_event(finish_gen) : Event::NO_EVENT;
   }
 
-  inline RealmStatus_t Operation::set_finish_event_precondition(Event precondition, bool overwrite)
-  {
-    if(finish_event_precondition.exists() && !overwrite)
-      return REALM_PROCESSOR_ERROR_EVENT_ALREADY_SET;
-    finish_event_precondition = precondition;
-    return REALM_SUCCESS;
-  }
-
   // used to record event wait intervals, if desired
   inline ProfilingMeasurements::OperationEventWaits::WaitInterval *Operation::create_wait_interval(Event e)
   {

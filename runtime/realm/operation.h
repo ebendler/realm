@@ -116,11 +116,10 @@ namespace Realm {
 
     GenEventImpl *finish_event;
     EventImpl::gen_t finish_gen;
-    Event finish_event_precondition;
     atomic<int> refcount;
   public:
     Event get_finish_event(void) const;
-    RealmStatus_t set_finish_event_precondition(Event precondition, bool overwrite);
+    void add_finish_event_precondition(Event precondition);
 
   protected:
     typedef ProfilingMeasurements::OperationStatus Status;

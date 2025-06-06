@@ -321,10 +321,14 @@ namespace Realm {
   void Operation::trigger_finish_event(bool poisoned)
   {
     if(poisoned) {
-      finish_event->merger.get_next_precondition()->event_triggered(
-          poisoned, TimeLimit::responsive());
+      // Pull a reference on to the stack because the poisoning could
+      // cause "this" to be deleted right away
+      EventMerger &merger = finish_event->merger;
+      merger.get_next_precondition()->event_triggered(poisoned, TimeLimit::responsive());
+      merger.arm_merger();
+    } else {
+      finish_event->merger.arm_merger();
     }
-    finish_event->merger.arm_merger();
 #ifndef REALM_USE_OPERATION_TABLE
     // no operation table to decrement the refcount, so do it ourselves
     // SJT: should this always be done for operations without finish events?

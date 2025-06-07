@@ -37,7 +37,7 @@ namespace Realm {
   // class Processor
   //
 
-  /*static*/ const Processor Processor::NO_PROC = {/* zero-initialization */};
+  /*static*/ const Processor Processor::NO_PROC{REALM_NO_PROC /* zero-initialization */};
 
   namespace ThreadLocal {
     REALM_THREAD_LOCAL Processor current_processor = {/* zero-initialization */};
@@ -125,7 +125,7 @@ namespace Realm {
       return op->get_finish_event();
     }
 
-    /*static*/ RealmStatus_t Processor::add_finish_event_precondition(Event precondition)
+    /*static*/ realm_status_t Processor::add_finish_event_precondition(Event precondition)
     {
       Operation *op = Thread::self()->get_operation();
       if(op == nullptr)

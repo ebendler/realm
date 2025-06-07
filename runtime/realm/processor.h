@@ -36,7 +36,15 @@ namespace Realm {
     public:
       typedef ::realm_id_t id_t;
 
-      id_t id;
+      id_t id{REALM_NO_PROC};
+
+      Processor() = default;
+      constexpr explicit Processor(id_t id)
+        : id(id)
+      {}
+
+      constexpr operator id_t() const { return id; }
+
       bool operator<(const Processor& rhs) const { return id < rhs.id; }
       bool operator==(const Processor& rhs) const { return id == rhs.id; }
       bool operator!=(const Processor& rhs) const { return id != rhs.id; }
@@ -72,12 +80,13 @@ namespace Realm {
       int get_num_cores(void) const;
 
       // special task IDs
-      enum {
+      enum
+      {
         // Save ID 0 for the force shutdown function
-	TASK_ID_PROCESSOR_NOP      = 0,
-	TASK_ID_PROCESSOR_INIT     = 1,
-	TASK_ID_PROCESSOR_SHUTDOWN = 2,
-	TASK_ID_FIRST_AVAILABLE    = 4,
+        TASK_ID_PROCESSOR_NOP = REALM_TASK_ID_PROCESSOR_NOP,
+        TASK_ID_PROCESSOR_INIT = REALM_TASK_ID_PROCESSOR_INIT,
+        TASK_ID_PROCESSOR_SHUTDOWN = REALM_TASK_ID_PROCESSOR_SHUTDOWN,
+        TASK_ID_FIRST_AVAILABLE = REALM_TASK_ID_FIRST_AVAILABLE,
       };
 
       Event spawn(TaskFuncID func_id, const void *args, size_t arglen,
@@ -101,7 +110,7 @@ namespace Realm {
       // for other asynchronous effects from the task to be accumulated
       // into finish event dynamically and for the task to exit without
       // needing to block and wait for these events to trigger.
-      static RealmStatus_t add_finish_event_precondition(Event precondition);
+      static realm_status_t add_finish_event_precondition(Event precondition);
 
       // a scheduler lock prevents the current thread from releasing its
       //  execution resources even when waiting on an Event - multiple

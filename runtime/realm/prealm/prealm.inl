@@ -14,6 +14,7 @@
  */
 
 #include <deque>
+#include <optional>
 
 namespace PRealm {
 

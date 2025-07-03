@@ -100,9 +100,7 @@ set(REALM_LOG_LEVEL
     "WARNING"
     CACHE STRING "Compile-time logging level"
 )
-set_property(
-  CACHE REALM_LOG_LEVEL PROPERTY STRINGS "SPEW;DEBUG;INFO;PRINT;WARNING;ERROR;FATAL;NONE"
-)
+set_property(CACHE REALM_LOG_LEVEL PROPERTY STRINGS "SPEW;DEBUG;INFO;PRINT;WARNING;ERROR;FATAL;NONE")
 
 option(REALM_ENABLE_INSTALL "Enable installation support" ${PROJECT_IS_TOP_LEVEL})
 option(REALM_BUILD_TESTS "Build tests" ${PROJECT_IS_TOPLEVEL})
@@ -123,29 +121,22 @@ option(REALM_ENABLE_HWLOC "Compile with hwloc hardware discovery support" OFF)
 option(REALM_ENABLE_PAPI "Compile with PAPI thread profiling support" ON)
 option(REALM_ENABLE_CPPTRACE "Compile with cpptrace backtrace support" ON)
 option(REALM_ENABLE_PREALM "Compile with realm profiler" OFF)
-cmake_dependent_option(
-  REALM_ENABLE_LIBDL "Compile with dynamic runtime linking support" ON "NOT WIN32" OFF
-)
+cmake_dependent_option(REALM_ENABLE_LIBDL "Compile with dynamic runtime linking support" ON "NOT WIN32" OFF)
 cmake_dependent_option(REALM_ENABLE_GASNETEX "Compile with GASNetEx support" ON "NOT WIN32" OFF)
 cmake_dependent_option(
   REALM_ENABLE_GASNETEX_WRAPPER "Compile with dynamic GASNetEx ABI stability wrapper" OFF
   "NOT WIN32; REALM_ENABLE_LIBDL" OFF
 )
-cmake_dependent_option(
-  REALM_ENABLE_PYTHON "Compile with Python support" ON "REALM_ENABLE_LIBDL" OFF
-)
+cmake_dependent_option(REALM_ENABLE_PYTHON "Compile with Python support" ON "REALM_ENABLE_LIBDL" OFF)
 
 cmake_dependent_option(
-  REALM_ENABLE_COVERAGE "Enable coverage reports" OFF
-  "REALM_BUILD_TESTS;CMAKE_BUILD_TYPE STREQUAL Debug" OFF
+  REALM_ENABLE_COVERAGE "Enable coverage reports" OFF "REALM_BUILD_TESTS;CMAKE_BUILD_TYPE STREQUAL Debug" OFF
 )
 cmake_dependent_option(
-  REALM_ENABLE_LTO "Enable link-time optimization" ON
-  "REALM_SUPPORTS_LTO;CMAKE_BUILD_TYPE STREQUAL Release" OFF
+  REALM_ENABLE_LTO "Enable link-time optimization" ON "REALM_SUPPORTS_LTO;CMAKE_BUILD_TYPE STREQUAL Release" OFF
 )
 cmake_dependent_option(
-  REALM_OPENMP_SYSTEM_RUNTIME "Use system openmp, rather than Realm's wrapper" OFF
-  "REALM_ENABLE_OPENMP" OFF
+  REALM_OPENMP_SYSTEM_RUNTIME "Use system openmp, rather than Realm's wrapper" OFF "REALM_ENABLE_OPENMP" OFF
 )
 cmake_dependent_option(
   REALM_OPENMP_GOMP_SUPPORT "Enable GOMP support for Realm's wrapper OpenMP" ON
@@ -161,12 +152,9 @@ cmake_dependent_option(
   "REALM_ENABLE_CUDA; REALM_ENABLE_LIBDL" OFF
 )
 cmake_dependent_option(
-  REALM_ENABLE_SHM "Enable shared memory support for inter-process communication" ON
-  "UNIX; NOT APPLE" OFF
+  REALM_ENABLE_SHM "Enable shared memory support for inter-process communication" ON "UNIX; NOT APPLE" OFF
 )
-cmake_dependent_option(
-  REALM_ENABLE_UCC "Enable UCC for UCX networking module collectives" ON "REALM_ENABLE_UCX" OFF
-)
+cmake_dependent_option(REALM_ENABLE_UCC "Enable UCC for UCX networking module collectives" ON "REALM_ENABLE_UCX" OFF)
 set(REALM_SANITIZER
     "NONE"
     CACHE STRING "Enabled sanitizer"
@@ -295,8 +283,8 @@ if(REALM_ENABLE_HIP)
   find_package(hip CONFIG)
   if(HIP_PLATFORM STREQUAL "nvidia")
     set_target_properties(
-      hip::host PROPERTIES INTERFACE_COMPILE_DEFINITIONS "__HIP_PLATFORM_NVIDIA__"
-                           INTERFACE_LINK_LIBRARIES CUDA::cudart
+      hip::host PROPERTIES INTERFACE_COMPILE_DEFINITIONS "__HIP_PLATFORM_NVIDIA__" INTERFACE_LINK_LIBRARIES
+                                                                                   CUDA::cudart
     )
   endif()
   if(NOT HIP_ROOT_DIR)
@@ -313,9 +301,7 @@ if(REALM_ENABLE_CUDA OR (hip_FOUND AND HIP_PLATFORM STREQUAL "nvidia"))
   if(CUDAToolkit_FOUND)
     set(CMAKE_CUDA_COMPILER ${CUDAToolkit_NVCC_EXECUTABLE})
     if(NOT CMAKE_CUDA_ARCHITECTURES)
-      execute_process(
-        COMMAND ${CUDAToolkit_NVCC_EXECUTABLE} --list-gpu-arch OUTPUT_VARIABLE compute_archs
-      )
+      execute_process(COMMAND ${CUDAToolkit_NVCC_EXECUTABLE} --list-gpu-arch OUTPUT_VARIABLE compute_archs)
       string(REPLACE "compute_" "" compute_archs "${compute_archs}")
       string(REPLACE "\n" ";" compute_archs "${compute_archs}")
       set(CMAKE_CUDA_ARCHITECTURES ${compute_archs})
@@ -391,9 +377,7 @@ endif()
 
 if(REALM_ENABLE_KOKKOS)
   if(TARGET CUDA::cuda_driver)
-    list(APPEND KOKKOS_CONFIG_ARGS "Kokkos_ENABLE_CUDA ON" "Kokkos_ENABLE_CUDA_LAMBDA ON"
-         "Kokkos_ENABLE_CUDA_UVM OFF"
-    )
+    list(APPEND KOKKOS_CONFIG_ARGS "Kokkos_ENABLE_CUDA ON" "Kokkos_ENABLE_CUDA_LAMBDA ON" "Kokkos_ENABLE_CUDA_UVM OFF")
   endif()
   if(HIP_FOUND)
     list(APPEND KOKKOS_CONFIG_ARGS "Kokkos_ENABLE_HIP ON")
@@ -525,9 +509,7 @@ if(REALM_ENABLE_UCX)
   if(REALM_ENABLE_UCC AND TARGET ucx::ucp)
     find_package(ucc QUIET CONFIG)
     if(NOT ucc_FOUND)
-      list(APPEND UCC_CONFIG_ARGS "--with-ucx=${ucx_ROOT_DIR}" "--disable-doxygen-doc" "--with-pic"
-           "--enable-static"
-      )
+      list(APPEND UCC_CONFIG_ARGS "--with-ucx=${ucx_ROOT_DIR}" "--disable-doxygen-doc" "--with-pic" "--enable-static")
       if(hip_FOUND)
         list(APPEND UCC_CONFIG_ARGS "--with-rocm=${HIP_ROOT_DIR}")
       endif()
@@ -658,10 +640,8 @@ if(REALM_ENABLE_GASNETEX)
     if(NOT GASNet_CONFIG_ARGS STREQUAL GASNet_CONFIG_ARGS_INTERNAL)
       file(REMOVE ${GASNet_SOURCE_DIR}/config.cache)
       execute_process(
-        COMMAND
-          "${CMAKE_COMMAND}" -E env CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER}
-          "${GASNet_SOURCE_DIR}/configure" ${GASNet_CONFIG_ARGS} COMMAND_ECHO STDOUT
-          COMMAND_ERROR_IS_FATAL ANY
+        COMMAND "${CMAKE_COMMAND}" -E env CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER}
+                "${GASNet_SOURCE_DIR}/configure" ${GASNet_CONFIG_ARGS} COMMAND_ECHO STDOUT COMMAND_ERROR_IS_FATAL ANY
         WORKING_DIRECTORY ${GASNet_SOURCE_DIR}
       )
       execute_process(
@@ -693,8 +673,7 @@ if(GASNet_FOUND)
     set(GEX_NO_INSTALL TRUE)
   endif()
   add_subdirectory(
-    ${REALM_SOURCE_DIR}/gasnetex/gasnetex_wrapper ${CMAKE_CURRENT_BINARY_DIR}/gasnetex_wrapper
-    EXCLUDE_FROM_ALL
+    ${REALM_SOURCE_DIR}/gasnetex/gasnetex_wrapper ${CMAKE_CURRENT_BINARY_DIR}/gasnetex_wrapper EXCLUDE_FROM_ALL
   )
   if(NOT REALM_ENABLE_GASNETEX_WRAPPER)
     list(APPEND REALM_LIBRARIES realm_gex_wrapper)
@@ -777,8 +756,7 @@ add_feature_info(shm REALM_USE_SHM "Enables use of shared memory for CPU IPC")
 set(REALM_TIMERS_USE_RDTSC ${REALM_ENABLE_RDTSC})
 add_feature_info(rdtsc REALM_TIMERS_USE_RDTSC "Enables use of rdtsc for Realm::Clock")
 add_feature_info(
-  mpi_comm_split REALM_MPI_HAS_COMM_SPLIT_TYPE
-  "Enables use of MPI_Comm_split_type in realm to identify shared peers"
+  mpi_comm_split REALM_MPI_HAS_COMM_SPLIT_TYPE "Enables use of MPI_Comm_split_type in realm to identify shared peers"
 )
 #endregion
 
@@ -788,15 +766,12 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/realm)
 if(TARGET CUDA::cuda_driver AND REALM_ENABLE_CUDA)
   add_library(realm_cuda_fatbin OBJECT ${REALM_CUDA_SOURCES})
   target_compile_options(
-    realm_cuda_fatbin
-    PRIVATE $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:
-            -Xcudafe=--diag_suppress=boolean_controlling_expr_is_constant --fatbin>
+    realm_cuda_fatbin PRIVATE $<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:
+                              -Xcudafe=--diag_suppress=boolean_controlling_expr_is_constant --fatbin>
   )
   target_compile_definitions(realm_cuda_fatbin PRIVATE "CUDA_FATBIN_COMPILATION")
 
-  target_include_directories(
-    realm_cuda_fatbin PRIVATE "${REALM_SOURCE_DIR}/.." "${CMAKE_CURRENT_BINARY_DIR}/include"
-  )
+  target_include_directories(realm_cuda_fatbin PRIVATE "${REALM_SOURCE_DIR}/.." "${CMAKE_CURRENT_BINARY_DIR}/include")
 
   set_target_properties(realm_cuda_fatbin PROPERTIES CUDA_STANDARD ${REALM_CXX_STANDARD})
 
@@ -862,8 +837,7 @@ target_link_libraries(realm PRIVATE ${REALM_LIBRARIES})
 target_include_directories(
   realm_obj
   PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> $<BUILD_INTERFACE:${REALM_SOURCE_DIR}/..>
-         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-         $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include> $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
   PRIVATE $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_CUPTI_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:Python3::Python>:${Python_INCLUDE_DIRS}>
@@ -871,8 +845,7 @@ target_include_directories(
 target_include_directories(
   realm
   PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> $<BUILD_INTERFACE:${REALM_SOURCE_DIR}/..>
-         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-         $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include> $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
   PRIVATE $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_CUPTI_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:Python3::Python>:${Python_INCLUDE_DIRS}>
@@ -965,9 +938,7 @@ if(REALM_BUILD_DOCS AND DOXYGEN_FOUND)
   set(DOXYGEN_HTML_FOOTER ${CMAKE_CURRENT_SOURCE_DIR}/doxygen/footer.html)
   set(DOXYGEN_HTML_EXTRA_STYLESHEET ${CMAKE_CURRENT_SOURCE_DIR}/doxygen/customdoxygen.css)
   if(NOT REALM_BUILD_INTERNAL_DOCS)
-    set(DOXYGEN_STRIP_FROM_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include
-                                ${CMAKE_CURRENT_BINARY_DIR}/include
-    )
+    set(DOXYGEN_STRIP_FROM_PATH ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_BINARY_DIR}/include)
   endif()
   # This should include all public header files and nothing else.
   file(GLOB_RECURSE REALM_DOC_FILES "realm/*.h")

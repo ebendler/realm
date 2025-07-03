@@ -1,4 +1,5 @@
 [![ci](https://github.com/stanfordlegion/realm/actions/workflows/ci.yml/badge.svg)](https://github.com/StanfordLegion/realm/actions/workflows/ci.yml)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![Release](https://img.shields.io/github/release/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/releases/latest)
 [![Documentation](https://img.shields.io/badge/docs-grey.svg?logo=doxygen&logoColor=white&labelColor=blue)](https://legion.stanford.edu/realm/doc)
 [![License](https://img.shields.io/github/license/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/blob/main/LICENSE.txt)
@@ -13,7 +14,7 @@
 
 # Realm
 
-Realm is a distributed, **event–based tasking runtime** for building high-performance applications that span clusters of CPUs, GPUs, and other accelerators.  
+Realm is a distributed, **event–based tasking runtime** for building high-performance applications that span clusters of CPUs, GPUs, and other accelerators.
 It began life as the low-level substrate underneath the [Legion](https://github.com/StanfordLegion/legion) programming system but is now maintained as a standalone project for developers who want direct, fine-grained control of parallel and heterogeneous machines.
 
 ---
@@ -28,7 +29,7 @@ It began life as the low-level substrate underneath the [Legion](https://github.
 
 The runtime follows a *data-flow* execution model: tasks are launched asynchronously and start when their pre-condition events trigger. This design hides network and device latency, maximizes overlap, and gives programmers explicit control over when work becomes runnable.
 
-For a deeper dive see the Realm white-paper published at PACT 2014:  
+For a deeper dive see the Realm white-paper published at PACT 2014:
 https://cs.stanford.edu/~sjt/pubs/pact14.pdf
 
 ---
@@ -149,11 +150,10 @@ Please file an issue or pull request if something is missing or outdated.
 We welcome contributions of all kinds – bug reports, documentation fixes, new features, and performance improvements.
 
 1. Fork the repository and create a feature branch.
-2. Follow the existing code style (clang-format is enforced in CI).
-3. Make sure `ctest` passes on your machine *and* with `REALM_ENABLE_SANITIZER` if possible.
-4. Open a pull request against `master` (or the feature branch you were asked to use).
-
-See [`CONTRIBUTING.md`](.github/CONTRIBUTING.md) for the full guidelines.
+2. Install our pre-commit formatting hook with `pip install pre-commit && pre-commit install --install-hooks`
+3. Formatting is also enforced by CI, and we *will* reject your PR if it does not pass.
+4. Make sure `ctest` passes on your machine *and* with `REALM_ENABLE_SANITIZER` if possible.
+5. Open a pull request against `main` (or the feature branch you were asked to use).
 
 ---
 

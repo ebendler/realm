@@ -3606,7 +3606,7 @@ impl State {
         assert!(self.provenances.contains_key(&provenance));
         let alloc = &mut self.prof_uid_allocator;
         let creator_uid = Some(alloc.create_reference(creator));
-        if let Some(event) = fevent {
+        let base = if let Some(event) = fevent {
             let base = Base::from_fevent(alloc, event);
             assert!(time_range.stop.is_some());
             self.record_event_node(
@@ -3617,32 +3617,22 @@ impl State {
                 time_range.stop,
                 true, /*deduplicate*/
             );
-            let proc = self.procs.create_proc(proc_id);
-            proc.create_proc_entry(
-                base,
-                None,
-                None,
-                ProcEntryKind::AsyncEffect(provenance),
-                time_range,
-                creator_uid,
-                None,
-                &mut self.op_prof_uid,
-                &mut self.prof_uid_proc,
-            )
+            base
         } else {
-            let proc = self.procs.create_proc(proc_id);
-            proc.create_proc_entry(
-                Base::new(alloc),
-                None,
-                None,
-                ProcEntryKind::AsyncEffect(provenance),
-                time_range,
-                creator_uid,
-                None,
-                &mut self.op_prof_uid,
-                &mut self.prof_uid_proc,
-            )
-        }
+            Base::new(alloc)
+        };
+        let proc = self.procs.create_proc(proc_id);
+        proc.create_proc_entry(
+            base,
+            None,
+            None,
+            ProcEntryKind::AsyncEffect(provenance),
+            time_range,
+            creator_uid,
+            None,
+            &mut self.op_prof_uid,
+            &mut self.prof_uid_proc,
+        )
     }
 
     fn create_gpu_kernel(

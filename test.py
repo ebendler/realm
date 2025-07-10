@@ -83,6 +83,7 @@ legion_cxx_tests = [
     #['examples/implicit_top_task/implicit_top_task', []],
 
     # Tests
+    ['test/attach_file_mini/attach_file_mini', []],
     ['test/rendering/rendering', ['-i', '2', '-n', '64', '-ll:cpu', '4']],
     ['test/output_requirements/output_requirements', []],
     ['test/output_requirements/output_requirements', ['-replicate']],
@@ -152,12 +153,6 @@ legion_fortran_tests = [
     ['tutorial/fortran/10_attach_array/attach_array_fortran', []],
 ]
 
-if platform.system() != 'Darwin':
-    legion_cxx_tests += [
-        # FIXME: Fails non-deterministically on Mac OS: https://github.com/StanfordLegion/legion/issues/213
-        ['test/attach_file_mini/attach_file_mini', []],
-    ]
-
 legion_network_cxx_tests = [
     # Examples
     ['examples/mpi_interop/mpi_interop', []],
@@ -225,15 +220,12 @@ legion_python_cxx_tests = [
 ]
 
 legion_hdf_cxx_tests = [
+    # Examples
+    ['examples/attach_file/attach_file', ['-h', 'data.h5', '-d', '/path/to/data']],
+
     # Tests
     ['test/hdf_attach_subregion_parallel/hdf_attach_subregion_parallel', ['-ll:cpu', '4']],
 ]
-
-if platform.system() != 'Darwin':
-    legion_hdf_cxx_tests += [
-        # FIXME: Fails non-deterministically on Mac OS: https://github.com/StanfordLegion/legion/issues/213
-        ['examples/attach_file/attach_file', ['-h', 'data.h5', '-d', '/path/to/data']],
-    ]
 
 def get_legion_cxx_perf_tests(nodes, cores_per_node):
     return [

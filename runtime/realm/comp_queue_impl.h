@@ -30,12 +30,11 @@ namespace Realm {
     CompQueueImpl() = default;
     ~CompQueueImpl();
 
-    void init(CompletionQueue _me, int _owner);
+    void init(ID _me, int _owner);
 
-    static CompletionQueue make_id(const CompQueueImpl &dummy, int owner,
-                                   ID::IDType index)
+    static ID make_id(const CompQueueImpl &dummy, int owner, ID::IDType index)
     {
-      return ID::make_compqueue(owner, index).convert<CompletionQueue>();
+      return ID::make_compqueue(owner, index);
     }
 
     void set_capacity(size_t _max_size, bool _resizable);

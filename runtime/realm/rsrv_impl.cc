@@ -298,9 +298,9 @@ namespace Realm {
       init(Reservation::NO_RESERVATION, (unsigned)-1);
     }
 
-    void ReservationImpl::init(Reservation _me, unsigned _init_owner)
+    void ReservationImpl::init(ID _me, unsigned _init_owner)
     {
-      me = _me;
+      me = _me.convert<Reservation>();
       owner = _init_owner;
       count = ZERO_COUNT;
       log_reservation.spew("count init " IDFMT "=[%p]=%d", me.id,

@@ -258,6 +258,23 @@ namespace Realm {
     // caller.
     Operation *get_trigger_op(gen_t gen);
 
+    struct GenEventImplAllocator {
+      EventTriggerNotifier *triggerer{nullptr};
+
+      GenEventImplAllocator(void) = default;
+
+      GenEventImplAllocator(EventTriggerNotifier *t)
+        : triggerer(t)
+      {}
+
+      void construct(GenEventImpl *storage, ID id, unsigned owner) const
+      {
+        storage->~GenEventImpl();
+        new(storage) GenEventImpl(triggerer, new EventCommunicator());
+        storage->init(id, owner);
+      }
+    };
+
   public: // protected:
     // these state variables are monotonic, so can be checked without a lock for
     //  early-out conditions
@@ -269,13 +286,13 @@ namespace Realm {
     bool is_generation_poisoned(gen_t gen) const; // helper function - linear search
 
     // this is only manipulated when the event is "idle"
-    GenEventImpl *next_free = 0;
+    GenEventImpl *next_free{nullptr};
 
     // used for merge_events and delayed UserEvent triggers
     EventMerger merger;
 
-    EventTriggerNotifier *event_triggerer;
-    std::unique_ptr<EventCommunicator> event_comm;
+    EventTriggerNotifier *event_triggerer{nullptr};
+    std::unique_ptr<EventCommunicator> event_comm{nullptr};
 
     // everything below here protected by this mutex
     Mutex mutex;

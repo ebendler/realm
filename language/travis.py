@@ -16,7 +16,7 @@
 #
 
 from __future__ import print_function
-import argparse, os, platform, subprocess, sys
+import argparse, os, platform, shlex, subprocess, sys
 
 def test(root_dir, install_only, cmake, debug, max_dim, short, no_pretty,
          spy, prof, gcov, hdf5, cuda, hip, openmp, python, jobs, env):
@@ -54,8 +54,10 @@ def test(root_dir, install_only, cmake, debug, max_dim, short, no_pretty,
     inner_flag = ['--extra=-flegion-inner', '--extra=0'] if 'DISABLE_INNER' in env else []
     out_dir_flag = ['--output=%s' % os.path.join(root_dir, 'test_output')]
 
+    install_cmd = [sys.executable, './install.py'] + install_threads + terra + build + debug_flag
+    print(shlex.join(install_cmd))
     subprocess.check_call(
-        [sys.executable, './install.py'] + install_threads + terra + build + debug_flag,
+        install_cmd,
         env = env,
         cwd = root_dir)
     if not install_only:
@@ -81,8 +83,10 @@ def test(root_dir, install_only, cmake, debug, max_dim, short, no_pretty,
             extra_flags.append('--legion-prof-rs=%s' % (
                 os.path.join(env['TMP_BIN_DIR'], 'legion_prof')))
 
+        test_cmd = [sys.executable, './test.py', '-q'] + test_threads + max_dim_flag + short_flag + no_pretty_flag + extra_flags + inner_flag + out_dir_flag
+        print(shlex.join(test_cmd))
         subprocess.check_call(
-            [sys.executable, './test.py', '-q'] + test_threads + max_dim_flag + short_flag + no_pretty_flag + extra_flags + inner_flag + out_dir_flag,
+            test_cmd,
             env = env,
             cwd = root_dir)
 

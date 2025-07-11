@@ -56,12 +56,11 @@ namespace Realm {
 
       static const ID::ID_Types ID_TYPE = ID::ID_LOCK;
 
-      void init(Reservation _me, unsigned _init_owner);
+      void init(ID _me, unsigned _init_owner);
 
-      static Reservation make_id(const ReservationImpl &dummy, int owner,
-                                 ID::IDType index)
+      static ID make_id(const ReservationImpl &dummy, int owner, ID::IDType index)
       {
-        return ID::make_reservation(owner, index).convert<Reservation>();
+        return ID::make_reservation(owner, index);
       }
 
       //protected:

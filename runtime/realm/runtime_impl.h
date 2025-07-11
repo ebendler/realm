@@ -54,6 +54,7 @@
 #include "realm/hardware_topology.h"
 
 #include <unordered_map>
+#include <memory>
 
 namespace Realm {
 
@@ -68,8 +69,10 @@ namespace Realm {
 
   // use a wide tree for local events - max depth will be 2
   // use a narrow tree for remote events - depth is 3, leaves have 128 events
-  typedef DynamicTableAllocator<GenEventImpl, 11, 16> LocalEventTableAllocator;
-  typedef DynamicTableAllocator<GenEventImpl, 10, 7> RemoteEventTableAllocator;
+  typedef DynamicTableAllocator<GenEventImpl, 11, 16, GenEventImpl::GenEventImplAllocator>
+      LocalEventTableAllocator;
+  typedef DynamicTableAllocator<GenEventImpl, 10, 7, GenEventImpl::GenEventImplAllocator>
+      RemoteEventTableAllocator;
   typedef DynamicTableAllocator<BarrierImpl, 10, 4> BarrierTableAllocator;
   typedef DynamicTableAllocator<ReservationImpl, 10, 8> ReservationTableAllocator;
   typedef DynamicTableAllocator<ProcessorGroupImpl, 10, 4> ProcessorGroupTableAllocator;
@@ -338,11 +341,13 @@ namespace Realm {
       atomic<size_t> num_untriggered_events;
       Node *nodes; // TODO: replace with std::vector<Node>
       size_t num_nodes;
-      DynamicTable<LocalEventTableAllocator> local_events;
-      LocalEventTableAllocator::FreeList *local_event_free_list;
-      BarrierTableAllocator::FreeList *local_barrier_free_list;
-      ReservationTableAllocator::FreeList *local_reservation_free_list;
-      CompQueueTableAllocator::FreeList *local_compqueue_free_list;
+
+      DynamicTable<LocalEventTableAllocator> local_events{
+          GenEventImpl::GenEventImplAllocator(&event_triggerer)};
+      LocalEventTableAllocator::FreeList *local_event_free_list{nullptr};
+      BarrierTableAllocator::FreeList *local_barrier_free_list{nullptr};
+      ReservationTableAllocator::FreeList *local_reservation_free_list{nullptr};
+      CompQueueTableAllocator::FreeList *local_compqueue_free_list{nullptr};
 
       // keep a free list for each node we allocate maps on (i.e. indexed
       //   by owner_node)

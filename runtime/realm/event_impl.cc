@@ -1062,8 +1062,6 @@ namespace Realm {
 
   GenEventImpl::GenEventImpl(void)
     : merger(this)
-    , event_triggerer(&get_runtime()->event_triggerer)
-    , event_comm(std::make_unique<EventCommunicator>())
     , external_waiter_condvar(external_waiter_mutex)
   {}
 
@@ -1107,6 +1105,8 @@ namespace Realm {
 
   void GenEventImpl::init(ID _me, unsigned _init_owner)
   {
+    assert(event_triggerer != nullptr);
+    assert(event_comm != nullptr);
     me = _me;
     owner = _init_owner;
     generation.store(0);

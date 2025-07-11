@@ -16,7 +16,7 @@
 #
 
 from __future__ import print_function
-import argparse, datetime, glob, json, multiprocessing, os, platform, shlex, shutil, subprocess, sys, traceback, tempfile
+import argparse, datetime, glob, json, multiprocessing, os, platform, shlex, shlex, shutil, subprocess, sys, traceback, tempfile
 import signal
 from pathlib import Path
 
@@ -276,8 +276,7 @@ def sigalrm_handler(signum, frame):
     raise TestTimeoutException
 
 def cmd(command, env=None, cwd=None, timelimit=None):
-    print(' '.join(command))
-    sys.stdout.flush()  # python 2 doesn't have flush option in print
+    print(shlex.join(command), flush=True)
     if timelimit:
         child = subprocess.Popen(command, env=env, cwd=cwd)
         signal.signal(signal.SIGALRM, sigalrm_handler)
@@ -541,12 +540,13 @@ def run_test_external2(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, 
 
     # Try to auto-detect the runner's GPU_ARCH for the test
     if env['USE_CUDA'] == '1' and 'GPU_ARCH' not in env:
+        query_cmd = ['nvidia-smi', '-i', '0', '-q']
         try:
-            device_query = subprocess.check_output(['nvidia-smi', '-i', '0', '-q']).decode('utf-8').splitlines()
+            device_query = subprocess.check_output(query_cmd).decode('utf-8').splitlines()
             htr_env['GPU_ARCH'] = [line.split()[-1].lower() for line in device_query if line.strip().startswith('Product Architecture')][0]
             print("Auto-detected GPU_ARCH='%s'" % htr_env['GPU_ARCH'])
         except OSError:
-            print('Command failed: %s' % cmd, file=sys.stderr, flush=True)
+            print('Command failed: %s' % shlex.join(query_cmd), file=sys.stderr, flush=True)
             raise
 
     cmd(['python3', os.path.join(htr_dir, 'unitTests', 'testAll.py')], env=htr_env)
@@ -1009,8 +1009,7 @@ class Stage(object):
         print('#'*60)
         print('### Entering Stage: %s' % self.name)
         print('#'*60)
-        print()
-        sys.stdout.flush()
+        print(flush=True)
     def __exit__(self, exc_type, exc_val, exc_tb):
         end_time = datetime.datetime.now()
         print()
@@ -1019,8 +1018,7 @@ class Stage(object):
         print('###   * Exception Type: %s' % exc_type)
         print('###   * Elapsed Time: %s' % (end_time - self.begin_time))
         print('#'*60)
-        print()
-        sys.stdout.flush()
+        print(flush=True)
 
 def report_mode(debug, max_dim, launcher,
                 test_regent, test_legion_cxx, test_fuzzer, test_realm,
@@ -1078,8 +1076,7 @@ def report_mode(debug, max_dim, launcher,
     print('###   * Max DIM:    %s' % max_dim)
     print('###   * C++ STD:    %s' % cxx_standard)
     print('#'*60)
-    print()
-    sys.stdout.flush()
+    print(flush=True)
 
 def run_tests(test_modules=None,
               debug=True,

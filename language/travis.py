@@ -18,7 +18,7 @@
 from __future__ import print_function
 import argparse, os, platform, subprocess, sys
 
-def test(root_dir, install_only, debug, max_dim, short, no_pretty,
+def test(root_dir, install_only, cmake, debug, max_dim, short, no_pretty,
          spy, prof, gcov, hdf5, cuda, hip, openmp, python, jobs, env):
     if 'TRAVIS' in env:
         install_threads = ['-j', '2']
@@ -42,11 +42,11 @@ def test(root_dir, install_only, debug, max_dim, short, no_pretty,
             cores_per_test = 2
         num_tests = 1 + ((num_cores - 1) // cores_per_test)
         test_threads = ['-j', str(num_tests)]
-        
+
     terra = ['--with-terra', env['TERRA_DIR']] if 'TERRA_DIR' in env else []
     build = (['--with-cmake-build', env['CMAKE_BUILD_DIR']]
-             if env.get('USE_CMAKE') == '1' and 'CMAKE_BUILD_DIR' in env
-             else [])
+             if cmake and 'CMAKE_BUILD_DIR' in env else [])
+    cmake_flag = ['--cmake'] if cmake else ['--no-cmake']
     debug_flag = ['--debug'] if debug else []
     max_dim_flag = ['--max-dim=%s' % max_dim]
     short_flag = ['--short'] if short else []
@@ -104,6 +104,11 @@ if __name__ == '__main__':
         # 'LUAJIT_URL': 'http://legion.stanford.edu/~eslaught/mirror/LuaJIT-2.0.4.tar.gz',
     })
 
+    # The original CI configurations assumed unset meant Make, so explicitly
+    # set that here if unspecified. (In contrast to the main install script
+    # that now defaults to CMake.)
+    cmake = env.get('USE_CMAKE') == '1'
+
     debug = env['DEBUG'] == '1'
     max_dim = int(env.get('MAX_DIM', 3))
     short = env.get('SHORT') == '1'
@@ -117,5 +122,5 @@ if __name__ == '__main__':
     openmp = env.get('TEST_OPENMP') == '1'
     python = env.get('TEST_PYTHON') == '1'
     jobs = int(env['REGENT_JOBS']) if 'REGENT_JOBS' in env else 1
-    test(root_dir, args.install_only, debug, max_dim, short, no_pretty,
+    test(root_dir, args.install_only, cmake, debug, max_dim, short, no_pretty,
          spy, prof, gcov, hdf5, cuda, hip, openmp, python, jobs, env)

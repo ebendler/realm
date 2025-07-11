@@ -241,62 +241,59 @@ namespace Realm {
         sleep(1);
     }
 
-  template <typename TABLE>
-  void show_event_table(std::ostream& os, NodeID nodeid, TABLE& events)
-  {
-    // Iterate over all the events and get their implementations
-    for (unsigned long j = 0; j < events.max_entries(); j++) {
-      if (!events.has_entry(j))
-	continue;
-      GenEventImpl *e = events.lookup_entry(j, nodeid);
-      AutoLock<> a2(e->mutex);
-	
-      // print anything with either local or remote waiters
-      if(e->current_local_waiters.empty() &&
-	 e->future_local_waiters.empty() &&
-	 e->remote_waiters.empty())
-	continue;
+    template <typename TABLE>
+    void show_event_table(std::ostream &os, NodeID nodeid, TABLE &events)
+    {
+      // Iterate over all the events and get their implementations
+      for(unsigned long j = 0; j < events.max_entries(); j++) {
+        if(!events.has_entry(j))
+          continue;
+        GenEventImpl *e = events.lookup_entry(j, nodeid);
+        AutoLock<> a2(e->mutex);
 
-      size_t clw_size = 0;
-      for(EventWaiter *pos = e->current_local_waiters.head.next;
-	  pos;
-	  pos = pos->ew_list_link.next)
-	clw_size++;
-      EventImpl::gen_t gen = e->generation.load();
-      os << "Event " << e->me <<": gen=" << gen
-	 << " subscr=" << e->gen_subscribed.load()
-	 << " local=" << clw_size //e->current_local_waiters.size()
-	 << "+" << e->future_local_waiters.size()
-	 << " remote=" << e->remote_waiters.size() << "\n";
-      for(EventWaiter *pos = e->current_local_waiters.head.next;
-	  pos;
-	  pos = pos->ew_list_link.next) {
-	os << "  [" << (gen+1) << "] L:" << pos/*(*it)*/ << " - ";
-	pos/*(*it)*/->print(os);
-	os << "\n";
+        // print anything with either local or remote waiters
+        if(e->current_local_waiters.empty() && e->future_local_waiters.empty() &&
+           e->remote_waiters.empty())
+          continue;
+
+        size_t clw_size = 0;
+        for(EventWaiter *pos = e->current_local_waiters.head.next; pos;
+            pos = pos->ew_list_link.next)
+          clw_size++;
+        EventImpl::gen_t gen = e->generation.load();
+        os << "Event " << e->me << ": gen=" << gen
+           << " subscr=" << e->gen_subscribed.load()
+           << " local=" << clw_size // e->current_local_waiters.size()
+           << "+" << e->future_local_waiters.size()
+           << " remote=" << e->remote_waiters.size() << "\n";
+        for(EventWaiter *pos = e->current_local_waiters.head.next; pos;
+            pos = pos->ew_list_link.next) {
+          os << "  [" << (gen + 1) << "] L:" << pos /*(*it)*/ << " - ";
+          pos /*(*it)*/->print(os);
+          os << "\n";
+        }
+        for(std::map<EventImpl::gen_t, EventWaiter::EventWaiterList>::const_iterator it =
+                e->future_local_waiters.begin();
+            it != e->future_local_waiters.end(); it++) {
+          for(EventWaiter *pos = it->second.head.next; pos;
+              pos = pos->ew_list_link.next) {
+            os << "  [" << (it->first) << "] L:" << pos /*(*it2)*/ << " - ";
+            pos /*(*it2)*/->print(os);
+            os << "\n";
+          }
+        }
+        // for(std::map<Event::gen_t, NodeMask>::const_iterator it =
+        // e->remote_waiters.begin();
+        //     it != e->remote_waiters.end();
+        //     it++) {
+        //   fprintf(f, "  [%d] R:", it->first);
+        //   for(int k = 0; k < MAX_NUM_NODES; k++)
+        //     if(it->second.is_set(k))
+        // 	fprintf(f, " %d", k);
+        //   fprintf(f, "\n");
+        // }
       }
-      for(std::map<EventImpl::gen_t, EventWaiter::EventWaiterList>::const_iterator it = e->future_local_waiters.begin();
-	  it != e->future_local_waiters.end();
-	  it++) {
-	for(EventWaiter *pos = it->second.head.next;
-	    pos;
-	    pos = pos->ew_list_link.next) {
-	  os << "  [" << (it->first) << "] L:" << pos/*(*it2)*/ << " - ";
-	  pos/*(*it2)*/->print(os);
-	  os << "\n";
-	}
-      }
-      // for(std::map<Event::gen_t, NodeMask>::const_iterator it = e->remote_waiters.begin();
-      //     it != e->remote_waiters.end();
-      //     it++) {
-      //   fprintf(f, "  [%d] R:", it->first);
-      //   for(int k = 0; k < MAX_NUM_NODES; k++)
-      //     if(it->second.is_set(k))
-      // 	fprintf(f, " %d", k);
-      //   fprintf(f, "\n");
-      // }
     }
-  }
 
   // not static so that it can be invoked manually from gdb
   void show_event_waiters(std::ostream& os)
@@ -306,9 +303,9 @@ namespace Realm {
       Node *n = &get_runtime()->nodes[i];
 
       if(i == Network::my_node_id)
-	show_event_table(os, i, get_runtime()->local_events);
+        show_event_table(os, i, get_runtime()->local_events);
       else
-	show_event_table(os, i, n->remote_events);
+        show_event_table(os, i, n->remote_events);
 
       for (unsigned long j = 0; j < n->barriers.max_entries(); j++) {
 	if (!n->barriers.has_entry(j))
@@ -1053,13 +1050,7 @@ namespace Realm {
     , num_untriggered_events(0)
     , nodes(nullptr)
     , num_nodes(0)
-    , local_event_free_list(0)
-    , local_barrier_free_list(0)
-    , local_reservation_free_list(0)
-    , local_compqueue_free_list(0)
-    ,
-    // local_sparsity_map_free_list(0),
-    run_method_called(false)
+    , run_method_called(false)
     , shutdown_condvar(shutdown_mutex)
     , shutdown_request_received(false)
     , shutdown_result_code(0)
@@ -1834,8 +1825,13 @@ namespace Realm {
       // initialize barrier timestamp
       BarrierImpl::barrier_adjustment_timestamp.store((((Barrier::timestamp_t)(Network::my_node_id)) << BarrierImpl::BARRIER_TIMESTAMP_NODEID_SHIFT) + 1);
 
+      GenEventImpl::GenEventImplAllocator event_allocator(&event_triggerer);
+
       nodes = new Node[Network::max_node_id + 1];
       num_nodes = Network::max_node_id + 1;
+      for(int i = 0; i < Network::max_node_id + 1; i++) {
+        nodes[i].remote_events.set_constructor(event_allocator);
+      }
 
       // configure the bit sets used by NodeSet
       {
@@ -1860,37 +1856,49 @@ namespace Realm {
       //  active messages
       {
 	Node& n = nodes[Network::my_node_id];
-	local_event_free_list = new LocalEventTableAllocator::FreeList(local_events, Network::my_node_id);
-	local_barrier_free_list = new BarrierTableAllocator::FreeList(n.barriers, Network::my_node_id);
-	local_reservation_free_list = new ReservationTableAllocator::FreeList(n.reservations, Network::my_node_id);
-	local_compqueue_free_list = new CompQueueTableAllocator::FreeList(n.compqueues, Network::my_node_id);
+        local_event_free_list =
+            new LocalEventTableAllocator::FreeList(local_events, Network::my_node_id);
+        local_barrier_free_list =
+            new BarrierTableAllocator::FreeList(n.barriers, Network::my_node_id);
+        local_reservation_free_list =
+            new ReservationTableAllocator::FreeList(n.reservations, Network::my_node_id);
+        local_compqueue_free_list =
+            new CompQueueTableAllocator::FreeList(n.compqueues, Network::my_node_id);
 
-	local_sparsity_map_free_lists.resize(Network::max_node_id + 1);
-	for(NodeID i = 0; i <= Network::max_node_id; i++) {
-	  nodes[i].sparsity_maps.resize(Network::max_node_id + 1,
-					atomic<DynamicTable<SparsityMapTableAllocator> *>(0));
-	  DynamicTable<SparsityMapTableAllocator> *m = new DynamicTable<SparsityMapTableAllocator>;
-	  nodes[i].sparsity_maps[Network::my_node_id].store(m);
-	  local_sparsity_map_free_lists[i] = new SparsityMapTableAllocator::FreeList(*m, i /*owner_node*/);
-	}
+        local_sparsity_map_free_lists.resize(Network::max_node_id + 1);
+        for(NodeID i = 0; i <= Network::max_node_id; i++) {
+          nodes[i].sparsity_maps.resize(
+              Network::max_node_id + 1,
+              atomic<DynamicTable<SparsityMapTableAllocator> *>(0));
+          DynamicTable<SparsityMapTableAllocator> *m =
+              new DynamicTable<SparsityMapTableAllocator>;
+          nodes[i].sparsity_maps[Network::my_node_id].store(m);
+          local_sparsity_map_free_lists[i] =
+              new SparsityMapTableAllocator::FreeList(*m, i /*owner_node*/);
+        }
 
-	local_subgraph_free_lists.resize(Network::max_node_id + 1);
-	for(NodeID i = 0; i <= Network::max_node_id; i++) {
-	  nodes[i].subgraphs.resize(Network::max_node_id + 1,
-				    atomic<DynamicTable<SubgraphTableAllocator> *>(0));
-	  DynamicTable<SubgraphTableAllocator> *m = new DynamicTable<SubgraphTableAllocator>;
-	  nodes[i].subgraphs[Network::my_node_id].store(m);
-	  local_subgraph_free_lists[i] = new SubgraphTableAllocator::FreeList(*m, i /*owner_node*/);
-	}
+        local_subgraph_free_lists.resize(Network::max_node_id + 1);
+        for(NodeID i = 0; i <= Network::max_node_id; i++) {
+          nodes[i].subgraphs.resize(Network::max_node_id + 1,
+                                    atomic<DynamicTable<SubgraphTableAllocator> *>(0));
+          DynamicTable<SubgraphTableAllocator> *m =
+              new DynamicTable<SubgraphTableAllocator>;
+          nodes[i].subgraphs[Network::my_node_id].store(m);
+          local_subgraph_free_lists[i] =
+              new SubgraphTableAllocator::FreeList(*m, i /*owner_node*/);
+        }
 
-	local_proc_group_free_lists.resize(Network::max_node_id + 1);
-	for(NodeID i = 0; i <= Network::max_node_id; i++) {
-	  nodes[i].proc_groups.resize(Network::max_node_id + 1,
-				    atomic<DynamicTable<ProcessorGroupTableAllocator> *>(0));
-	  DynamicTable<ProcessorGroupTableAllocator> *m = new DynamicTable<ProcessorGroupTableAllocator>;
-	  nodes[i].proc_groups[Network::my_node_id].store(m);
-	  local_proc_group_free_lists[i] = new ProcessorGroupTableAllocator::FreeList(*m, i /*owner_node*/);
-	}
+        local_proc_group_free_lists.resize(Network::max_node_id + 1);
+        for(NodeID i = 0; i <= Network::max_node_id; i++) {
+          nodes[i].proc_groups.resize(
+              Network::max_node_id + 1,
+              atomic<DynamicTable<ProcessorGroupTableAllocator> *>(0));
+          DynamicTable<ProcessorGroupTableAllocator> *m =
+              new DynamicTable<ProcessorGroupTableAllocator>;
+          nodes[i].proc_groups[Network::my_node_id].store(m);
+          local_proc_group_free_lists[i] =
+              new ProcessorGroupTableAllocator::FreeList(*m, i /*owner_node*/);
+        }
       }
 
       // form requests for network-registered memory
@@ -2976,12 +2984,12 @@ namespace Realm {
       GenEventImpl *impl;
       if(NodeID(id.event_creator_node()) == Network::my_node_id) {
 	// use our shallower local event table
-	impl = local_events.lookup_entry(id.event_gen_event_idx(),
-					 id.event_creator_node());
+        impl =
+            local_events.lookup_entry(id.event_gen_event_idx(), id.event_creator_node());
       } else {
 	Node *n = &nodes[id.event_creator_node()];
-	impl = n->remote_events.lookup_entry(id.event_gen_event_idx(),
-					     id.event_creator_node());
+        impl = n->remote_events.lookup_entry(id.event_gen_event_idx(),
+                                             id.event_creator_node());
       }
       {
 	ID check(impl->me);

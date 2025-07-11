@@ -366,9 +366,9 @@ namespace Realm {
     }
   }
 
-  void CompQueueImpl::init(CompletionQueue _me, int _owner)
+  void CompQueueImpl::init(ID _me, int _owner)
   {
-    this->me = _me;
+    this->me = _me.convert<CompletionQueue>();
     this->owner = _owner;
   }
 

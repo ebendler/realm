@@ -271,12 +271,11 @@ namespace Realm {
 
       static const ID::ID_Types ID_TYPE = ID::ID_PROCGROUP;
 
-      void init(Processor _me, int _owner);
+      void init(ID _me, int _owner);
 
-      static Processor make_id(const ProcessorGroupImpl &dummy, int owner,
-                               ID::IDType index)
+      static ID make_id(const ProcessorGroupImpl &dummy, int owner, ID::IDType index)
       {
-        return ID::make_procgroup(owner, 0, index).convert<Processor>();
+        return ID::make_procgroup(owner, 0, index);
       }
 
       void set_group_members(span<const Processor> member_list);

@@ -676,11 +676,11 @@ namespace Realm {
       delete ready_task_count;
     }
 
-    void ProcessorGroupImpl::init(Processor _me, int _owner)
+    void ProcessorGroupImpl::init(ID _me, int _owner)
     {
-      assert(NodeID(ID(_me).pgroup_owner_node()) == _owner);
+      assert(NodeID(_me.pgroup_owner_node()) == _owner);
 
-      me = _me;
+      me = _me.convert<Processor>();
       lock.init(ID(me).convert<Reservation>(), ID(me).pgroup_owner_node());
     }
 

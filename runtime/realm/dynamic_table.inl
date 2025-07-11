@@ -25,9 +25,9 @@ namespace Realm {
   // class DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>
   //
 
-  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS>
-  std::vector<typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::FreeList *> &
-  DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::get_registered_freelists(
+  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS, typename CONSTRUCTOR>
+  std::vector<typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::FreeList *> &
+  DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::get_registered_freelists(
       Mutex *&lock)
   {
     static std::vector<FreeList *> registered_freelists;
@@ -36,9 +36,9 @@ namespace Realm {
     return registered_freelists;
   }
 
-  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS>
-  void DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::register_freelist(
-      typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::FreeList *free_list)
+  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS, typename CONSTRUCTOR>
+  void DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::register_freelist(
+      typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::FreeList *free_list)
   {
     Mutex *lock = nullptr;
     std::vector<FreeList *> &freelists = get_registered_freelists(lock);
@@ -46,10 +46,10 @@ namespace Realm {
     freelists.push_back(free_list);
   }
 
-  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS>
-  typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::ET *
-  DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::steal_freelist_element(
-      typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::FreeList *requestor)
+  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS, typename CONSTRUCTOR>
+  typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::ET *
+  DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::steal_freelist_element(
+      typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::FreeList *requestor)
   {
     // TODO: improve this by adjusting the starting offset to reduce contention
     Mutex *lock = nullptr;
@@ -66,19 +66,22 @@ namespace Realm {
     return nullptr;
   }
 
-  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS>
-  typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::LEAF_TYPE *
-  DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS>::new_leaf_node(
-      IT first_index, IT last_index, int owner, ET **free_list_head, ET **free_list_tail)
+  template <typename _ET, size_t _INNER_BITS, size_t _LEAF_BITS, typename CONSTRUCTOR>
+  typename DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::LEAF_TYPE *
+  DynamicTableAllocator<_ET, _INNER_BITS, _LEAF_BITS, CONSTRUCTOR>::new_leaf_node(
+      IT first_index, IT last_index, int owner, ET **free_list_head, ET **free_list_tail,
+      const CONSTRUCTOR& elem_ctor)
 
   {
     LEAF_TYPE *leaf = new LEAF_TYPE(0, first_index, last_index);
     const IT last_ofs = (((IT)1) << LEAF_BITS) - 1;
 
-    for(IT i = 0; i <= last_ofs; i++)
-      leaf->elems[i].init(ET::make_id(leaf->elems[0], owner, first_index + i), owner);
+    for(IT i = 0; i <= last_ofs; i++) {
+      ID id = ET::make_id(leaf->elems[0], owner, first_index + i);
+      elem_ctor.construct(&leaf->elems[i], id, owner);
     // leaf->elems[i].init(ID(ET::ID_TYPE, owner, first_index +
     // i).convert<typeof(leaf->elems[0].me)>(), owner);
+    }
 
     if(free_list_head != nullptr && free_list_tail != nullptr) {
       // stitch all the new elements into the free list - we can do this
@@ -142,8 +145,11 @@ namespace Realm {
 
   template <typename ALLOCATOR>
   DynamicTable<ALLOCATOR>::DynamicTable(void)
-    : root_and_level(0)
-    , first_alloced_node(0)
+  {}
+
+  template <typename ALLOCATOR>
+  DynamicTable<ALLOCATOR>::DynamicTable(Constructor elem_ctor)
+    : elem_ctor(std::move(elem_ctor))
   {}
 
   template <typename ALLOCATOR>
@@ -206,7 +212,7 @@ namespace Realm {
       return inner;
     } else {
       return ALLOCATOR::new_leaf_node(first_index, last_index, owner, free_list_head,
-                                      free_list_tail);
+                                      free_list_tail, elem_ctor);
     }
   }
 
@@ -401,6 +407,12 @@ namespace Realm {
     typename ALLOCATOR::LEAF_TYPE *leaf = static_cast<typename ALLOCATOR::LEAF_TYPE *>(n);
     IT ofs = (index & ((((IT)1) << ALLOCATOR::LEAF_BITS) - 1));
     return &(leaf->elems[ofs]);
+  }
+
+  template<typename ALLOCATOR>
+  void DynamicTable<ALLOCATOR>::set_constructor(Constructor &_elem_ctor)
+  {
+    elem_ctor = _elem_ctor;
   }
 
 

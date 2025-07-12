@@ -60,6 +60,7 @@ if(UCX_BOOTSTRAP_ENABLE_MPI)
   find_package(MPI)
   add_backend_plugin(NAME realm_ucp_bootstrap_mpi SOURCES ${UCX_BOOTSTRAP_ROOT_DIR}/bootstrap_mpi.c LIBRARIES MPI::MPI_C)
 endif()
+add_backend_plugin(NAME realm_bootstrap_p2p SOURCES ${UCX_BOOTSTRAP_ROOT_DIR}/bootstrap_p2p.cc)
 #endregion
 
 if(REALM_INSTALL)

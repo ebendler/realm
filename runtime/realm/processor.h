@@ -163,7 +163,7 @@ namespace Realm {
       static constexpr bool value = sizeof(check<T>(0)) == sizeof(yes);
     };
 
-    class Processor::KokkosExecInstance {
+    class REALM_PUBLIC_API Processor::KokkosExecInstance {
     public:
       KokkosExecInstance(Processor _p);
 

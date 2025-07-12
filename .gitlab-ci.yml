@@ -657,9 +657,9 @@ before_script:
       ctest --test-dir realm/build --parallel $THREADS --output-on-failure
       cmake --install realm/build
       # Temporary hack for some regent builds that need to be updated to use the correct include paths
-      #cp realm/install/include/realm_defines.h runtime/realm
-      #export Realm_ROOT="$(pwd)/realm/install"
-      #export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${Realm_ROOT}/lib
+      cp realm/install/include/realm_defines.h runtime/realm
+      export Realm_ROOT="$(pwd)/realm/install"
+      export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${Realm_ROOT}/lib
     - |
       if [[ "$USE_DEFCHECK" -eq 1 ]]; then
         export DEFCHECK_CXX="${CXX}"
@@ -738,9 +738,9 @@ before_script:
       cmake --build realm/build --parallel $THREADS
       cmake --install realm/build
       # Temporary hack for some regent builds that need to be updated to use the correct include paths
-      #cp realm/install/include/realm_defines.h runtime/realm
-      #export Realm_ROOT="$(pwd)/realm/install"
-      #export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${Realm_ROOT}/lib
+      cp realm/install/include/realm_defines.h runtime/realm
+      export Realm_ROOT="$(pwd)/realm/install"
+      export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${Realm_ROOT}/lib
     - $TEST_PYTHON_EXE ./test.py $TEST_PY_ARGS --tmp-dir ${CI_PROJECT_DIR}/tmp
   retry:
     max: 0
@@ -1113,10 +1113,11 @@ gcc9_cxx17_debug_external1:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
     <<: [*gcc9, *terra12, *debug, *cxx17_normal, *openmp, *hdf5, *external1, *short]
-gcc9_cxx17_debug_maxdim4_external2:
-  <<: [*linux_compute, *image_2004, *external_tests]
-  variables:
-    <<: [*gcc9, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2, *short]
+# Temporarily disabled due to https://github.com/StanfordLegion/legion/issues/1883
+#gcc9_cxx17_debug_maxdim4_external2:
+#  <<: [*linux_compute, *image_2004, *external_tests]
+#  variables:
+#    <<: [*gcc9, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2, *short]
 gcc9_cxx17_debug_private:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
@@ -1295,10 +1296,11 @@ clang12_cxx17_debug_external1:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
     <<: [*clang12, *terra12, *debug, *cxx17_normal, *openmp, *hdf5, *external1]
-clang12_cxx12_debug_maxdim4_external2:
-  <<: [*linux_compute, *image_2004, *external_tests]
-  variables:
-    <<: [*clang12, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2]
+# Temporarily disabled due to https://github.com/StanfordLegion/legion/issues/1883
+#clang12_cxx12_debug_maxdim4_external2:
+#  <<: [*linux_compute, *image_2004, *external_tests]
+#  variables:
+#    <<: [*clang12, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2]
 clang12_cxx17_debug_private:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
@@ -1449,10 +1451,12 @@ nvidia_cuda125_clang12_cxx20_release_cmake_cuda_regent:
   <<: [*nvidia, *tests]
   variables:
     <<: [*clang12, *llvm12, *release, *cxx20_normal, *cuda125, *cmake, *ctest, *realm_unit_ctest, *regent, *shared]
-nvidia_cuda125_gcc11_cxx17_debug_maxdim4_external2:
-  <<: [*nvidia, *external_tests]
-  variables:
-    <<: [*gcc11, *llvm12, *debug, *cxx17_external, *cuda125, *maxdim4, *openmp, *hdf5, *external2, *short]
+
+# Temporarily disabled due to https://github.com/StanfordLegion/legion/issues/1883
+#nvidia_cuda125_gcc11_cxx17_debug_maxdim4_external2:
+#  <<: [*nvidia, *external_tests]
+#  variables:
+#    <<: [*gcc11, *llvm12, *debug, *cxx17_external, *cuda125, *maxdim4, *openmp, *hdf5, *external2, *short]
 
 # CUDA+GASNet tests:
 nvidia_cuda121_gcc11_cxx17_debug_gasnetex_mpi_cmake_cuda_legion:
@@ -1483,10 +1487,6 @@ clang14_cxx17_debug_kokkos_openmp_legion:
   <<: [*linux, *image_2204, *tests]
   variables:
     <<: [*clang14, *terra14, *debug, *cxx17_normal, *kokkos, *openmp, *cmake, *legion, *ctest]
-nvidia_cuda117_clang12_cxx17_debug_kokkos_cuda_legion:
-  <<: [*nvidia, *tests]
-  variables:
-    <<: [*clang12, *debug, *cxx17_normal, *cuda117, *kokkos, *cmake, *legion, *ctest, *cpptrace]
 nvidia_cuda125_clang12_cxx17_debug_kokkos_cuda_openmp_legion:
   <<: [*nvidia, *tests]
   variables:

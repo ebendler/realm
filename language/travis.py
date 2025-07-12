@@ -19,7 +19,7 @@ from __future__ import print_function
 import argparse, os, platform, shlex, subprocess, sys
 
 def cmd(cmd, **kwargs):
-    print('Running: %s' % shlex.join(cmd), flush=True)
+    print(shlex.join(cmd), flush=True)
     return subprocess.check_call(cmd, **kwargs)
 
 def test(root_dir, install_only, cmake, debug, max_dim, short, no_pretty,
@@ -59,7 +59,7 @@ def test(root_dir, install_only, cmake, debug, max_dim, short, no_pretty,
     out_dir_flag = ['--output=%s' % os.path.join(root_dir, 'test_output')]
 
     cmd(
-        [sys.executable, './install.py'] + install_threads + terra + build + debug_flag,
+        [sys.executable, './install.py'] + install_threads + terra + build + cmake_flag + debug_flag,
         env = env,
         cwd = root_dir)
     if not install_only:

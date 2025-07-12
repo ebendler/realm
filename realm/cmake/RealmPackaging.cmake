@@ -17,7 +17,7 @@ else()
 endif()
 
 install(
-  TARGETS realm
+  TARGETS Realm
   EXPORT Realm_targets
   RUNTIME COMPONENT Realm_runtime
   LIBRARY COMPONENT Realm_runtime
@@ -141,6 +141,8 @@ install(
   FILE Realm-${lib_type}-targets.cmake
   COMPONENT Realm_devel
 )
+
+export(PACKAGE Realm)
 #endregion
 
 #region Documentation

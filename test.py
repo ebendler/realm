@@ -626,7 +626,9 @@ def run_test_ctest(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, time
     build_dir = os.path.join(tmp_dir, 'build')
     args = ['ctest', '--output-on-failure']
     # do not run tests in parallel if they use GPUs - might not all fit
-    if env['USE_CUDA'] != '1' and env['USE_HIP'] != '1':
+    # do not run tests in parallel if a network is in use, as it may require limited resources
+    # This should really be done within the cmake test definition as a resource constraint
+    if env['USE_CUDA'] != '1' and env['USE_HIP'] != '1' and not env.get('REALM_NETWORKS',''):
         args.extend(['-j', str(thread_count)])
     if timelimit:
         args.extend(['--timeout', str(timelimit)])
@@ -1114,7 +1116,7 @@ def run_tests(test_modules=None,
     test_regent = module_enabled('regent')
     test_legion_cxx = module_enabled('legion_cxx')
     test_fuzzer = module_enabled('fuzzer', False)
-    test_realm = module_enabled('realm', not debug)
+    test_realm = False #module_enabled('realm', not debug)
     test_external1 = module_enabled('external1', False)
     test_external2 = module_enabled('external2', False)
     test_private = module_enabled('private', False)

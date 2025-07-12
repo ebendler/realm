@@ -152,23 +152,11 @@ ifdef LG_INSTALL_DIR
 else
   ifeq ($(strip $(SHARED_OBJECTS)),0)
     REALM_LIB := librealm.a
-    $(REALM_LIB) : $(REALM_OBJS) $(REALM_CUDA_OBJS) $(REALM_GASNETEX_WRAPPER_OBJS)
-			rm -f $(REALM_LIB)
-			ar rc $(REALM_LIB) $(REALM_OBJS) $(REALM_CUDA_OBJS) $(REALM_GASNETEX_WRAPPER_OBJS)
   else # ifeq ($(strip $(SHARED_OBJECTS)),0)
     ifeq ($(shell uname -s),Darwin)
       REALM_LIB := librealm.dylib
     else
       REALM_LIB := librealm.so
-    endif
-    ifeq ($(strip $(REALM_USE_GASNETEX_WRAPPER)),1)
-      $(REALM_LIB) : $(REALM_OBJS) $(REALM_CUDA_OBJS)
-				rm -f $@
-				$(CXX) $(SO_FLAGS) -o $@ $^ $(LD_FLAGS) $(SLIB_REALM_DEPS)
-    else
-      $(REALM_LIB) : $(REALM_OBJS) $(REALM_CUDA_OBJS) $(REALM_GASNETEX_WRAPPER_OBJS)
-				rm -f $@
-				$(CXX) $(SO_FLAGS) -o $@ $^ $(LD_FLAGS) $(SLIB_REALM_DEPS)
     endif
   endif  # ifeq ($(strip $(SHARED_OBJECTS)),0)
 endif
@@ -199,8 +187,8 @@ endif
 
 machine_config_test.o : CC_FLAGS += $(REALM_SYMBOL_VISIBILITY)
 
-$(TESTS) : % : %.o $(REALM_LIB) $(SLIB_REALM_CUHOOK) $(SLIB_REALM_GASNETEX_WRAPPER)
-	$(CXX) -o $@ $< $(EXTRAOBJS_$*) -L. $(LD_FLAGS) $(REALM_LIBS) $(LEGION_LD_FLAGS) 
+$(TESTS) : % : %.o $(SLIB_REALM_CUHOOK) $(SLIB_REALM_GASNETEX_WRAPPER)
+	$(CXX) -o $@ $< $(EXTRAOBJS_$*) -L. $(LD_FLAGS) $(LEGION_LD_FLAGS)
 
 ifeq ($(strip $(USE_CUDA)),1)
 EXTRAOBJS_memspeed := memspeed_gpu.o
@@ -217,20 +205,20 @@ test_profiling : test_profiling_gpu.o
 task_stream : task_stream_gpu.o
 test_cuhook : test_cuhook_gpu.o
 
-%.o : %.cu $(REALM_DEFINES_HEADER) $(LEGION_DEFINES_HEADER)
+%.o : %.cu $(LEGION_DEFINES_HEADER)
 	$(NVCC) -o $@ -c $< $(INC_FLAGS) $(NVCC_FLAGS)
 
 $(SLIB_REALM_CUHOOK) : $(REALM_CUHOOK_OBJS)
 	rm -f $@
 	$(CXX) --shared $(SO_FLAGS) -o $@ $^ -L$(CUDA)/lib64/stubs -lcuda -Xlinker -rpath=$(CUDA)/lib64
 
-$(REALM_CUHOOK_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(REALM_CUHOOK_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER)
 	# $(NVCC) --compiler-options '-fPIC' -o $@ -c $< $(INC_FLAGS) $(NVCC_FLAGS)
 	$(CXX) -MMD -fPIC -o $@ -c $< $(CC_FLAGS) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) $(REALM_DEFCHECK)
 endif
 
 ifeq ($(strip $(REALM_NETWORKS)),gasnetex)
-$(REALM_GASNETEX_WRAPPER_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
+$(REALM_GASNETEX_WRAPPER_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) $(REALM_GASNETEX_WRAPPER_INC_FLAGS)
 ifeq ($(strip $(REALM_USE_GASNETEX_WRAPPER)),1)
 $(SLIB_REALM_GASNETEX_WRAPPER) : $(REALM_GASNETEX_WRAPPER_OBJS)
@@ -252,11 +240,11 @@ multiaffine : multiaffine_gpu.o
 test_profiling : test_profiling_gpu.o
 task_stream : task_stream_gpu.o
 
-%.o : %.cu $(REALM_DEFINES_HEADER) $(LEGION_DEFINES_HEADER)
+%.o : %.cu $(LEGION_DEFINES_HEADER)
 	$(HIPCC) -o $@ -c $< $(INC_FLAGS) $(HIPCC_FLAGS)
 endif
 
-%.o : %.cc $(REALM_DEFINES_HEADER) $(LEGION_DEFINES_HEADER)
+%.o : %.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -fPIC -o $@ -c $< $(INC_FLAGS) $(CC_FLAGS) $(REALM_CXX_CHECK)
 
 $(REALM_OBJS) : $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
@@ -268,13 +256,13 @@ $(REALM_OBJS) : CC_FLAGS+=$(REALM_SYMBOL_VISIBILITY)
 
 # deppart-related stuff
 ifneq ($(USE_PGI),1)
-image_%.o : image_tmpl.cc $(REALM_DEFINES_HEADER) $(LEGION_DEFINES_HEADER)
+image_%.o : image_tmpl.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -fPIC -o $@ -c $< $(INC_FLAGS) $(REALM_SYMBOL_VISIBILITY) $(CC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*))
 
-preimage_%.o : preimage_tmpl.cc $(REALM_DEFINES_HEADER) $(LEGION_DEFINES_HEADER)
+preimage_%.o : preimage_tmpl.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -fPIC -o $@ -c $< $(INC_FLAGS) $(REALM_SYMBOL_VISIBILITY) $(CC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*))
 
-byfield_%.o : byfield_tmpl.cc $(REALM_DEFINES_HEADER) $(LEGION_DEFINES_HEADER)
+byfield_%.o : byfield_tmpl.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -fPIC -o $@ -c $< $(INC_FLAGS) $(REALM_SYMBOL_VISIBILITY) $(CC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*))
 else
 # nvc++ names some symbols based on the source filename, so the trick above

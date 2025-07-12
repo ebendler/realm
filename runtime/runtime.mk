@@ -43,27 +43,51 @@ FC_FLAGS += $(FFLAGS)
 SO_FLAGS += $(LDLIBS)
 LD_FLAGS += $(LDFLAGS)
 
+ifdef Realm_ROOT
+  PKG_CONFIG_PATH := ${PKG_CONFIG_PATH}:${Realm_ROOT}/share/pkgconfig
+  export PKG_CONFIG_PATH
+endif
+
+REALM_DONT_USE_PKGCONF := $(shell PKG_CONFIG_PATH=${PKG_CONFIG_PATH} pkg-config --exists realm; echo $$?)
+ifeq (${REALM_DONT_USE_PKGCONF},0)
+  REALM_VERSION := $(shell PKG_CONFIG_PATH=${PKG_CONFIG_PATH} pkg-config --modversion realm)
+  REALM_CFLAGS := $(shell PKG_CONFIG_PATH=${PKG_CONFIG_PATH} pkg-config --cflags-only-other realm)
+  REALM_LFLAGS := $(shell PKG_CONFIG_PATH=${PKG_CONFIG_PATH} pkg-config --libs realm)
+  REALM_INC_FLAGS := $(shell PKG_CONFIG_PATH=${PKG_CONFIG_PATH} pkg-config --cflags-only-I realm)
+else
+  ifneq ($(wildcard ${Realm_ROOT}/share/realm/VERSION),)
+    REALM_VERSION := $(file < ${Realm_ROOT}/share/realm/VERSION)
+    REALM_CFLAGS :=
+    REALM_LFLAGS := -L${Realm_ROOT}/lib -lrealm
+    REALM_INC_FLAGS := -I${Realm_ROOT}/include
+  else
+    $(error Could not find valid realm installation in "${Realm_ROOT}")
+  endif
+endif
+INC_FLAGS += $(REALM_INC_FLAGS)
+CC_FLAGS += $(REALM_CFLAGS)
+LD_FLAGS += $(REALM_LFLAGS)
+
 # the Legion/Realm version string is set by the first of these that works:
-# 1) a defined value for the make REALM_VERSION variable
+# 1) a defined value for the make LEGION_VERSION variable
 # 2) the output of `git describe`, if successful
 # 3) the contents of 'VERSION' (at the root of the source tree), if available
 # 4) "unknown", if all else fails
-ifndef REALM_VERSION
-  REALM_VERSION := $(shell git -C $(LG_RT_DIR) describe --dirty --match legion\* 2> /dev/null)
-  ifneq ($(REALM_VERSION),)
-    $(info Version string from git: ${REALM_VERSION})
+ifndef LEGION_VERSION
+  LEGION_VERSION := $(shell git -C $(LG_RT_DIR) describe --dirty --match legion\* 2> /dev/null)
+  ifneq ($(LEGION_VERSION),)
+    $(info Version string from git: ${LEGION_VERSION})
   else
-    REALM_VERSION := $(shell cat $(LG_RT_DIR)/../VERSION 2> /dev/null)
-    ifneq ($(REALM_VERSION),)
-      $(info Version string from VERSION file: ${REALM_VERSION})
+    LEGION_VERSION := $(shell cat $(LG_RT_DIR)/../VERSION 2> /dev/null)
+    ifneq ($(LEGION_VERSION),)
+      $(info Version string from VERSION file: ${LEGION_VERSION})
     else
-      REALM_VERSION := unknown
+      LEGION_VERSION := unknown
       $(warning Could not determine version string - using 'unknown')
     endif
   endif
 endif
-REALM_CC_FLAGS += -DREALM_VERSION='"${REALM_VERSION}"'
-LEGION_CC_FLAGS += -DLEGION_VERSION='"${REALM_VERSION}"'
+LEGION_CC_FLAGS += -DLEGION_VERSION='"${LEGION_VERSION}"'
 
 USE_OPENMP ?= 0
 ifeq ($(shell uname -s),Darwin)
@@ -95,7 +119,6 @@ PREFIX ?=
 SHARED_OBJECTS ?= 0
 ifdef LG_INSTALL_DIR
 SLIB_LEGION	:=
-SLIB_REALM	:=
 OUTFILE		?=
 ifeq ($(strip $(DARWIN)),1)
 LD_FLAGS	+= -Wl,-rpath,$(LG_INSTALL_DIR)/lib
@@ -105,7 +128,6 @@ endif
 else
 ifeq ($(strip $(SHARED_OBJECTS)),0)
 SLIB_LEGION     := liblegion.a
-SLIB_REALM      := librealm.a
 OUTFILE		?=
 else
 CC_FLAGS	+= -fPIC
@@ -118,17 +140,15 @@ HIPCC_FLAGS += -fPIC
 endif
 ifeq ($(shell uname -s),Darwin)
 SLIB_LEGION     := liblegion.dylib
-SLIB_REALM      := librealm.dylib
 SLIB_REALM_GASNETEX_WRAPPER    :=librealm_gex_wrapper.dylib
 OUTFILE		?=
 else
 SLIB_LEGION     := liblegion.so
-SLIB_REALM      := librealm.so
 SLIB_REALM_GASNETEX_WRAPPER    :=librealm_gex_wrapper.so
 OUTFILE		?=
 endif
 # shared libraries can link against other shared libraries
-SLIB_LEGION_DEPS = -L. -lrealm
+SLIB_LEGION_DEPS = $(REALM_LFLAGS)
 SLIB_REALM_DEPS  =
 ifeq ($(strip $(DARWIN)),1)
 SO_FLAGS += -dynamiclib -single_module -undefined dynamic_lookup -fPIC
@@ -142,7 +162,7 @@ SO_FLAGS += -shared
 endif
 endif
 endif
-LEGION_LIBS	:= -llegion -lrealm
+LEGION_LIBS	:= -llegion
 ifdef LG_INSTALL_DIR
 LD_FLAGS	+= -L$(LG_INSTALL_DIR)/lib
 else
@@ -163,7 +183,6 @@ else
 DEFINE_HEADERS_DIR ?= .
 endif
 LEGION_DEFINES_HEADER := $(DEFINE_HEADERS_DIR)/legion_defines.h
-REALM_DEFINES_HEADER := $(DEFINE_HEADERS_DIR)/realm_defines.h
 
 # Handle some of the common machines we frequent
 
@@ -1384,29 +1403,21 @@ ifndef NO_BUILD_RULES
 # Provide an all unless the user asks us not to
 ifndef NO_BUILD_ALL
 .PHONY: all
-ifeq ($(strip $(REALM_USE_CUHOOK)),1)
-all: $(OUTFILE) $(SLIB_LEGION) $(SLIB_REALM) $(SLIB_REALM_CUHOOK)
-else
-all: $(OUTFILE) $(SLIB_LEGION) $(SLIB_REALM)
-endif
+all: $(OUTFILE) $(SLIB_LEGION)
 endif
 # Provide support for installing legion with the make build system
 .PHONY: install COPY_FILES_AFTER_BUILD
 ifneq ($(strip $(PREFIX)),)
 INSTALL_BIN_FILES += $(OUTFILE)
-INSTALL_INC_FILES += legion_defines.h realm_defines.h
-ifeq ($(strip $(REALM_USE_CUHOOK)),1)
+INSTALL_INC_FILES += legion_defines.h
 INSTALL_LIB_FILES += $(SLIB_REALM) $(SLIB_LEGION) $(SLIB_REALM_CUHOOK)
-else
-INSTALL_LIB_FILES += $(SLIB_REALM) $(SLIB_LEGION)
-endif
 INSTALL_SHARE_FILES := runtime.mk
 TARGET_HEADERS := $(addprefix $(strip $(PREFIX))/include/,$(INSTALL_HEADERS))
 TARGET_BIN_FILES := $(addprefix $(strip $(PREFIX))/bin/,$(INSTALL_BIN_FILES))
 TARGET_INC_FILES := $(addprefix $(strip $(PREFIX))/include/,$(INSTALL_INC_FILES))
 TARGET_LIB_FILES := $(addprefix $(strip $(PREFIX))/lib/,$(INSTALL_LIB_FILES))
 TARGET_SHARE_FILES := $(addprefix $(strip $(PREFIX))/share/legion/,$(INSTALL_SHARE_FILES))
-install: $(OUTFILE) $(SLIB_LEGION) $(SLIB_REALM)
+install: $(OUTFILE) $(SLIB_LEGION)
 	$(MAKE) COPY_FILES_AFTER_BUILD
 COPY_FILES_AFTER_BUILD: $(TARGET_HEADERS) $(TARGET_BIN_FILES) $(TARGET_INC_FILES) $(TARGET_LIB_FILES) $(TARGET_SHARE_FILES)
 $(TARGET_HEADERS) : $(strip $(PREFIX))/include/% : $(LG_RT_DIR)/%
@@ -1438,7 +1449,7 @@ DEP_FILES += $(LEGION_INST_OBJS:.o=.d)
 DEP_FILES += $(MAPPER_OBJS:.o=.d)
 -include $(DEP_FILES)
 
-$(OUTFILE) : $(APP_OBJS) $(SLIB_LEGION) $(SLIB_REALM) $(SLIB_REALM_GASNETEX_WRAPPER)
+$(OUTFILE) : $(APP_OBJS) $(SLIB_LEGION) $(SLIB_REALM_GASNETEX_WRAPPER)
 	@echo "---> Linking objects into one binary: $(OUTFILE)"
 	$(CXX) -o $(OUTFILE) $(APP_OBJS) $(LD_FLAGS) $(LEGION_LIBS) $(LEGION_LD_FLAGS)
 
@@ -1447,12 +1458,8 @@ $(SLIB_LEGION) : $(LEGION_OBJS) $(LEGION_INST_OBJS) $(MAPPER_OBJS)
 	rm -f $@
 	$(AR) rcs $@ $^
 
-$(SLIB_REALM) : $(REALM_OBJS) $(REALM_INST_OBJS) $(REALM_GASNETEX_WRAPPER_OBJS)
-	rm -f $@
-	$(AR) rcs $@ $^
-
 else
-$(SLIB_LEGION) : $(LEGION_OBJS) $(LEGION_INST_OBJS) $(MAPPER_OBJS) $(SLIB_REALM)
+$(SLIB_LEGION) : $(LEGION_OBJS) $(LEGION_INST_OBJS) $(MAPPER_OBJS)
 	rm -f $@
 	$(CXX) $(SO_FLAGS) -o $@ $(LEGION_OBJS) $(LEGION_INST_OBJS) $(MAPPER_OBJS) $(LD_FLAGS) $(SLIB_LEGION_DEPS)
 
@@ -1460,20 +1467,13 @@ ifeq ($(strip $(REALM_USE_GASNETEX_WRAPPER)),1)
 $(SLIB_REALM_GASNETEX_WRAPPER) : $(REALM_GASNETEX_WRAPPER_OBJS)
 	rm -f $@
 	$(CXX) $(SO_FLAGS) -o $@ $^ $(LD_FLAGS) $(REALM_GASNETEX_WRAPPER_LD_FLAGS) $(SLIB_REALM_DEPS)
-$(SLIB_REALM) : $(REALM_OBJS) $(REALM_INST_OBJS)
-	rm -f $@
-	$(CXX) $(SO_FLAGS) -o $@ $^ $(LD_FLAGS) $(SLIB_REALM_DEPS)
-else
-$(SLIB_REALM) : $(REALM_OBJS) $(REALM_INST_OBJS) $(REALM_GASNETEX_WRAPPER_OBJS)
-	rm -f $@
-	$(CXX) $(SO_FLAGS) -o $@ $^ $(LD_FLAGS) $(SLIB_REALM_DEPS)
 endif
 endif
 
-$(filter %.c.o,$(APP_OBJS)) : %.c.o : %.c $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(filter %.c.o,$(APP_OBJS)) : %.c.o : %.c $(LEGION_DEFINES_HEADER)
 	$(CC) -MMD -o $@ -c $< $(CPPFLAGS) $(CFLAGS) $(INC_FLAGS)
 
-$(filter %.cc.o,$(APP_OBJS)) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(filter %.cc.o,$(APP_OBJS)) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(INC_FLAGS)
 
 $(filter %.S.o,$(APP_OBJS)) : %.S.o : %.S
@@ -1482,13 +1482,13 @@ $(filter %.S.o,$(APP_OBJS)) : %.S.o : %.S
 # special rules for per-dimension deppart source files
 #  (hopefully making the path explicit doesn't break things too badly...)
 ifneq ($(USE_PGI),1)
-$(LG_RT_DIR)/realm/deppart/image_%.cc.o : $(LG_RT_DIR)/realm/deppart/image_tmpl.cc $(LG_RT_DIR)/realm/deppart/image.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(LG_RT_DIR)/realm/deppart/image_%.cc.o : $(LG_RT_DIR)/realm/deppart/image_tmpl.cc $(LG_RT_DIR)/realm/deppart/image.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*)) $(REALM_DEFCHECK)
 
-$(LG_RT_DIR)/realm/deppart/preimage_%.cc.o : $(LG_RT_DIR)/realm/deppart/preimage_tmpl.cc $(LG_RT_DIR)/realm/deppart/preimage.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(LG_RT_DIR)/realm/deppart/preimage_%.cc.o : $(LG_RT_DIR)/realm/deppart/preimage_tmpl.cc $(LG_RT_DIR)/realm/deppart/preimage.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*)) $(REALM_DEFCHECK)
 
-$(LG_RT_DIR)/realm/deppart/byfield_%.cc.o : $(LG_RT_DIR)/realm/deppart/byfield_tmpl.cc $(LG_RT_DIR)/realm/deppart/byfield.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(LG_RT_DIR)/realm/deppart/byfield_%.cc.o : $(LG_RT_DIR)/realm/deppart/byfield_tmpl.cc $(LG_RT_DIR)/realm/deppart/byfield.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*)) $(REALM_DEFCHECK)
 else
 # nvc++ names some symbols based on the source filename, so the trick above
@@ -1515,12 +1515,11 @@ $(LG_RT_DIR)/realm/deppart/byfield_%.cc :
 REALM_OBJS += $(REALM_INST_OBJS)
 endif
 
-$(REALM_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
+$(REALM_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) $(REALM_DEFCHECK)
 
 ifeq ($(strip $(USE_CUDA)),1)
-ifeq ($(strip $(REALM_USE_CUHOOK)),1)
-$(REALM_CUHOOK_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(REALM_CUHOOK_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) 
 	# $(NVCC) --compiler-options '-fPIC' -o $<.d -M -MT $@ $< $(NVCC_FLAGS) $(INC_FLAGS)
 	# $(NVCC) --compiler-options '-fPIC' -o $@ -c $< $(NVCC_FLAGS) $(INC_FLAGS)
 	$(CXX) -MMD -fPIC -o $@ -c $< $(CC_FLAGS) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) $(REALM_DEFCHECK)
@@ -1529,15 +1528,14 @@ $(SLIB_REALM_CUHOOK) : $(REALM_CUHOOK_OBJS)
 	rm -f $@
 	$(CXX) --shared $(SO_FLAGS) -o $@ $^ -L$(CUDA)/lib64/stubs -lcuda -Xlinker -rpath=$(CUDA)/lib64
 endif
-endif
 
 ifeq ($(strip $(REALM_NETWORKS)),gasnetex)
-$(REALM_GASNETEX_WRAPPER_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
+$(REALM_GASNETEX_WRAPPER_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) $(REALM_GASNETEX_WRAPPER_INC_FLAGS)
 endif
 
 ifneq ($(USE_PGI),1)
-$(LG_RT_DIR)/legion/region_tree_%.cc.o : $(LG_RT_DIR)/legion/region_tree_tmpl.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(LG_RT_DIR)/legion/region_tree_%.cc.o : $(LG_RT_DIR)/legion/region_tree_tmpl.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(INC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) $(patsubst %,-DINST_N2=%,$(word 2,$(subst _, ,$*))) $(LEGION_DEFCHECK)
 else
 # nvc++ names some symbols based on the source filename, so the trick above
@@ -1554,35 +1552,35 @@ $(LG_RT_DIR)/legion/region_tree_%.cc :
 LEGION_OBJS += $(LEGION_INST_OBJS)
 endif
 
-$(filter %.cc.o,$(LEGION_OBJS)) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(filter %.cc.o,$(LEGION_OBJS)) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(INC_FLAGS) $(LEGION_DEFCHECK)
 
-$(MAPPER_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(MAPPER_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(INC_FLAGS)
 
 # GPU compilation rules; We can't use -MMD for dependency generation because
 # it's not supported by old versions of nvcc.
 
 ifeq ($(strip $(USE_HIP)),1)
-$(filter %.cu.o,$(APP_OBJS)) : %.cu.o : %.cu $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(filter %.cu.o,$(APP_OBJS)) : %.cu.o : %.cu $(LEGION_DEFINES_HEADER)
 	$(HIPCC) -o $<.d -M -MT $@ $< $(HIPCC_FLAGS) $(INC_FLAGS)
 	$(HIPCC) -o $@ -c $< $(HIPCC_FLAGS) $(INC_FLAGS)
 endif
 
 ifeq ($(strip $(USE_CUDA)),1)
-$(filter %.cu.o,$(APP_OBJS)) : %.cu.o : %.cu $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(filter %.cu.o,$(APP_OBJS)) : %.cu.o : %.cu $(LEGION_DEFINES_HEADER)
 	$(NVCC) -o $<.d -M -MT $@ $< $(NVCC_FLAGS) $(INC_FLAGS)
 	$(NVCC) -o $@ -c $< $(NVCC_FLAGS) $(INC_FLAGS)
 endif
 
 ifeq ($(strip $(USE_HIP)),1)
-$(filter %.cu.o,$(LEGION_OBJS)): %.cu.o : %.cu $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(filter %.cu.o,$(LEGION_OBJS)): %.cu.o : %.cu $(LEGION_DEFINES_HEADER)
 	$(HIPCC) -o $<.d -M -MT $@ $< $(HIPCC_FLAGS) $(INC_FLAGS)
 	$(HIPCC) -o $@ -c $< $(HIPCC_FLAGS) $(INC_FLAGS)
 endif
 
 ifeq ($(strip $(USE_CUDA)),1)
-$(filter %.cu.o,$(LEGION_OBJS)): %.cu.o : %.cu $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(filter %.cu.o,$(LEGION_OBJS)): %.cu.o : %.cu $(LEGION_DEFINES_HEADER)
 	$(NVCC) -o $<.d -M -MT $@ $< $(NVCC_FLAGS) $(INC_FLAGS)
 	$(NVCC) -o $@ -c $< $(NVCC_FLAGS) $(INC_FLAGS)
 endif
@@ -1590,17 +1588,17 @@ endif
 # Special rules for building the legion fortran files because the fortran compiler is dumb
 ifeq ($(strip $(USE_FORTRAN)),1)
 ifndef LG_INSTALL_DIR
-$(LG_RT_DIR)/legion/legion_f_types.f90.o : $(LG_RT_DIR)/legion/legion_f_types.f90 $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(LG_RT_DIR)/legion/legion_f_types.f90.o : $(LG_RT_DIR)/legion/legion_f_types.f90 $(LEGION_DEFINES_HEADER)
 	$(FC) -J$(LG_RT_DIR) -o $@ -c $< $(FC_FLAGS) $(INC_FLAGS)
 
-$(LG_RT_DIR)/legion/legion_f_c_interface.f90.o : $(LG_RT_DIR)/legion/legion_f_c_interface.f90 $(LG_RT_DIR)/legion/legion_f_types.f90.o $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(LG_RT_DIR)/legion/legion_f_c_interface.f90.o : $(LG_RT_DIR)/legion/legion_f_c_interface.f90 $(LG_RT_DIR)/legion/legion_f_types.f90.o $(LEGION_DEFINES_HEADER)
 	$(FC) -J$(LG_RT_DIR) -o $@ -c $< $(FC_FLAGS) $(INC_FLAGS)
 
-$(LG_RT_DIR)/legion/legion_f.f90.o : $(LG_RT_DIR)/legion/legion_f.f90 $(LG_RT_DIR)/legion/legion_f_c_interface.f90.o $(LG_RT_DIR)/legion/legion_f_types.f90.o $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER)
+$(LG_RT_DIR)/legion/legion_f.f90.o : $(LG_RT_DIR)/legion/legion_f.f90 $(LG_RT_DIR)/legion/legion_f_c_interface.f90.o $(LG_RT_DIR)/legion/legion_f_types.f90.o $(LEGION_DEFINES_HEADER)
 	$(FC) -J$(LG_RT_DIR) -o $@ -c $< $(FC_FLAGS) $(INC_FLAGS)
 endif
 
-$(filter %.f90.o,$(APP_OBJS)) : %.f90.o : %.f90 $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER) $(filter %.f90.o,$(LEGION_OBJS))
+$(filter %.f90.o,$(APP_OBJS)) : %.f90.o : %.f90 $(LEGION_DEFINES_HEADER) $(filter %.f90.o,$(LEGION_OBJS))
 	$(FC) -o $@ -c $< $(FC_FLAGS) $(INC_FLAGS)
 endif
 
@@ -1612,7 +1610,7 @@ clean::
 	$(RM) -f $(OUTFILE) $(APP_OBJS) $(REALM_OBJS) $(REALM_INST_OBJS) $(LEGION_OBJS) $(LEGION_INST_OBJS) $(MAPPER_OBJS) $(LG_RT_DIR)/*mod *.mod $(DEP_FILES) $(REALM_FATBIN_SRC) $(REALM_FATBIN) $(SLIB_REALM_CUHOOK) $(REALM_CUHOOK_OBJS) $(SLIB_REALM_GASNETEX_WRAPPER) $(REALM_GASNETEX_WRAPPER_OBJS) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
 else
 clean::
-	$(RM) -f $(OUTFILE) $(SLIB_LEGION) $(SLIB_REALM) $(APP_OBJS) $(REALM_OBJS) $(REALM_INST_OBJS) $(LEGION_OBJS) $(LEGION_INST_OBJS) $(MAPPER_OBJS) $(LG_RT_DIR)/*mod *.mod $(LEGION_DEFINES_HEADER) $(REALM_DEFINES_HEADER) $(DEP_FILES) $(REALM_FATBIN_SRC) $(REALM_FATBIN) $(SLIB_REALM_CUHOOK) $(REALM_CUHOOK_OBJS) $(SLIB_REALM_GASNETEX_WRAPPER) $(REALM_GASNETEX_WRAPPER_OBJS) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
+	$(RM) -f $(OUTFILE) $(SLIB_LEGION) $(APP_OBJS) $(REALM_OBJS) $(REALM_INST_OBJS) $(LEGION_OBJS) $(LEGION_INST_OBJS) $(MAPPER_OBJS) $(LG_RT_DIR)/*mod *.mod $(LEGION_DEFINES_HEADER) $(DEP_FILES) $(REALM_FATBIN_SRC) $(REALM_FATBIN) $(SLIB_REALM_CUHOOK) $(REALM_CUHOOK_OBJS) $(SLIB_REALM_GASNETEX_WRAPPER) $(REALM_GASNETEX_WRAPPER_OBJS) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
 endif
 
 ifeq ($(strip $(USE_LLVM)),1)
@@ -1627,7 +1625,6 @@ endif # NO_BUILD_RULES
 ifdef LG_INSTALL_DIR
 # If we have an install directory the defines are already set and can't be changed
 LEGION_DEFINES_HEADER := $(LG_INSTALL_DIR)/include/legion_defines.h
-REALM_DEFINES_HEADER := $(LG_INSTALL_DIR)/include/realm_defines.h
 else
 # by default, we'll always check to see if the defines headers need to be
 #  overwritten due to changes in compile settings (from makefile or command line)
@@ -1643,16 +1640,12 @@ endif
 $(LEGION_DEFINES_HEADER) : $(DEFINES_HEADERS_DEPENDENCY)
 	$(PYTHON) $(LG_RT_DIR)/../tools/generate_defines.py $(LEGION_CC_FLAGS) $(GENERATE_DEFINES_FLAGS) -i $(LG_RT_DIR)/../cmake/legion_defines.h.in -o $@
 
-$(REALM_DEFINES_HEADER) : $(DEFINES_HEADERS_DEPENDENCY)
-	$(PYTHON) $(LG_RT_DIR)/../tools/generate_defines.py $(REALM_CC_FLAGS) $(GENERATE_DEFINES_FLAGS) -i $(LG_RT_DIR)/../cmake/realm_defines.h.in -o $@
 endif
 
 # build realm.fatbin
 ifeq ($(strip $(USE_CUDA)),1)
 REALM_FATBIN = realm.fatbin
 REALM_CUDA_SRC += $(LG_RT_DIR)/realm/cuda/cuda_memcpy.cu
-
-$(REALM_CUDA_SRC) : $(REALM_DEFINES_HEADER)
 
 $(REALM_FATBIN): $(REALM_CUDA_SRC)
 	$(NVCC) $^ -o $(REALM_FATBIN) --fatbin $(NVCC_FLAGS) $(INC_FLAGS)

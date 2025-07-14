@@ -1522,7 +1522,7 @@ icc212_cxx17_debug_cmake_legion:
 
 # MSVC (Realm only):
 msvc178_realm:
-  <<: [*linux, *image_msvc178, *msvc_tests]
+  <<: [*linux_avx, *image_msvc178, *msvc_tests]
   variables:
     <<: [*short]
 

@@ -527,7 +527,7 @@ def run_test_external2(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, 
     # clone_github('stanfordhpccenter', 'HTR-solver', htr_dir, tmp_dir)
     # NOTE: the legion-ci branch currently requires g++ (not clang) to build and
     #  is REALLY slow unless you set DEBUG=0
-    cmd(['git', 'clone', '-b', 'legion-ci', 'git@gitlab.com:insieme1/htr/htr-solver.git', htr_dir])
+    cmd(['git', 'clone', '-b', 'legion-ci-cmake', 'git@gitlab.com:insieme1/htr/htr-solver.git', htr_dir])
     htr_env = dict(list(env.items()) + [
         ('LEGION_DIR', root_dir),
         ('HTR_DIR', htr_dir),
@@ -584,7 +584,7 @@ def run_test_external2(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, 
         # Soleil-X
         # Contact: Manolis Papadakis <mpapadak@stanford.edu>
         soleil_dir = os.path.join(tmp_dir, 'soleil-x')
-        clone_github('stanfordhpccenter', 'soleil-x', soleil_dir, tmp_dir)
+        clone_github('stanfordhpccenter', 'soleil-x', soleil_dir, tmp_dir, branch='legion-ci')
         soleil_env = dict(list(env.items()) + [
             ('LEGION_DIR', root_dir),
             ('SOLEIL_DIR', soleil_dir),

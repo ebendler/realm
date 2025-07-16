@@ -1,5 +1,5 @@
 #------------------------------------------------------------------------------#
-# Copyright 2024 Los Alamos National Security, LLC
+# Copyright 2025 NVIDIA Corp., Stanford University
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,21 +15,24 @@
 #------------------------------------------------------------------------------#
 
 cmake_minimum_required(VERSION 3.22 FATAL_ERROR)
+project(RealmTutorial_cuda_interop)
 
-if(NOT Legion_SOURCE_DIR)
-  find_package(Legion REQUIRED)
+# Only search if were building stand-alone and not as part of Realm
+if(NOT TARGET Realm::Realm)
+  find_package(Realm REQUIRED)
 endif()
 
-add_subdirectory(00_hello_world)
-add_subdirectory(01_tasks_and_futures)
-add_subdirectory(02_index_tasks)
-add_subdirectory(03_global_vars)
-add_subdirectory(04_logical_regions)
-add_subdirectory(05_physical_regions)
-add_subdirectory(06_privileges)
-add_subdirectory(07_partitioning)
-add_subdirectory(08_multiple_partitions)
-add_subdirectory(09_custom_mapper)
-if(Legion_USE_Fortran)
-  add_subdirectory(fortran)
+set(CUDA_INTEROP_SRCS cuda_interop.cc)
+
+include(CheckLanguage)
+
+check_language(CUDA)
+if (CMAKE_CUDA_COMPILER)
+  enable_language(CUDA)
+  list(APPEND CUDA_INTEROP_SRCS gpu_kernel.cu)
+  set(CUDA_INTEROP_DEFINITIONS INTEROP_ENABLE_CUDA=1)
 endif()
+
+add_executable(cuda_interop ${CUDA_INTEROP_SRCS})
+target_link_libraries(cuda_interop Realm::Realm CUDA::cudart)
+target_compile_definitions(cuda_interop PRIVATE ${CUDA_INTEROP_DEFINITIONS})

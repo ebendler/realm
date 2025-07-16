@@ -826,8 +826,6 @@ CPMFindPackage(NAME Realm
                "REALM_ENABLE_GASNETEX_WRAPPER ${Legion_USE_GASNETEX_WRAPPER}"
                "REALM_MAX_DIM ${Legion_MAX_DIM}"
                "REALM_BUILD_DOCS ${Legion_BUILD_DOCS}"
-               "REALM_BUILD_EXAMPLES ${Legion_BUILD_EXAMPLES}"
-               "REALM_BUILD_TUTORIALS ${Legion_BUILD_TUTORIAL}"
                "REALM_BUILD_TESTS ${Legion_BUILD_TESTS}"
                "REALM_USE_RDTSC ${Legion_USE_RDTSC}"
                "REALM_ENABLE_LIBDL ${Legion_USE_RDTSC}"

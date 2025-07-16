@@ -17,6 +17,7 @@ set(TEST_ARGS
     ""
     CACHE STRING "Default arguments for tests"
 )
+set(TEST_LAUNCHER ${CMAKE_TEST_LAUNCHER})
 
 if(NOT TEST_PROCESSORS)
   if(MPIEXEC_EXECUTABLE)
@@ -59,7 +60,7 @@ cmake_path(CONVERT "${TEST_LIB_PATH}" TO_NATIVE_PATH_LIST TEST_LIB_PATH NORMALIZ
 #endregion
 
 # TODO(cperry): Move these tests to this directory
-set(REALM_TEST_DIR "${CMAKE}../../test/realm")
+set(REALM_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 cmake_path(ABSOLUTE_PATH REALM_TEST_DIR BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE)
 
 #region Unit Tests
@@ -194,6 +195,7 @@ if(REALM_ENABLE_COVERAGE)
       unit
       DEPENDENCIES
       realm_unit_tests
+      realm_c_unit_tests
       BASE_DIRECTORY
       "${REALM_TEST_DIR}/../.."
       EXCLUDE

@@ -66,10 +66,9 @@ extern "C" {
   REALM_PUBLIC_API
   hipStream_t hipGetTaskStream()
   {
-    GPUProcessor *p = get_gpu_or_die("hipGetTaskStream");
-    hipStream_t raw_stream = p->gpu->get_null_task_stream()->get_stream();
-    log_stream.debug() << "kernel  added to stream " << raw_stream;
-    return raw_stream;
+    hipStream_t stream = HIPModule::get_task_hip_stream();
+    HIPModule::set_task_ctxsync_required(false);
+    return stream;
   }
 }; // extern "C"
 

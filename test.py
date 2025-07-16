@@ -580,21 +580,19 @@ def run_test_external2(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, 
         timelimit=timelimit)
 
     # Since we're not actually testing this, don't both building on GPUs currently
-    # FIXME: disable until fixed for new Realm build system
-    '''
     if not use_cuda:
         # Soleil-X
         # Contact: Manolis Papadakis <mpapadak@stanford.edu>
         soleil_dir = os.path.join(tmp_dir, 'soleil-x')
-        clone_github('stanfordhpccenter', 'soleil-x', soleil_dir, tmp_dir)
+        clone_github('stanfordhpccenter', 'soleil-x', soleil_dir, tmp_dir, branch='legion-ci')
         soleil_env = dict(list(env.items()) + [
             ('LEGION_DIR', root_dir),
             ('SOLEIL_DIR', soleil_dir),
             ('CC', 'gcc'),
         ])
         cmd([make_exe, '-C', os.path.join(soleil_dir, 'src')], env=soleil_env)
-        # FIXME: Actually run it and build it
-    '''
+        # FIXME: Actually run it
+
 def run_test_private(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit):
     flags = ['-logfile', 'out_%.log']
 

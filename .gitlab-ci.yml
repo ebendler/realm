@@ -1107,11 +1107,10 @@ gcc9_cxx17_debug_external1:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
     <<: [*gcc9, *terra12, *debug, *cxx17_normal, *openmp, *hdf5, *external1, *short]
-# Temporarily disabled due to https://github.com/StanfordLegion/legion/issues/1883
-#gcc9_cxx17_debug_maxdim4_external2:
-#  <<: [*linux_compute, *image_2004, *external_tests]
-#  variables:
-#    <<: [*gcc9, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2, *short]
+gcc9_cxx17_debug_maxdim4_external2:
+  <<: [*linux_compute, *image_2004, *external_tests]
+  variables:
+    <<: [*gcc9, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2, *short]
 gcc9_cxx17_debug_private:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
@@ -1290,11 +1289,10 @@ clang12_cxx17_debug_external1:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
     <<: [*clang12, *terra12, *debug, *cxx17_normal, *openmp, *hdf5, *external1]
-# Temporarily disabled due to https://github.com/StanfordLegion/legion/issues/1883
-#clang12_cxx12_debug_maxdim4_external2:
-#  <<: [*linux_compute, *image_2004, *external_tests]
-#  variables:
-#    <<: [*clang12, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2]
+clang12_cxx12_debug_maxdim4_external2:
+  <<: [*linux_compute, *image_2004, *external_tests]
+  variables:
+    <<: [*clang12, *terra12, *debug, *cxx17_external, *maxdim4, *openmp, *hdf5, *external2]
 clang12_cxx17_debug_private:
   <<: [*linux_compute, *image_2004, *external_tests]
   variables:
@@ -1445,12 +1443,10 @@ nvidia_cuda125_clang12_cxx20_release_cmake_cuda_regent:
   <<: [*nvidia, *tests]
   variables:
     <<: [*clang12, *llvm12, *release, *cxx20_normal, *cuda125, *cmake, *ctest, *realm_unit_ctest, *regent, *shared]
-
-# Temporarily disabled due to https://github.com/StanfordLegion/legion/issues/1883
-#nvidia_cuda125_gcc11_cxx17_debug_maxdim4_external2:
-#  <<: [*nvidia, *external_tests]
-#  variables:
-#    <<: [*gcc11, *llvm12, *debug, *cxx17_external, *cuda125, *maxdim4, *openmp, *hdf5, *external2, *short]
+nvidia_cuda125_gcc11_cxx17_debug_maxdim4_external2:
+  <<: [*nvidia, *external_tests]
+  variables:
+    <<: [*gcc11, *llvm12, *debug, *cxx17_external, *cuda125, *maxdim4, *openmp, *hdf5, *external2, *short]
 
 # CUDA+GASNet tests:
 nvidia_cuda121_gcc11_cxx17_debug_gasnetex_mpi_cmake_cuda_legion:

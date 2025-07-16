@@ -56,7 +56,7 @@ cmake_path(CONVERT "${TEST_LIB_PATH}" TO_NATIVE_PATH_LIST TEST_LIB_PATH NORMALIZ
 #endregion
 
 # TODO(cperry): Move these tests to this directory
-set(REALM_BENCH_DIR "../../test/performance/realm")
+set(REALM_BENCH_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 cmake_path(ABSOLUTE_PATH REALM_BENCH_DIR BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE)
 
 #region Benchmarks

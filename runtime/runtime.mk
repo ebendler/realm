@@ -1004,140 +1004,6 @@ LEGION_CUDA_SRC	?=
 LEGION_HIP_SRC  ?=
 MAPPER_SRC	?=
 
-# Set the source files
-REALM_SRC 	+= $(LG_RT_DIR)/realm/runtime_impl.cc \
-    $(LG_RT_DIR)/realm/bgwork.cc \
-    $(LG_RT_DIR)/realm/transfer/address_list.cc \
-    $(LG_RT_DIR)/realm/fragmented_message.cc \
-    $(LG_RT_DIR)/realm/transfer/transfer.cc \
-    $(LG_RT_DIR)/realm/transfer/channel.cc \
-    $(LG_RT_DIR)/realm/transfer/addrsplit_channel.cc \
-    $(LG_RT_DIR)/realm/transfer/channel_common.cc \
-    $(LG_RT_DIR)/realm/transfer/memcpy_channel.cc \
-    $(LG_RT_DIR)/realm/transfer/channel_disk.cc \
-    $(LG_RT_DIR)/realm/transfer/lowlevel_dma.cc \
-    $(LG_RT_DIR)/realm/transfer/ib_memory.cc \
-    $(LG_RT_DIR)/realm/mutex.cc \
-    $(LG_RT_DIR)/realm/module.cc \
-    $(LG_RT_DIR)/realm/module_config.cc \
-    $(LG_RT_DIR)/realm/threads.cc \
-    $(LG_RT_DIR)/realm/faults.cc \
-    $(LG_RT_DIR)/realm/operation.cc \
-    $(LG_RT_DIR)/realm/tasks.cc \
-    $(LG_RT_DIR)/realm/metadata.cc \
-    $(LG_RT_DIR)/realm/repl_heap.cc \
-    $(LG_RT_DIR)/realm/deppart/partitions.cc \
-    $(LG_RT_DIR)/realm/deppart/sparsity_impl.cc \
-    $(LG_RT_DIR)/realm/deppart/image.cc \
-    $(LG_RT_DIR)/realm/deppart/preimage.cc \
-    $(LG_RT_DIR)/realm/deppart/byfield.cc \
-    $(LG_RT_DIR)/realm/deppart/setops.cc \
-    $(LG_RT_DIR)/realm/comp_queue_impl.cc \
-    $(LG_RT_DIR)/realm/event_impl.cc \
-    $(LG_RT_DIR)/realm/barrier_impl.cc \
-    $(LG_RT_DIR)/realm/rsrv_impl.cc \
-    $(LG_RT_DIR)/realm/proc_impl.cc \
-    $(LG_RT_DIR)/realm/mem_impl.cc \
-    $(LG_RT_DIR)/realm/idx_impl.cc \
-    $(LG_RT_DIR)/realm/inst_impl.cc \
-    $(LG_RT_DIR)/realm/inst_layout.cc \
-    $(LG_RT_DIR)/realm/machine_impl.cc \
-    $(LG_RT_DIR)/realm/sampling_impl.cc \
-    $(LG_RT_DIR)/realm/subgraph_impl.cc \
-    $(LG_RT_DIR)/realm/transfer/lowlevel_disk.cc \
-    $(LG_RT_DIR)/realm/shm.cc
-# REALM_INST_SRC will be compiled {MAX_DIM}^2 times in parallel
-REALM_INST_SRC  += $(LG_RT_DIR)/realm/deppart/image_tmpl.cc \
-	           $(LG_RT_DIR)/realm/deppart/preimage_tmpl.cc \
-	           $(LG_RT_DIR)/realm/deppart/byfield_tmpl.cc
-REALM_SRC 	+= $(LG_RT_DIR)/realm/numa/numa_module.cc \
-		   $(LG_RT_DIR)/realm/numa/numasysif.cc
-ifeq ($(strip $(USE_NETWORK)),1)
-ifeq ($(findstring gasnet1,$(REALM_NETWORKS)),gasnet1)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/gasnet1/gasnet1_module.cc \
-                   $(LG_RT_DIR)/realm/gasnet1/gasnetmsg.cc
-endif
-ifeq ($(findstring gasnetex,$(REALM_NETWORKS)),gasnetex)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/gasnetex/gasnetex_module.cc \
-               $(LG_RT_DIR)/realm/gasnetex/gasnetex_internal.cc
-REALM_GASNETEX_WRAPPER_SRC := $(LG_RT_DIR)/realm/gasnetex/gasnetex_wrapper/gasnetex_handlers.cc \
-                              $(LG_RT_DIR)/realm/gasnetex/gasnetex_wrapper/gasnetex_wrapper.cc
-endif
-ifeq ($(findstring mpi,$(REALM_NETWORKS)),mpi)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/mpi/mpi_module.cc \
-                   $(LG_RT_DIR)/realm/mpi/am_mpi.cc
-endif
-ifeq ($(findstring ucx,$(REALM_NETWORKS)),ucx)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/ucx/ucp_module.cc \
-			   $(LG_RT_DIR)/realm/ucx/ucp_internal.cc \
-			   $(LG_RT_DIR)/realm/ucx/ucp_context.cc \
-			   $(LG_RT_DIR)/realm/ucx/mpool.cc \
-			   $(LG_RT_DIR)/realm/ucx/ucc_comm.cc \
-			   $(LG_RT_DIR)/realm/ucx/oob_group_comm.cc \
-			   $(LG_RT_DIR)/realm/ucx/bootstrap/bootstrap.cc \
-			   $(LG_RT_DIR)/realm/ucx/bootstrap/bootstrap_loader.cc
-endif
-endif
-ifeq ($(strip $(USE_OPENMP)),1)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/openmp/openmp_module.cc
-ifeq ($(strip $(USE_OPENMP_SYSTEM_RUNTIME)),0)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/openmp/openmp_threadpool.cc \
-               $(LG_RT_DIR)/realm/openmp/openmp_api.cc
-endif
-endif
-REALM_SRC 	+= $(LG_RT_DIR)/realm/procset/procset_module.cc
-ifeq ($(strip $(USE_PYTHON)),1)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/python/python_module.cc \
-		   $(LG_RT_DIR)/realm/python/python_source.cc
-endif
-ifeq ($(strip $(USE_CUDA)),1)
-REALM_FATBIN_SRC = realm_fatbin.cc
-REALM_SRC 	+= $(LG_RT_DIR)/realm/cuda/cuda_module.cc \
-                   $(LG_RT_DIR)/realm/cuda/cuda_access.cc \
-                   $(LG_RT_DIR)/realm/cuda/cuda_internal.cc \
-		   $(REALM_FATBIN_SRC)
-REALM_CUDA_DIR := $(LG_RT_DIR)/realm/cuda
-REALM_CUDA_SRC := $(REALM_CUDA_DIR)/cuda_memcpy.cu
-ifeq ($(strip $(REALM_USE_CUDART_HIJACK)),1)
-REALM_SRC       += $(LG_RT_DIR)/realm/cuda/cudart_hijack.cc
-endif
-
-ifeq ($(strip $(REALM_USE_CUHOOK)),1)
-REALM_CUHOOK_SRC += $(LG_RT_DIR)/realm/cuda/cuda_hook.cc
-endif
-
-endif
-ifeq ($(strip $(USE_HIP)),1)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/hip/hip_module.cc \
-                   $(LG_RT_DIR)/realm/hip/hip_access.cc \
-                   $(LG_RT_DIR)/realm/hip/hip_internal.cc
-ifeq ($(strip $(USE_HIP_HIJACK)),1)
-REALM_SRC       += $(LG_RT_DIR)/realm/hip/hip_hijack.cc
-endif
-endif
-ifeq ($(strip $(USE_LLVM)),1)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/llvmjit/llvmjit_module.cc \
-                   $(LG_RT_DIR)/realm/llvmjit/llvmjit_internal.cc
-endif
-ifeq ($(strip $(USE_HDF)),1)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/hdf5/hdf5_module.cc \
-		   $(LG_RT_DIR)/realm/hdf5/hdf5_internal.cc \
-		   $(LG_RT_DIR)/realm/hdf5/hdf5_access.cc
-endif
-ifeq ($(strip $(USE_NVTX)),1)
-REALM_SRC 	+= $(LG_RT_DIR)/realm/nvtx.cc
-endif
-REALM_SRC 	+= $(LG_RT_DIR)/realm/activemsg.cc \
-                   $(LG_RT_DIR)/realm/nodeset.cc \
-                   $(LG_RT_DIR)/realm/network.cc
-
-REALM_SRC 	+= $(LG_RT_DIR)/realm/logging.cc \
-		   $(LG_RT_DIR)/realm/profiling.cc \
-	           $(LG_RT_DIR)/realm/codedesc.cc \
-		   $(LG_RT_DIR)/realm/timers.cc \
-		   $(LG_RT_DIR)/realm/utils.cc \
-       $(LG_RT_DIR)/realm/hardware_topology.cc
-
 MAPPER_SRC	+= $(LG_RT_DIR)/mappers/default_mapper.cc \
 		   $(LG_RT_DIR)/mappers/mapping_utilities.cc \
 		   $(LG_RT_DIR)/mappers/shim_mapper.cc \
@@ -1196,7 +1062,6 @@ endif
 
 # Header files for Legion installation
 INSTALL_HEADERS += legion.h \
-                   realm.h \
                    legion/bitmask.h \
                    legion/legion.inl \
                    legion/legion_allocation.h \
@@ -1222,122 +1087,21 @@ INSTALL_HEADERS += legion.h \
                    mappers/test_mapper.h \
                    mappers/wrapper_mapper.h \
                    mappers/forwarding_mapper.h \
-                   mappers/logging_wrapper.h \
-                   realm/realm_config.h \
-                   realm/realm_c.h \
-                   realm/id.h \
-                   realm/id.inl \
-                   realm/profiling.h \
-                   realm/profiling.inl \
-                   realm/redop.h \
-                   realm/event.h \
-                   realm/event.inl \
-                   realm/reservation.h \
-                   realm/reservation.inl \
-                   realm/processor.h \
-                   realm/processor.inl \
-                   realm/memory.h \
-                   realm/mutex.h \
-                   realm/mutex.inl \
-                   realm/network.h \
-                   realm/network.inl \
-                   realm/nodeset.h \
-                   realm/nodeset.inl \
-                   realm/instance.h \
-                   realm/instance.inl \
-                   realm/inst_layout.h \
-                   realm/inst_layout.inl \
-                   realm/logging.h \
-                   realm/logging.inl \
-                   realm/machine.h \
-                   realm/machine.inl \
-                   realm/runtime.h \
-                   realm/module.h \
-                   realm/module_config.h \
-                   realm/module_config.inl \
-                   realm/indexspace.h \
-                   realm/indexspace.inl \
-                   realm/cmdline.h \
-                   realm/cmdline.inl \
-                   realm/codedesc.h \
-                   realm/codedesc.inl \
-                   realm/compiler_support.h \
-                   realm/bytearray.h \
-                   realm/bytearray.inl \
-                   realm/faults.h \
-                   realm/atomics.h \
-                   realm/atomics.inl \
-                   realm/point.h \
-                   realm/point.inl \
-                   realm/custom_serdez.h \
-                   realm/custom_serdez.inl \
-                   realm/sparsity.h \
-                   realm/sparsity.inl \
-                   realm/subgraph.h \
-                   realm/subgraph.inl \
-                   realm/dynamic_templates.h \
-                   realm/dynamic_templates.inl \
-                   realm/serialize.h \
-                   realm/serialize.inl \
-                   realm/threads.h \
-                   realm/threads.inl \
-                   realm/timers.h \
-                   realm/timers.inl \
-                   realm/utils.h \
-                   realm/utils.inl \
-                   realm/nvtx.h \
-                   realm/deppart/inst_helper.h \
-                   realm/cuda/cuda_module.h \
-                   realm/cuda/cuda_module.inl \
-                   realm/hip/hip_module.h \
-                   realm/hip/hip_module.inl \
-                   realm/numa/numa_module.h
+                   mappers/logging_wrapper.h
 
-ifeq ($(strip $(USE_CUDA)),1)
-INSTALL_HEADERS += realm/cuda/cuda_redop.h \
-                   realm/cuda/cuda_access.h
-endif
-ifeq ($(strip $(USE_HIP)),1)
-INSTALL_HEADERS += hip_cuda_compat/hip_cuda.h \
-                   realm/hip/hiphijack_api.h \
-                   realm/hip/hip_redop.h
-endif
 ifeq ($(strip $(USE_HALF)),1)
 INSTALL_HEADERS += mathtypes/half.h
 endif
 ifeq ($(strip $(USE_COMPLEX)),1)
 INSTALL_HEADERS += mathtypes/complex.h
 endif
-ifeq ($(strip $(USE_PYTHON)),1)
-INSTALL_HEADERS += realm/python/python_source.h \
-		   realm/python/python_source.inl \
-		   realm/python/python_module.h
-endif
-ifeq ($(strip $(USE_LLVM)),1)
-INSTALL_HEADERS += realm/llvmjit/llvmjit.h \
-		   realm/llvmjit/llvmjit.inl
-endif
-ifeq ($(strip $(USE_HDF)),1)
-INSTALL_HEADERS += realm/hdf5/hdf5_access.h \
-		   realm/hdf5/hdf5_access.inl
-endif
 ifeq ($(strip $(USE_FORTRAN)),1)
 INSTALL_HEADERS += legion_fortran_types.mod \
 		   legion_fortran_c_interface.mod \
 		   legion_fortran.mod
 endif
-ifeq ($(strip $(REALM_NETWORKS)),gasnetex)
-INSTALL_HEADERS += realm/gasnetex/gasnetex_wrapper/gasnetex_wrapper.h
-endif
 
 USE_PREALM ?= 0
-ifeq ($(strip $(USE_PREALM)),1)
-REALM_SRC	+= $(LG_RT_DIR)/realm/prealm/prealm.cc
-INSTALL_HEADERS	+= $(LG_RT_DIR)/realm/prealm/prealm.h \
-		   $(LG_RT_DIR)/realm/prealm/prealm.inl
-CC_FLAGS	+= -DUSE_PREALM
-SLIB_REALM_DEPS	+= -l$(ZLIB_LIBNAME)
-endif
 
 # General shell commands
 SHELL	:= /bin/sh
@@ -1479,42 +1243,6 @@ $(filter %.cc.o,$(APP_OBJS)) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER)
 $(filter %.S.o,$(APP_OBJS)) : %.S.o : %.S
 	$(AS) -o $@ -c $< $(CC_FLAGS) $(INC_FLAGS)
 
-# special rules for per-dimension deppart source files
-#  (hopefully making the path explicit doesn't break things too badly...)
-ifneq ($(USE_PGI),1)
-$(LG_RT_DIR)/realm/deppart/image_%.cc.o : $(LG_RT_DIR)/realm/deppart/image_tmpl.cc $(LG_RT_DIR)/realm/deppart/image.cc $(LEGION_DEFINES_HEADER)
-	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*)) $(REALM_DEFCHECK)
-
-$(LG_RT_DIR)/realm/deppart/preimage_%.cc.o : $(LG_RT_DIR)/realm/deppart/preimage_tmpl.cc $(LG_RT_DIR)/realm/deppart/preimage.cc $(LEGION_DEFINES_HEADER)
-	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*)) $(REALM_DEFCHECK)
-
-$(LG_RT_DIR)/realm/deppart/byfield_%.cc.o : $(LG_RT_DIR)/realm/deppart/byfield_tmpl.cc $(LG_RT_DIR)/realm/deppart/byfield.cc $(LEGION_DEFINES_HEADER)
-	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) -DINST_N1=$(word 1,$(subst _, ,$*)) -DINST_N2=$(word 2,$(subst _, ,$*)) $(REALM_DEFCHECK)
-else
-# nvc++ names some symbols based on the source filename, so the trick above
-#  of compiling multiple things from the same template with different defines
-#  causes linker errors - work around by generating a different source file for
-#  each case, but don't leave them lying around
-$(LG_RT_DIR)/realm/deppart/image_%.cc :
-	echo '#define' INST_N1 $(word 1,$(subst _, ,$*)) > $@
-	echo '#define' INST_N2 $(word 2,$(subst _, ,$*)) >> $@
-	echo '#include' '"image_tmpl.cc"' >> $@
-
-$(LG_RT_DIR)/realm/deppart/preimage_%.cc :
-	echo '#define' INST_N1 $(word 1,$(subst _, ,$*)) > $@
-	echo '#define' INST_N2 $(word 2,$(subst _, ,$*)) >> $@
-	echo '#include' '"preimage_tmpl.cc"' >> $@
-
-$(LG_RT_DIR)/realm/deppart/byfield_%.cc :
-	echo '#define' INST_N1 $(word 1,$(subst _, ,$*)) > $@
-	echo '#define' INST_N2 $(word 2,$(subst _, ,$*)) >> $@
-	echo '#include' '"byfield_tmpl.cc"' >> $@
-
-.INTERMEDIATE: $(REALM_INST_OBJS:.o=)
-
-REALM_OBJS += $(REALM_INST_OBJS)
-endif
-
 $(REALM_OBJS) : %.cc.o : %.cc $(LEGION_DEFINES_HEADER) $(REALM_GASNETEX_WRAPPER_EXPORT_HEADER)
 	$(CXX) -MMD -o $@ -c $< $(CC_FLAGS) $(REALM_CXX_CHECK) $(REALM_SYMBOL_VISIBILITY) $(INC_FLAGS) $(REALM_DEFCHECK)
 
@@ -1640,22 +1368,6 @@ endif
 $(LEGION_DEFINES_HEADER) : $(DEFINES_HEADERS_DEPENDENCY)
 	$(PYTHON) $(LG_RT_DIR)/../tools/generate_defines.py $(LEGION_CC_FLAGS) $(GENERATE_DEFINES_FLAGS) -i $(LG_RT_DIR)/../cmake/legion_defines.h.in -o $@
 
-endif
-
-# build realm.fatbin
-ifeq ($(strip $(USE_CUDA)),1)
-REALM_FATBIN = realm.fatbin
-REALM_CUDA_SRC += $(LG_RT_DIR)/realm/cuda/cuda_memcpy.cu
-
-$(REALM_FATBIN): $(REALM_CUDA_SRC)
-	$(NVCC) $^ -o $(REALM_FATBIN) --fatbin $(NVCC_FLAGS) $(INC_FLAGS)
-
-$(REALM_FATBIN_SRC): $(REALM_FATBIN)
-	echo '#include "realm/realm_config.h"' > $@
-	echo '#include <cstdlib>' >> $@
-	echo 'extern const unsigned char realm_fatbin[];' >> $@
-	echo 'extern const size_t realm_fatbin_len;' >> $@
-	xxd -i $< | sed 's/unsigned/const unsigned/g' | sed 's/unsigned int/size_t/g' >> $@
 endif
 
 # build gex_export.h

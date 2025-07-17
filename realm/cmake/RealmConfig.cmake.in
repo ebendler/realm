@@ -40,6 +40,18 @@ if(Realm_static_comp AND Realm_shared_comp)
   return()
 endif()
 
+include(CMakeFindDependencyMacro)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+
+# If Kokkos was used, it needs to be found regardless of shared or static since
+# it's (unfortunately) part of the interface
+# TODO(cperry): move this to be header only / optional, maybe after the c++ api
+#               is implemented on top of the c api
+set(REALM_USE_KOKKOS @REALM_USE_KOKKOS@)
+if (REALM_USE_KOKKOS)
+  find_dependency(Kokkos)
+endif()
+
 macro(Realm_load_targets type)
   if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/Realm-${type}-targets.cmake")
     set(${CMAKE_FIND_PACKAGE_NAME}_NOT_FOUND_MESSAGE
@@ -48,6 +60,14 @@ macro(Realm_load_targets type)
     set(${CMAKE_FIND_PACKAGE_NAME}_FOUND FALSE)
     return()
   endif()
+  if (${type} STREQUAL "static")
+    # Find all the static library dependencies needed
+    # Use the installed Find* modules as a last resort for dependencies
+    foreach (_dep @REALM_STATIC_DEPENDS@)
+     find_dependency(${_dep})
+    endforeach()
+  endif()
+
   include("${CMAKE_CURRENT_LIST_DIR}/Realm-${type}-targets.cmake")
   set(${CMAKE_FIND_PACKAGE_NAME}_${type}_FOUND TRUE)
 endmacro()
@@ -69,25 +89,6 @@ else()
   else()
     Realm_load_targets(shared)
   endif()
-endif()
-
-include(CMakeFindDependencyMacro)
-# Find all the static library dependencies needed
-# Use the installed Find* modules as a last resort for dependencies
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
-if(${CMAKE_FIND_PACKAGE_NAME}_static_FOUND)
-  foreach (_dep @REALM_STATIC_DEPENDS@)
-   find_dependency(${_dep})
-  endforeach()
-endif()
-
-# If Kokkos was used, it needs to be found regardless of shared or static since
-# it's (unfortunately) part of the interface
-# TODO(cperry): move this to be header only / optional, maybe after the c++ api
-#               is implemented on top of the c api
-set(REALM_USE_KOKKOS @REALM_USE_KOKKOS@)
-if (REALM_USE_KOKKOS)
-  find_dependency(Kokkos)
 endif()
 
 check_required_components(Realm)

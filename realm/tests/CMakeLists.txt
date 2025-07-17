@@ -120,7 +120,7 @@ add_executable(realm_unit_tests ${REALM_UNIT_TESTS})
 # Needed for designated initializers
 # TODO(apriakhin): to be removed
 target_compile_features(realm_unit_tests PUBLIC cxx_std_20)
-target_link_libraries(realm_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES})
+target_link_libraries(realm_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS})
 
 # TODO(wei): To be merged into realm_unit_tests once runtime singleton is
 # removed from all unit tests
@@ -137,7 +137,7 @@ add_executable(realm_c_unit_tests ${REALM_C_UNIT_TESTS})
 # Needed for designated initializers
 # TODO(apriakhin): to be removed
 target_compile_features(realm_c_unit_tests PUBLIC cxx_std_20)
-target_link_libraries(realm_c_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES})
+target_link_libraries(realm_c_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS})
 
 include(GoogleTest)
 if((NOT REALM_SANITIZER OR REALM_SANITIZER STREQUAL "NONE") AND NOT WIN32)

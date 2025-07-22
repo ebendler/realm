@@ -175,6 +175,22 @@ void main_task(const void *args, size_t arglen,
       }
     }
   }
+
+  // iterate all memories within the machine.
+  for(Machine::MemoryQuery::iterator it = Machine::MemoryQuery(machine).begin(); it;
+      ++it) {
+    Memory m = *it;
+    if(m.kind() != Memory::GPU_FB_MEM) {
+      continue;
+    }
+    log_app.print("Memory " IDFMT " has %zd KB", m.id, m.capacity() >> 10);
+    Machine::ProcessorQuery finder(machine);
+    finder.best_affinity_to(m);
+    for(Machine::ProcessorQuery::iterator it = finder.begin(); it; ++it) {
+      Processor p = *it;
+      log_app.print("\tbest affinity to Processor ID " IDFMT, p.id);
+    }
+  }
 }
 
 int main(int argc, char **argv) {

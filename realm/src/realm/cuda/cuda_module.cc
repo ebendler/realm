@@ -3384,10 +3384,17 @@ namespace Realm {
                 &buswidth, CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
                 infos[i]->device));
             // Account for double-data rate memories
-            infos[i]->logical_peer_bandwidth[i] =
-                (250ULL * memclk * buswidth) / 1000000ULL;
-            infos[i]->logical_peer_latency[i] =
-                std::max(1ULL, 10000000ULL / memclk);
+            if(memclk > 0) {
+              infos[i]->logical_peer_bandwidth[i] =
+                  (250ULL * memclk * buswidth) / 1000000ULL;
+              infos[i]->logical_peer_latency[i] = std::max(1ULL, 10000000ULL / memclk);
+            } else {
+              // HACK: if the GPU doesn't have a discrete memory, it means the system only
+              // has unified host memory, so we use the C2C bandwidth as the peer
+              // bandwidth
+              infos[i]->logical_peer_bandwidth[i] = infos[i]->c2c_bandwidth;
+              infos[i]->logical_peer_latency[i] = 200;
+            }
             log_gpu.info() << "GPU #" << i << " local memory: "
                            << infos[i]->logical_peer_bandwidth[i] << " MB/s, "
                            << infos[i]->logical_peer_latency[i] << " ns";

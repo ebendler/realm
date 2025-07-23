@@ -34,48 +34,48 @@ namespace Realm {
   //
 
   template <typename T>
-  bool ModuleConfig::set_property(const std::string &name, T value)
+  RealmStatus ModuleConfig::set_property(const std::string &name, T value)
   {
     std::unordered_map<std::string, void* const>::iterator it = config_map.find(name);
     if (it == config_map.end()) {
-      log_moduleconfig.error("Module %s does not have the configuration: %s", module_name.c_str(), name.c_str());
-      return false;
+      log_moduleconfig.warning("Module %s does not have the configuration: %s", module_name.c_str(), name.c_str());
+      return REALM_MODULE_CONFIG_ERROR_INVALID_NAME;
     } else {
       *reinterpret_cast<T*>(it->second) = value;
-      return true;
+      return REALM_SUCCESS;
     }
   }
 
   template <typename T>
-  bool ModuleConfig::get_property(const std::string &name, T &value) const
+  RealmStatus ModuleConfig::get_property(const std::string &name, T &value) const
   {
     std::unordered_map<std::string, void* const>::const_iterator it = config_map.find(name);
     if (it == config_map.cend()) {
-      log_moduleconfig.error("Module %s does not have the configuration: %s", module_name.c_str(), name.c_str());
+      log_moduleconfig.warning("Module %s does not have the configuration: %s", module_name.c_str(), name.c_str());
       value = 0;
-      return false;
+      return REALM_MODULE_CONFIG_ERROR_INVALID_NAME;
     } else {
       value = *reinterpret_cast<T*>(it->second);
-      return true;
+      return REALM_SUCCESS;
     }
   }
 
   template <typename T>
-  bool ModuleConfig::get_resource(const std::string &name, T &value) const
+  RealmStatus ModuleConfig::get_resource(const std::string &name, T &value) const
   {
     if (!resource_discover_finished) {
-      log_moduleconfig.error("Module %s can not detect resources.",
+      log_moduleconfig.info("Module %s can not detect resources.",
                              module_name.c_str());
-      return false;
+      return REALM_MODULE_CONFIG_ERROR_NO_RESOURCE;
     }
 
     std::unordered_map<std::string, void* const>::const_iterator it = resource_map.find(name);
     if (it == resource_map.cend()) {
-      log_moduleconfig.error("Module %s does not have the resource: %s", module_name.c_str(), name.c_str());
-      return false;
+      log_moduleconfig.warning("Module %s does not have the resource: %s", module_name.c_str(), name.c_str());
+      return REALM_MODULE_CONFIG_ERROR_INVALID_NAME;
     } else {
       value = *reinterpret_cast<T*>(it->second);
-      return true;
+      return REALM_SUCCESS;
     }
   }
 

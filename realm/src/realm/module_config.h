@@ -19,6 +19,7 @@
 #define REALM_MODULECONFIG_H
 
 #include "realm/realm_config.h"
+#include "realm/realm_c.h"
 
 #include <string>
 #include <unordered_map>
@@ -32,13 +33,13 @@ namespace Realm {
   public:
     virtual ~ModuleConfig(void);
     template <typename T>
-    bool set_property(const std::string &name, T value);
+    RealmStatus set_property(const std::string &name, T value);
     template <typename T>
-    bool get_property(const std::string &name, T &value) const;
+    RealmStatus get_property(const std::string &name, T &value) const;
     void finish_configure(void);
     const std::string& get_name(void) const;
     template <typename T>
-    bool get_resource(const std::string &name, T &value) const;
+    RealmStatus get_resource(const std::string &name, T &value) const;
     virtual void configure_from_cmdline(std::vector<std::string>& cmdline);
 
   protected:

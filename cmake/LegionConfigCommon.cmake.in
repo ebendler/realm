@@ -1,3 +1,5 @@
+include(CMakeFindDependencyMacro)
+
 # GASNet is a private dependency and only needs to be pulled in for static
 # builds
 set(Legion_NETWORKS @Legion_NETWORKS@)
@@ -34,6 +36,8 @@ if(Legion_USE_CUDA)
     unset(_cuda_stubs_path)
   endif()
 endif()
+
+find_dependency(Realm)
 
 include(${CMAKE_CURRENT_LIST_DIR}/LegionTargets.cmake)
 

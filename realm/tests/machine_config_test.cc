@@ -104,7 +104,7 @@ void top_level_task(const void *args, size_t arglen,
 {
   Runtime rt = Runtime::get_runtime();
   int wrong_config = 0;
-  bool ret_value = false;
+  RealmStatus ret_value = REALM_ERROR;
 
   // core module
   {
@@ -119,32 +119,32 @@ void top_level_task(const void *args, size_t arglen,
     bool pin_util_procs = false;
     bool use_ext_sysmem = true;
     ret_value = core_config->get_property<int>("cpu", num_cpu_procs);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(num_cpu_procs == TestConfig::num_cpu_procs);
     ret_value = core_config->get_property<int>("util", num_util_procs);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(num_util_procs == TestConfig::num_util_procs);
     ret_value = core_config->get_property<int>("io", num_io_procs);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(num_io_procs == TestConfig::num_io_procs);
     ret_value = core_config->get_property<size_t>("sysmem", sysmem_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(sysmem_size == TestConfig::sysmem_size);
     ret_value = core_config->get_property<size_t>("stack_size", stack_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(stack_size == TestConfig::stack_size);
     ret_value = core_config->get_property<bool>("pin_util_procs", pin_util_procs);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(pin_util_procs == TestConfig::pin_util_procs);
     ret_value = core_config->get_property<bool>("use_ext_sysmem", use_ext_sysmem);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(use_ext_sysmem == TestConfig::use_ext_sysmem);
     ret_value = core_config->get_property<size_t>("regmem", regmem_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(regmem_size == TestConfig::regmem_size);
     // test wrong property
     ret_value = core_config->get_property<int>("get_error_core", wrong_config);
-    assert(ret_value == false);
+    assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     log_app.print("cpus %d, utils %d, ios %d, sysmem %zu, regmem %zu", 
       num_cpu_procs, num_util_procs, num_io_procs, sysmem_size, regmem_size);
     // test stack size
@@ -161,26 +161,26 @@ void top_level_task(const void *args, size_t arglen,
   if(numa_config) {
     std::vector<size_t> numa_mems;
     ret_value = numa_config->get_resource("numa_mems", numa_mems);
-    if(ret_value) {
+    if(ret_value == REALM_SUCCESS) {
       size_t numa_mem_size = 0;
       size_t numa_nocpu_mem_size = 0;
       int num_numa_cpus = 0;
       bool numa_pin_memory = false;
       ret_value = numa_config->get_property("numamem", numa_mem_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       assert(numa_mem_size == TestConfig::numa_mem_size);
       ret_value = numa_config->get_property("numa_nocpumem", numa_nocpu_mem_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       assert(numa_nocpu_mem_size == TestConfig::numa_nocpu_mem_size);
       ret_value = numa_config->get_property("numacpus", num_numa_cpus);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       assert(num_numa_cpus == TestConfig::num_numa_cpus);
       ret_value = numa_config->get_property("pin_memory", numa_pin_memory);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       assert(numa_pin_memory == TestConfig::numa_pin_memory);
       // test wrong property
       ret_value = numa_config->get_property("get_error_numa", wrong_config);
-      assert(ret_value == false);
+      assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
       log_app.print("numa numamem %zu, numa_nocpumem %zu, numacpsus %d, numa_pin_memory "
                     "%d",
                     numa_mem_size, numa_nocpu_mem_size, num_numa_cpus, numa_pin_memory);
@@ -212,41 +212,41 @@ void top_level_task(const void *args, size_t arglen,
     unsigned task_streams = 0;
     unsigned d2d_streams = 0;
     ret_value = gpu_config->get_property("gpu", num_gpus);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(num_gpus == TestConfig::num_gpus);
     ret_value = gpu_config->get_property("fbmem", fb_mem_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(fb_mem_size == TestConfig::fb_mem_size);
     ret_value = gpu_config->get_property("zcmem", zc_mem_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(zc_mem_size == TestConfig::zc_mem_size);
     ret_value = gpu_config->get_property("ib_fbmem", fb_ib_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(fb_ib_size == TestConfig::fb_ib_size);
     ret_value = gpu_config->get_property("ib_zcmem", zc_ib_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(zc_ib_size == TestConfig::zc_ib_size);
     // uvm is only available in cuda
     if (cuda_config) {
       ret_value = gpu_config->get_property("uvmem", uvm_mem_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       assert(uvm_mem_size == TestConfig::uvm_mem_size);
     }
     ret_value = gpu_config->get_property("use_dynamic_fb", use_dynamic_fb);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(use_dynamic_fb == TestConfig::use_dynamic_fb);
     ret_value = gpu_config->get_property("dynfb_max_size", dynfb_max_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(dynfb_max_size == TestConfig::dynfb_max_size);
     ret_value = gpu_config->get_property("task_streams", task_streams);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(task_streams == TestConfig::task_streams);
     ret_value = gpu_config->get_property("d2d_streams", d2d_streams);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(d2d_streams == TestConfig::d2d_streams);
     // test wrong property
     ret_value = gpu_config->get_property("get_error_cuda", wrong_config);
-    assert(ret_value == false);
+    assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     log_app.print("cuda gpus %d, fbmem %zu, zcmem %zu, fb_ib %zu, zc_ib %zu, uvm %zu, use_dynamic_fb %d, dynfb_max_size %zu, task_streams %u, d2d_streams %u", 
       num_gpus, fb_mem_size, zc_mem_size, fb_ib_size, zc_ib_size, uvm_mem_size, use_dynamic_fb, dynfb_max_size, task_streams, d2d_streams);
   } else {
@@ -261,20 +261,20 @@ void top_level_task(const void *args, size_t arglen,
     bool openmp_use_numa = false;
     size_t openmp_stack_size = 0;
     ret_value = openmp_config->get_property("ocpu", num_openmp_cpus);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(num_openmp_cpus == TestConfig::num_openmp_cpus);
     ret_value = openmp_config->get_property("othr", num_threads_per_cpu);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(num_threads_per_cpu == TestConfig::num_threads_per_cpu);
     ret_value = openmp_config->get_property("onuma", openmp_use_numa);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(openmp_use_numa == TestConfig::openmp_use_numa);
     ret_value = openmp_config->get_property("ostack", openmp_stack_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(openmp_stack_size == TestConfig::openmp_stack_size);
     // test wrong property
     ret_value = openmp_config->get_property("get_error_openmp", wrong_config);
-    assert(ret_value == false);
+    assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     log_app.print("ocpus %d, othr %d, use_numa %d, stack_size %zu", num_openmp_cpus, num_threads_per_cpu, openmp_use_numa, openmp_stack_size);
   } else {
     log_app.print("openmp is not loaded");
@@ -286,14 +286,14 @@ void top_level_task(const void *args, size_t arglen,
     int num_python_cpus = 0;
     size_t py_stack_size = 0;
     ret_value = python_config->get_property("pyproc", num_python_cpus);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(num_python_cpus == TestConfig::num_python_cpus);
     ret_value = python_config->get_property("pystack", py_stack_size);
-    assert(ret_value == true);
+    assert(ret_value == REALM_SUCCESS);
     assert(py_stack_size == TestConfig::openmp_stack_size);
     // test wrong property
     ret_value = python_config->get_property("get_error_python", wrong_config);
-    assert(ret_value == false);
+    assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     log_app.print("python procs %d, stack_size %zu", num_python_cpus, py_stack_size);
   } else {
     log_app.print("python is not loaded");
@@ -512,34 +512,34 @@ int main(int argc, char **argv)
     // core module
     ModuleConfig* core_config = rt.get_module_config("core");
     assert(core_config != NULL);
-    bool ret_value = false;
+    RealmStatus ret_value = REALM_ERROR;
     {
       int ncores = 0;
       size_t sysmem = 0;
       ret_value = core_config->get_resource("cpu", ncores);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->get_resource("sysmem", sysmem);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       log_app.print("Discover number of CPU cores %d, sysmem %zu", ncores, sysmem);
       ret_value = core_config->set_property<int>("cpu", TestConfig::num_cpu_procs);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->set_property<int>("util", TestConfig::num_util_procs);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->set_property<int>("io", TestConfig::num_io_procs);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->set_property<size_t>("sysmem", TestConfig::sysmem_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->set_property<size_t>("stack_size", TestConfig::stack_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->set_property<bool>("pin_util_procs", TestConfig::pin_util_procs);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->set_property<bool>("use_ext_sysmem", TestConfig::use_ext_sysmem);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = core_config->set_property<size_t>("regmem", TestConfig::regmem_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       // test wrong config
       ret_value = core_config->set_property("set_error_core", TestConfig::sysmem_size);
-      assert(ret_value == false);
+      assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     }
 
     // numa module
@@ -547,25 +547,25 @@ int main(int argc, char **argv)
     if(numa_config) {
       std::vector<size_t> numa_mems;
       ret_value = numa_config->get_resource("numa_mems", numa_mems);
-      if(ret_value) {
+      if(ret_value == REALM_SUCCESS) {
         assert(numa_mems.size() >= 1);
         log_app.info() << "numa mems:" << PrettyVector<size_t>(numa_mems);
-        assert(ret_value == true);
+        assert(ret_value == REALM_SUCCESS);
         ret_value =
             numa_config->set_property<size_t>("numamem", TestConfig::numa_mem_size);
-        assert(ret_value == true);
+        assert(ret_value == REALM_SUCCESS);
         ret_value = numa_config->set_property<size_t>("numa_nocpumem",
                                                       TestConfig::numa_nocpu_mem_size);
-        assert(ret_value == true);
+        assert(ret_value == REALM_SUCCESS);
         ret_value = numa_config->set_property<int>("numacpus", TestConfig::num_numa_cpus);
-        assert(ret_value == true);
+        assert(ret_value == REALM_SUCCESS);
         ret_value =
             numa_config->set_property<bool>("pin_memory", TestConfig::numa_pin_memory);
-        assert(ret_value == true);
+        assert(ret_value == REALM_SUCCESS);
         // test wrong config
         ret_value =
             numa_config->set_property("set_error_numa", TestConfig::numa_mem_size);
-        assert(ret_value == false);
+        assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
       } else {
         log_app.warning("numa is not available");
       }
@@ -587,36 +587,36 @@ int main(int argc, char **argv)
       int ngpus = 0;
       size_t fbmem = 0;
       ret_value = gpu_config->get_resource("gpu", ngpus);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->get_resource("fbmem", fbmem);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       log_app.print("number of cuda GPUs %d, fbmem size %zu", ngpus, fbmem);
       ret_value = gpu_config->set_property<int>("gpu", TestConfig::num_gpus);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->set_property<size_t>("zcmem", TestConfig::zc_mem_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->set_property<size_t>("fbmem", TestConfig::fb_mem_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->set_property<size_t>("ib_fbmem", TestConfig::fb_ib_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->set_property<size_t>("ib_zcmem", TestConfig::zc_ib_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       // uvm is only available in cuda
       if (cuda_config) {
         ret_value = gpu_config->set_property<size_t>("uvmem", TestConfig::uvm_mem_size);
-        assert(ret_value == true);
+        assert(ret_value == REALM_SUCCESS);
       }
       ret_value = gpu_config->set_property<bool>("use_dynamic_fb", TestConfig::use_dynamic_fb);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->set_property<size_t>("dynfb_max_size", TestConfig::dynfb_max_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->set_property<unsigned>("task_streams", TestConfig::task_streams);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = gpu_config->set_property<unsigned>("d2d_streams", TestConfig::d2d_streams);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       // test wrong config
       ret_value = gpu_config->set_property("set_error_cuda", TestConfig::fb_mem_size);
-      assert(ret_value == false);
+      assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     } else {
       log_app.print("cuda/hip is not loaded");
     }
@@ -625,16 +625,16 @@ int main(int argc, char **argv)
     ModuleConfig* openmp_config = rt.get_module_config("openmp");
     if (openmp_config) {
       ret_value = openmp_config->set_property<int>("ocpu", TestConfig::num_openmp_cpus);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = openmp_config->set_property<int>("othr", TestConfig::num_threads_per_cpu);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = openmp_config->set_property<bool>("onuma", TestConfig::openmp_use_numa);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = openmp_config->set_property<size_t>("ostack", TestConfig::openmp_stack_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       // test wrong config
       ret_value = openmp_config->set_property("set_error_openmp", TestConfig::num_openmp_cpus);
-      assert(ret_value == false);
+      assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     } else {
       log_app.print("openmp is not loaded");
     }
@@ -643,12 +643,12 @@ int main(int argc, char **argv)
     ModuleConfig* python_config = rt.get_module_config("python");
     if (python_config) {
       ret_value = python_config->set_property<int>("pyproc", TestConfig::num_python_cpus);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       ret_value = python_config->set_property<size_t>("pystack", TestConfig::py_stack_size);
-      assert(ret_value == true);
+      assert(ret_value == REALM_SUCCESS);
       // test wrong config
       ret_value = python_config->set_property("set_error_openmp", TestConfig::num_openmp_cpus);
-      assert(ret_value == false);
+      assert(ret_value == REALM_MODULE_CONFIG_ERROR_INVALID_NAME);
     } else {
       log_app.print("python is not loaded");
     }

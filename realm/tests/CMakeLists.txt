@@ -343,6 +343,7 @@ add_integration_test(
   memspeed "${REALM_TEST_DIR}/memspeed.cc"
   "$<$<BOOL:TEST_USE_GPU>:${REALM_TEST_DIR}/memspeed_gpu.cu>"
 )
+target_link_libraries(memspeed ${TEST_GPU_LIBS})
 set(simple_reduce_ARGS -all)
 if(NOT BUILD_SHARED_LIBS OR NOT REALM_ENABLE_HIP)
   # simple_reduce registers a kernel with the runtime, but uses a different instance of the runtime
@@ -357,6 +358,7 @@ add_integration_test(
   multiaffine "${REALM_TEST_DIR}/multiaffine.cc"
   "$<$<BOOL:TEST_USE_GPU>:${REALM_TEST_DIR}/multiaffine_gpu.cu>"
 )
+target_link_libraries(multiaffine ${TEST_GPU_LIBS})
 if(TEST_USE_GPU)
   if(REALM_USE_CUDA)
     set(cuda_memcpy_test_ARGS

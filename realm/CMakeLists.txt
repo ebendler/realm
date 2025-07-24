@@ -308,6 +308,13 @@ if(REALM_ENABLE_HIP)
   if(hip_FOUND)
     list(APPEND REALM_STATIC_DEPENDS hip)
     list(APPEND REALM_LIBRARIES hip::host)
+    # Deal with an issue on some hip configs where the include directory is not
+    # set in the interface
+    get_target_property(HIPHOST_INC_DIR hip::host INTERFACE_INCLUDE_DIRECTORIES)
+    if (HIPHOST_INC_DIR STREQUAL "HIPHOST_INC_DIR-NOTFOUND")
+      set_target_properties(hip::host PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${HIP_INCLUDE_DIR})
+      #message(FATAL_ERROR ${HIP_INCLUDE_DIR})
+    endif()
   endif()
 endif()
 
@@ -398,7 +405,7 @@ if(REALM_ENABLE_KOKKOS)
         "Kokkos_ENABLE_CUDA_UVM OFF"
     )
   endif()
-  if(HIP_FOUND)
+  if(hip_FOUND)
     list(APPEND KOKKOS_CONFIG_ARGS "Kokkos_ENABLE_HIP ON")
   endif()
   if(OpenMP_FOUND)
@@ -875,21 +882,21 @@ target_link_libraries(Realm PRIVATE ${REALM_LIBRARIES})
 
 target_include_directories(
   realm_obj
-  PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> $<BUILD_INTERFACE:${REALM_SOURCE_DIR}/..>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-        $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
+  PUBLIC  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> $<BUILD_INTERFACE:${REALM_SOURCE_DIR}/..>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   PRIVATE $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_CUPTI_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:Python3::Python>:${Python_INCLUDE_DIRS}>
+          $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
 )
 target_include_directories(
   Realm
-  PUBLIC $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> $<BUILD_INTERFACE:${REALM_SOURCE_DIR}/..>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-        $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
+  PUBLIC  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}> $<BUILD_INTERFACE:${REALM_SOURCE_DIR}/..>
+          $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   PRIVATE $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_CUPTI_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:CUDA::cuda_driver>:${CUDAToolkit_INCLUDE_DIR}>
           $<$<TARGET_EXISTS:Python3::Python>:${Python_INCLUDE_DIRS}>
+          $<$<TARGET_EXISTS:hip::host>:${HIP_INCLUDE_DIR}>
 )
 if(REALM_ENABLE_GASNETEX)
   # Force the creation of the export header for the wrapper we need, but nothing else

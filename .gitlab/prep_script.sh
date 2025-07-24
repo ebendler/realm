@@ -12,6 +12,7 @@ git status
 mkdir -p $(dirname $EXTERNAL_WORKDIR)
 rm -rf $EXTERNAL_WORKDIR
 mkdir $EXTERNAL_WORKDIR
+chmod g+w $EXTERNAL_WORKDIR
 cd $EXTERNAL_WORKDIR
 
 # download Terra

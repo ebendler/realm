@@ -209,10 +209,6 @@ list(APPEND LEGION_SRC
   legion/runtime.h                        legion/runtime.cc
 )
 
-if(Legion_USE_HIP)
-  list(APPEND LEGION_SRC hip_cuda_compat/hip_cuda.h)
-endif()
-
 if(Legion_REDOP_HALF)
   list(APPEND LEGION_SRC mathtypes/half.h)
 endif()
@@ -317,16 +313,27 @@ if(Legion_USE_HIP)
   elseif(Legion_HIP_TARGET STREQUAL "ROCM")
     set(HIP_LIBRARIES ${HIP_ROOT_DIR}/lib/libamdhip64.so)
     set_source_files_properties(${LEGION_HIP_SRC} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+    get_target_property(REALM_INCLUDE_DIRS ${REALM_TGT} INTERFACE_INCLUDE_DIRECTORIES)
+    set(REALM_INCLUDE_FLAGS)
+    foreach(_dir IN LISTS REALM_INCLUDE_DIRS)
+      if(${_dir} MATCHES "\\$<(.*):(.*)>")
+        list(APPEND REALM_INCLUDE_FLAGS "$<${CMAKE_MATCH_1}:-I${CMAKE_MATCH_2}>")
+      else()
+        list(APPEND REALM_INCLUDE_FLAGS "-I${_dir}")
+      endif()
+    endforeach()
     hip_compile(LEGION_HIP_OBJS ${LEGION_HIP_SRC} HIPCC_OPTIONS
       ${HIPCC_FLAGS}
       ${HIP_GENCODE}
       -I ${CMAKE_CURRENT_SOURCE_DIR}
       -I ${CMAKE_CURRENT_SOURCE_DIR}/legion
       -I ${PROJECT_BINARY_DIR}/runtime
+      ${REALM_INCLUDE_FLAGS}
       -fPIC
       DEBUG -g
       RELEASE -O2
       RELWITHDEBINFO -g -O2)
+    add_dependencies(hip_compile RealmRuntime)
     target_sources(LegionRuntime PRIVATE ${LEGION_HIP_OBJS})
     target_link_libraries(LegionRuntime PUBLIC ${HIP_LIBRARIES})
 

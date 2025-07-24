@@ -90,11 +90,13 @@ add_benchmark(
   task_throughput "${REALM_BENCH_DIR}/task_throughput/task_throughput.cc"
   "$<$<BOOL:BENCH_USE_GPU>:${REALM_BENCH_DIR}/task_throughput/task_throughput_gpu.cu>"
 )
+target_link_libraries(task_throughput ${TEST_GPU_LIBS})
 
 add_benchmark(
   task_ubench "${REALM_BENCH_DIR}/task_throughput/task_throughput.cc"
   "$<$<BOOL:BENCH_USE_GPU>:${REALM_BENCH_DIR}/task_throughput/task_throughput_gpu.cu>"
 )
+target_link_libraries(task_ubench ${TEST_GPU_LIBS})
 
 set_tests_properties(
   ${_bench_list}

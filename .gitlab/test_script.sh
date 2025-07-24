@@ -20,6 +20,7 @@ ln -s $EXTERNAL_WORKDIR/terra language/terra
 if [[ "$LMOD_SYSTEM_NAME" = frontier ]]; then
     cat >>env.sh <<EOF
 module load PrgEnv-gnu
+module load cray-python
 module load rocm/$ROCM_VERSION
 export CC=cc
 export CXX=CC

@@ -34,6 +34,13 @@ fi
 # Important: Thrust must be in \$EXTERNAL_WORKDIR or else CMake sees it in-source
 export THRUST_PATH=\$EXTERNAL_WORKDIR/Thrust
 export REGENT_LLVM_PATH="\$EXTERNAL_WORKDIR/llvm"
+
+# Proxy settings for Frontier: https://docs.olcf.ornl.gov/software/analytics/pytorch_frontier.html#proxy-settings
+export all_proxy=socks://proxy.ccs.ornl.gov:3128/
+export ftp_proxy=ftp://proxy.ccs.ornl.gov:3128/
+export http_proxy=http://proxy.ccs.ornl.gov:3128/
+export https_proxy=http://proxy.ccs.ornl.gov:3128/
+export no_proxy='localhost,127.0.0.0/8,*.ccs.ornl.gov'
 EOF
 else
     echo "Don't know how to build on this system"

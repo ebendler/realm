@@ -86,9 +86,13 @@ grep 'model name' /proc/cpuinfo | uniq -c || true
 which $CXX
 $CXX --version
 free
+
 if [[ -z "$TEST_PYTHON_EXE" ]]; then
     export TEST_PYTHON_EXE=`which python3 python | head -1`
 fi
-$TEST_PYTHON_EXE ./test.py -j${THREADS:-16}
 
+set +e
+$TEST_PYTHON_EXE ./test.py -j${THREADS:-16}
+ok=$?
 chmod -R g+w $JOB_WORKDIR
+exit $ok

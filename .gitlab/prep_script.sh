@@ -12,7 +12,6 @@ git status
 mkdir -p $(dirname $EXTERNAL_WORKDIR)
 rm -rf $EXTERNAL_WORKDIR
 mkdir $EXTERNAL_WORKDIR
-chmod g+w $EXTERNAL_WORKDIR
 cd $EXTERNAL_WORKDIR
 
 # download Terra
@@ -30,3 +29,5 @@ git clone https://github.com/ROCmSoftwarePlatform/Thrust.git
 if [[ "$REALM_NETWORKS" == gasnet* ]]; then
     git clone https://github.com/StanfordLegion/gasnet.git
 fi
+
+chmod -R g+w $EXTERNAL_WORKDIR

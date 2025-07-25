@@ -88,3 +88,5 @@ if [[ -z "$TEST_PYTHON_EXE" ]]; then
     export TEST_PYTHON_EXE=`which python3 python | head -1`
 fi
 $TEST_PYTHON_EXE ./test.py -j${THREADS:-16}
+
+chmod -R g+w $JOB_WORKDIR

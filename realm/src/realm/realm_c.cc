@@ -244,6 +244,35 @@ realm_status_t realm_runtime_collective_spawn(realm_runtime_t runtime,
   return REALM_SUCCESS;
 }
 
+realm_status_t realm_runtime_get_attributes(realm_runtime_t runtime,
+                                            realm_runtime_attr_t *attrs, uint64_t *values,
+                                            size_t num)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(num == 0) {
+    return REALM_SUCCESS;
+  }
+  if(attrs == nullptr || values == nullptr) {
+    return REALM_RUNTIME_ERROR_INVALID_ATTRIBUTE;
+  }
+  for(size_t attr_idx = 0; attr_idx < num; attr_idx++) {
+    switch(attrs[attr_idx]) {
+    case REALM_RUNTIME_ATTR_ADDRESS_SPACE:
+      // We can not use RuntimeImpl::num_nodes, because it is initialized at the very late
+      // stage.
+      values[attr_idx] = Realm::Network::max_node_id + 1;
+      break;
+    default:
+      return REALM_RUNTIME_ERROR_INVALID_ATTRIBUTE;
+    }
+  }
+  return REALM_SUCCESS;
+}
+
 /* Processor API */
 
 realm_status_t realm_processor_register_task_by_kind(

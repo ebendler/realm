@@ -94,6 +94,12 @@ int main(int argc, char **argv)
   status = realm_runtime_init(runtime, &argc, &argv);
   assert(status == REALM_SUCCESS);
 
+  realm_runtime_attr_t attrs[1] = {REALM_RUNTIME_ATTR_ADDRESS_SPACE};
+  uint64_t values[1];
+  status = realm_runtime_get_attributes(runtime, attrs, values, 1);
+  assert(status == REALM_SUCCESS);
+  log_app.info("address space: %lu", values[0]);
+
   realm_event_t register_task_event;
 
   status = realm_processor_register_task_by_kind(

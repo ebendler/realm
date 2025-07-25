@@ -24,7 +24,9 @@
 
 namespace Realm {
 
-  extern RuntimeImpl *runtime_singleton;
+  extern RuntimeImpl *runtime_singleton; // defined in runtime_impl.cc
+
+  extern const char *realm_library_version; // defined in runtime_impl.cc
 
   Mutex runtime_singleton_mutex;
 
@@ -113,6 +115,15 @@ static inline realm_status_t check_memory_kind_validity(realm_memory_kind_t kind
     return REALM_SUCCESS;
   }
   return REALM_MEMORY_ERROR_INVALID_MEMORY_KIND;
+}
+
+realm_status_t realm_get_library_version(const char **version)
+{
+  if(version == nullptr) {
+    return REALM_ERROR_INVALID_PARAMETER;
+  }
+  *version = Realm::realm_library_version;
+  return REALM_SUCCESS;
 }
 
 /* Runtime API */

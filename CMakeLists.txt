@@ -434,6 +434,10 @@ if("${Legion_NETWORKS}" MATCHES ".*gasnet(1|ex).*")
     set(GASNet_CONFIGURE_ARGS ${Legion_EMBED_GASNet_CONFIGURE_ARGS})
 
     option(Legion_EMBED_GASNet_ENABLE_GPU_MEMORY_KINDS "Enable GASNet memory kinds when Realm has been built with CUDA/HIP/etc." ON)
+
+    # Always install the embedded gasnet library along with Legion, wrapper or not.
+    set(GASNet_INSTALL TRUE)
+
     include(cmake/FetchAndBuildGASNet.cmake)
   else()
     set(GASNet_THREADING par)
@@ -903,6 +907,11 @@ configure_file(
 install(FILES ${Legion_BINARY_DIR}/LegionConfigCommon.cmake
   DESTINATION ${CMAKE_INSTALL_DATADIR}/Legion/cmake
 )
+
+# Install Find* modules for dependencies
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/cmake
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/Legion
+        FILES_MATCHING PATTERN "Find*.cmake")
 
 configure_file(
   cmake/LegionConfig-build.cmake.in

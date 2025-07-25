@@ -107,6 +107,13 @@ typedef enum realm_memory_attr_enum
   REALM_MEMORY_ATTR_MAX = 0xFFFFFFFFFFFFFFFFULL,
 } realm_memory_attr_t;
 
+typedef enum realm_runtime_attr_enum
+{
+  REALM_RUNTIME_ATTR_ADDRESS_SPACE = 0x0ULL,
+  REALM_RUNTIME_ATTR_NUM,
+  REALM_RUNTIME_ATTR_MAX = 0xFFFFFFFFFFFFFFFFULL,
+} realm_runtime_attr_t;
+
 // Different Processor types
 #define REALM_PROCESSOR_KINDS(__op__) \
   __op__(NO_KIND, "") \
@@ -190,6 +197,7 @@ typedef enum realm_status_enum
   REALM_TOPOLOGY_ERROR_WIN32_NO_PROC_INFO = -2008,
   REALM_RUNTIME_ERROR_INVALID_RUNTIME = -3001,
   REALM_RUNTIME_ERROR_NOT_INITIALIZED = -3002,
+  REALM_RUNTIME_ERROR_INVALID_ATTRIBUTE = -3003,
   REALM_MACHINE_ERROR_INVALID_MACHINE = -4001,
   REALM_MEMORY_ERROR_INVALID_MEMORY = -5001,
   REALM_PROCESSOR_ERROR_INVALID_PROCESSOR = -6001,
@@ -315,6 +323,21 @@ realm_status_t REALM_EXPORT realm_runtime_collective_spawn(
     realm_runtime_t runtime, realm_processor_t target_proc, realm_task_func_id_t task_id,
     const void *args, size_t arglen, realm_event_t wait_on, int priority,
     realm_event_t *event);
+
+/**
+ * @brief Returns the attributes of a runtime.
+ *
+ * @param runtime The runtime instance to use.
+ * @param attrs The attributes to get.
+ * @param values The values of the attributes.
+ * @param num The number of attributes to get.
+ * @return Realm status indicating success or failure.
+ *
+ * @ingroup Runtime
+ */
+realm_status_t REALM_EXPORT realm_runtime_get_attributes(realm_runtime_t runtime,
+                                                         realm_runtime_attr_t *attrs,
+                                                         uint64_t *values, size_t num);
 
 /*
  * @defgroup Processor Processor API

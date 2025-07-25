@@ -132,6 +132,7 @@ list(APPEND
   c_memory_attr.cc
   c_processor_task.cc
   c_event.cc
+  c_runtime_version.cc
   c_runtime_attr.cc
 )
 list(TRANSFORM REALM_C_UNIT_TESTS PREPEND "${REALM_TEST_DIR}/unit_tests/")

@@ -180,6 +180,7 @@ typedef enum realm_status_enum
   // To comply with other C libraries, we use 0 for success, negative numbers for errors
   REALM_SUCCESS = 0,
   REALM_ERROR = -1,
+  REALM_ERROR_INVALID_PARAMETER = -2,
   REALM_ARGUMENT_ERROR_WITH_EXTRA_FLAGS =
       -1000, // this is a soft error, the caller will expect to receive correct results
   REALM_ARGUMENT_ERROR_UNKNOWN_INTEGER = -1001,
@@ -225,6 +226,16 @@ typedef realm_status_t(REALM_FNPTR *realm_processor_query_cb_t)(realm_processor_
 // Callback function for memory query iteration.
 typedef realm_status_t(REALM_FNPTR *realm_memory_query_cb_t)(realm_memory_t /*m*/,
                                                              void * /*user_data*/);
+
+/**
+ * @brief Returns the version of the Realm library.
+ *
+ * @param[out] version The version of the Realm library.
+ * @return Realm status indicating success or failure.
+ *
+ * @ingroup Realm
+ */
+realm_status_t REALM_EXPORT realm_get_library_version(const char **version);
 
 /*
  * @defgroup Runtime Runtime API

@@ -12,7 +12,6 @@ cp -r $CI_PROJECT_DIR $JOB_WORKDIR
 cd $JOB_WORKDIR
 echo "Running tests in $JOB_WORKDIR"
 
-
 # copy files from shared environment
 if [[ "$REALM_NETWORKS" == gasnet* ]]; then
     cp -r $EXTERNAL_WORKDIR/gasnet .
@@ -91,3 +90,5 @@ if [[ -z "$TEST_PYTHON_EXE" ]]; then
     export TEST_PYTHON_EXE=`which python3 python | head -1`
 fi
 $TEST_PYTHON_EXE ./test.py -j${THREADS:-16}
+
+chmod -R g+w $JOB_WORKDIR

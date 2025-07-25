@@ -30,3 +30,5 @@ git clone https://github.com/ROCmSoftwarePlatform/Thrust.git
 if [[ "$REALM_NETWORKS" == gasnet* ]]; then
     git clone https://github.com/StanfordLegion/gasnet.git
 fi
+
+chmod -R g+w $EXTERNAL_WORKDIR

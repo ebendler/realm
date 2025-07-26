@@ -13,6 +13,10 @@
 cmake_minimum_required(VERSION 3.22 FATAL_ERROR)
 
 #region Versioning
+
+set(Realm_SHORT_VERSION "")
+set(Realm_VERSION_META "")
+
 find_package(Git)
 if(Git_FOUND)
   execute_process(
@@ -53,6 +57,9 @@ if(Realm_SHORT_VERSION STREQUAL "" AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/VERSIO
 else()
   if(Realm_SHORT_VERSION STREQUAL "")
     set(Realm_SHORT_VERSION 0.0.1)
+    if (Realm_VERSION_META STREQUAL "")
+      set(Realm_VERSION_META "-unknown")
+    endif()
   endif()
 endif()
 #endregion

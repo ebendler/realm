@@ -109,7 +109,8 @@ typedef enum realm_memory_attr_enum
 
 typedef enum realm_runtime_attr_enum
 {
-  REALM_RUNTIME_ATTR_ADDRESS_SPACE = 0x0ULL,
+  REALM_RUNTIME_ATTR_ADDRESS_SPACE = 0x0ULL, // The total number of address spaces
+  REALM_RUNTIME_ATTR_LOCAL_ADDRESS_SPACE,    // The address space of the current process
   REALM_RUNTIME_ATTR_NUM,
   REALM_RUNTIME_ATTR_MAX = 0xFFFFFFFFFFFFFFFFULL,
 } realm_runtime_attr_t;

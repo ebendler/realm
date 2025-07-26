@@ -33,8 +33,9 @@ public:
     assert(machine != nullptr);
     nodes = new Node[_num_nodes];
     num_nodes = _num_nodes;
+    my_node_id = 0;
     Realm::Network::max_node_id = _num_nodes - 1;
-    Realm::Network::my_node_id = 0;
+    Realm::Network::my_node_id = my_node_id;
   }
 
   void finalize(void)
@@ -43,6 +44,8 @@ public:
     Realm::Network::max_node_id = 0;
     Realm::Network::my_node_id = 0;
   }
+
+  realm_address_space_t my_node_id{0};
 };
 
 class MockRuntimeImplWithEventFreeList : public MockRuntimeImpl {

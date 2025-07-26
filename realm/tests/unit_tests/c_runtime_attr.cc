@@ -17,12 +17,14 @@ protected:
     runtime_impl = std::make_unique<MockRuntimeImpl>();
     runtime_impl->init(2);
     num_nodes = runtime_impl->num_nodes;
+    my_node_id = runtime_impl->my_node_id;
   }
 
   void TearDown() override { runtime_impl->finalize(); }
 
   std::unique_ptr<MockRuntimeImpl> runtime_impl{nullptr};
   realm_address_space_t num_nodes = 0;
+  realm_address_space_t my_node_id = 0;
 };
 
 TEST_F(CRuntimeAttrTest, NullRuntime)
@@ -60,4 +62,15 @@ TEST_F(CRuntimeAttrTest, GetAttributesAddressSpace)
   realm_status_t status = realm_runtime_get_attributes(runtime, attrs, values, 1);
   EXPECT_EQ(status, REALM_SUCCESS);
   EXPECT_EQ(values[0], num_nodes);
+}
+
+TEST_F(CRuntimeAttrTest, GetAttributesLocalAddressSpace)
+{
+  realm_runtime_t runtime = *runtime_impl;
+  realm_runtime_attr_t attrs[1] = {REALM_RUNTIME_ATTR_LOCAL_ADDRESS_SPACE};
+  uint64_t values[1];
+
+  realm_status_t status = realm_runtime_get_attributes(runtime, attrs, values, 1);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EXPECT_EQ(values[0], my_node_id);
 }

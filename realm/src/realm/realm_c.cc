@@ -277,6 +277,9 @@ realm_status_t realm_runtime_get_attributes(realm_runtime_t runtime,
       // stage.
       values[attr_idx] = Realm::Network::max_node_id + 1;
       break;
+    case REALM_RUNTIME_ATTR_LOCAL_ADDRESS_SPACE:
+      values[attr_idx] = Realm::Network::my_node_id;
+      break;
     default:
       return REALM_RUNTIME_ERROR_INVALID_ATTRIBUTE;
     }

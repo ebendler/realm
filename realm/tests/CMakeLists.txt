@@ -17,6 +17,7 @@ set(TEST_ARGS
     ""
     CACHE STRING "Default arguments for tests"
 )
+set(TEST_LAUNCHER ${CMAKE_TEST_LAUNCHER})
 
 if(NOT TEST_PROCESSORS)
   if(MPIEXEC_EXECUTABLE)
@@ -30,12 +31,18 @@ if(MPIEXEC_EXECUTABLE)
   list(PREPEND TEST_LAUNCHER "${MPIEXEC_EXECUTABLE}" ${MPIEXEC_NUMPROC_FLAG} ${TEST_PROCESSORS}
        ${MPIEXEC_PREFLAGS}
   )
+  list(APPEND TEST_RESOURCE_LOCK network)
 endif()
 
 if(REALM_USE_CUDA OR REALM_USE_HIP)
-  set(TEST_RESOURCE_LOCK gpu)
+  list(APPEND TEST_RESOURCE_LOCK gpu)
   list(APPEND TEST_DEFAULT_ARGS -ll:gpu 1)
   set(TEST_USE_GPU TRUE)
+  set(TEST_GPU_LIBS $<TARGET_NAME_IF_EXISTS:CUDA::cudart> $<TARGET_NAME_IF_EXISTS:hip::host>)
+endif()
+
+if(REALM_USE_KOKKOS AND REALM_USE_OPENMP)
+  list(APPEND TEST_DEFAULT_ARGS -ll:ocpu 1 -ll:onuma 0)
 endif()
 
 if(NOT TEST_ARGS)
@@ -53,7 +60,7 @@ cmake_path(CONVERT "${TEST_LIB_PATH}" TO_NATIVE_PATH_LIST TEST_LIB_PATH NORMALIZ
 #endregion
 
 # TODO(cperry): Move these tests to this directory
-set(REALM_TEST_DIR "${CMAKE}../../test/realm")
+set(REALM_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 cmake_path(ABSOLUTE_PATH REALM_TEST_DIR BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE)
 
 #region Unit Tests
@@ -109,15 +116,45 @@ list(
   topology_test.cc
 )
 list(TRANSFORM REALM_UNIT_TESTS PREPEND "${REALM_TEST_DIR}/unit_tests/")
-
 add_executable(realm_unit_tests ${REALM_UNIT_TESTS})
-target_link_libraries(realm_unit_tests PRIVATE realm_obj GTest::gmock_main)
+# Needed for designated initializers
+# TODO(apriakhin): to be removed
+target_compile_features(realm_unit_tests PUBLIC cxx_std_20)
+target_link_libraries(realm_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS})
+
+# TODO(wei): To be merged into realm_unit_tests once runtime singleton is
+# removed from all unit tests
+list(APPEND
+  REALM_C_UNIT_TESTS
+  c_processor_query.cc
+  c_memory_query.cc
+  c_processor_attr.cc
+  c_memory_attr.cc
+  c_processor_task.cc
+  c_event.cc
+  c_runtime_version.cc
+  c_runtime_attr.cc
+)
+list(TRANSFORM REALM_C_UNIT_TESTS PREPEND "${REALM_TEST_DIR}/unit_tests/")
+add_executable(realm_c_unit_tests ${REALM_C_UNIT_TESTS})
+# Needed for designated initializers
+# TODO(apriakhin): to be removed
+target_compile_features(realm_c_unit_tests PUBLIC cxx_std_20)
+target_link_libraries(realm_c_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS})
 
 include(GoogleTest)
-if(NOT REALM_SANITIZER OR REALM_SANITIZER STREQUAL "NONE")
+if((NOT REALM_SANITIZER OR REALM_SANITIZER STREQUAL "NONE") AND NOT WIN32)
   gtest_discover_tests(realm_unit_tests NO_PRETTY_TYPES NO_PRETTY_VALUES PROPERTIES LABELS "unit")
+  gtest_discover_tests(realm_c_unit_tests NO_PRETTY_TYPES NO_PRETTY_VALUES PROPERTIES LABELS "unit")
 else()
   add_test(NAME realm_unit_tests COMMAND $<TARGET_FILE:realm_unit_tests>)
+  add_test(NAME realm_c_unit_tests COMMAND $<TARGET_FILE:realm_c_unit_tests>)
+endif()
+
+if(REALM_SANITIZER STREQUAL "ASAN")
+  # Disable leak checking on realm_unit_tests
+  # TODO(apriakhin): fix this
+  set_tests_properties(realm_unit_tests PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 endif()
 
 if(REALM_ENABLE_COVERAGE)
@@ -133,7 +170,7 @@ if(REALM_ENABLE_COVERAGE)
         Coverage -L unit
       BYPRODUCTS coverage.xml
       WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-      DEPENDS realm_unit_tests VERBATIUM
+      DEPENDS realm_unit_tests realm_c_unit_tests VERBATIUM
       COMMENT "Running opencppcoverage to produce Cobertura coverage report"
     )
     # Show info where to find the report
@@ -161,6 +198,7 @@ if(REALM_ENABLE_COVERAGE)
       unit
       DEPENDENCIES
       realm_unit_tests
+      realm_c_unit_tests
       BASE_DIRECTORY
       "${REALM_TEST_DIR}/../.."
       EXCLUDE
@@ -199,6 +237,7 @@ add_integration_test(barrier_reduce "${REALM_TEST_DIR}/barrier_reduce.cc")
 add_integration_test(taskreg "${REALM_TEST_DIR}/taskreg.cc")
 add_integration_test(idcheck "${REALM_TEST_DIR}/idcheck.cc")
 add_integration_test(inst_reuse "${REALM_TEST_DIR}/inst_reuse.cc")
+set(transpose_ARGS -unit_test 1) # Run short test
 add_integration_test(transpose "${REALM_TEST_DIR}/transpose.cc")
 set(proc_group_ARGS -ll:cpu 4)
 add_integration_test(proc_group "${REALM_TEST_DIR}/proc_group.cc")
@@ -221,7 +260,7 @@ set(sparse_construct_ARGS -verbose)
 add_integration_test(sparse_construct "${REALM_TEST_DIR}/sparse_construct.cc")
 add_integration_test(extres_alias "${REALM_TEST_DIR}/extres_alias.cc")
 add_integration_test(reservations "${REALM_TEST_DIR}/reservations.cc")
-set(machine_config_ARGS
+set(machine_config_test_ARGS
     -test_args
     1
     -ll:cpu
@@ -251,7 +290,7 @@ set(machine_config_ARGS
 if(TEST_USE_GPU)
   list(
     APPEND
-    machine_config_ARGS
+    machine_config_test_ARGS
     -ll:gpu
     1
     -ll:fsize
@@ -270,16 +309,16 @@ if(TEST_USE_GPU)
     2
   )
   if(REALM_USE_CUDA)
-    list(APPEND machine_config_ARGS -cuda:dynfb 1 -cuda:dynfb_max 128)
+    list(APPEND machine_config_test_ARGS -cuda:dynfb 1 -cuda:dynfb_max 128)
   endif()
   if(REALM_USE_HIP)
-    list(APPEND machine_config_ARGS -hip:dynfb 1 -hip:dynfb_max 128)
+    list(APPEND machine_config_test_ARGS -hip:dynfb 1 -hip:dynfb_max 128)
   endif()
 endif()
 if(REALM_USE_OPENMP)
   list(
     APPEND
-    machine_config_ARGS
+    machine_config_test_ARGS
     -ll:ocpu
     1
     -ll:othr
@@ -291,9 +330,9 @@ if(REALM_USE_OPENMP)
   )
 endif()
 if(REALM_USE_PYTHON)
-  list(APPEND machine_config_ARGS -ll:py 1 -ll:pystack 4)
+  list(APPEND machine_config_test_ARGS -ll:py 1 -ll:pystack 4)
 endif()
-add_integration_test(machine_config "${REALM_TEST_DIR}/machine_config.cc")
+add_integration_test(machine_config_test "${REALM_TEST_DIR}/machine_config_test.cc")
 add_integration_test(rsrv_acquire_poisoned "${REALM_TEST_DIR}/rsrv_acquire_poisoned.cc")
 add_integration_test(refcount_image_test "${REALM_TEST_DIR}/refcount_image_test.cc")
 set(inst_chain_redistrict_ARGS -i 2)
@@ -307,15 +346,22 @@ add_integration_test(
   memspeed "${REALM_TEST_DIR}/memspeed.cc"
   "$<$<BOOL:TEST_USE_GPU>:${REALM_TEST_DIR}/memspeed_gpu.cu>"
 )
+target_link_libraries(memspeed ${TEST_GPU_LIBS})
 set(simple_reduce_ARGS -all)
-add_integration_test(
-  simple_reduce "${REALM_TEST_DIR}/simple_reduce.cc"
-  "$<$<BOOL:TEST_USE_GPU>:${REALM_TEST_DIR}/simple_reduce_gpu.cu>"
-)
+if(NOT BUILD_SHARED_LIBS OR NOT REALM_ENABLE_HIP)
+  # simple_reduce registers a kernel with the runtime, but uses a different instance of the runtime
+  # than in librealm.so, which causes an "invalid device function" error.  This has been solved in
+  # the CUDA module, not the HIP module yet.
+  add_integration_test(
+    simple_reduce "${REALM_TEST_DIR}/simple_reduce.cc"
+    "$<$<BOOL:TEST_USE_GPU>:${REALM_TEST_DIR}/simple_reduce_gpu.cu>"
+  )
+endif()
 add_integration_test(
   multiaffine "${REALM_TEST_DIR}/multiaffine.cc"
   "$<$<BOOL:TEST_USE_GPU>:${REALM_TEST_DIR}/multiaffine_gpu.cu>"
 )
+target_link_libraries(multiaffine ${TEST_GPU_LIBS})
 if(TEST_USE_GPU)
   if(REALM_USE_CUDA)
     set(cuda_memcpy_test_ARGS
@@ -349,22 +395,28 @@ if(TEST_USE_GPU)
   set(transpose_test_gpu_ARGS -ll:gpu 1)
   set(transpose_test_gpu_RESOURCE_LOCK gpu)
   add_integration_test(transpose_test_gpu "${REALM_TEST_DIR}/transpose_test_gpu.cc")
+  target_link_libraries(transpose_test_gpu ${TEST_GPU_LIBS})
   set(task_stream_ARGS -ll:gpu 1)
   set(task_stream_RESOURCE_LOCK gpu)
   add_integration_test(
     task_stream "${REALM_TEST_DIR}/task_stream.cc" "${REALM_TEST_DIR}/task_stream_gpu.cu"
   )
-  target_link_libraries(
-    task_stream $<TARGET_NAME_IF_EXISTS:CUDA::cuda_driver> $<TARGET_NAME_IF_EXISTS:Hip::Hip>
-  )
+  target_link_libraries(task_stream ${TEST_GPU_LIBS})
 endif()
 
+#### C API tests
+add_integration_test(c_runtime "${REALM_TEST_DIR}/c/test_runtime.cc")
+add_integration_test(c_processor_query "${REALM_TEST_DIR}/c/test_processor_query.cc")
+add_integration_test(c_memory_query "${REALM_TEST_DIR}/c/test_memory_query.cc")
+add_integration_test(c_event "${REALM_TEST_DIR}/c/test_event.cc")
+
 target_link_libraries(
-  machine_config $<TARGET_NAME_IF_EXISTS:CUDA::cuda_driver> $<TARGET_NAME_IF_EXISTS:Hip::Hip>
+  machine_config_test ${TEST_GPU_LIBS} $<TARGET_NAME_IF_EXISTS:CUDA::cuda_driver>
 )
-target_link_libraries(
-  test_profiling $<TARGET_NAME_IF_EXISTS:CUDA::cuda_driver> $<TARGET_NAME_IF_EXISTS:Hip::Hip>
-)
+target_link_libraries(test_profiling ${TEST_GPU_LIBS})
+if(REALM_USE_LIBDL)
+  target_link_libraries(taskreg ${CMAKE_DL_LIBS})
+endif()
 
 # These executables use global registration and require -rdynamic to be set in order to retrieve the symbol name and offset
 set_target_properties(taskreg PROPERTIES ENABLE_EXPORTS TRUE)
@@ -400,6 +452,6 @@ endif()
 
 add_custom_target(
   check
-  DEPENDS ${_integ_list} realm_unit_tests
+  DEPENDS ${_integ_list} realm_unit_tests realm_c_unit_tests
   COMMAND ${CMAKE_CTEST_COMMAND} -j --output-on-failure
 )

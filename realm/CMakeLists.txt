@@ -356,13 +356,22 @@ if(REALM_ENABLE_CUDA OR (hip_FOUND AND HIP_PLATFORM STREQUAL "nvidia"))
       PATHS ${CUDAToolkit_LIBRARY_ROOT}
       PATH_SUFFIXES include ../include extras/CUPTI/include ../extras/CUPTI/include
     )
-    # Deal with the library name change in older versions of cmake
-    if(NOT TARGET CUDA::nvToolsExt AND TARGET CUDA::nvtx3)
-      add_library(CUDA::nvToolsExt ALIAS CUDA::nvtx3)
-    endif()
-    if (TARGET CUDA::nvToolsExt)
+
+    # Deal with the library name change in older versions of cmake.
+    #
+    # nvtx3 was added in cmake 3.25, and while later versions (at least 3.30+) claim that
+    # the CUDA::nvtx3 and CUDA::nvToolsExt targets are mutually exclusive, they don't
+    # appear to be so in earlier versions. So if we have nvtx3, prefer that, otherwise
+    # fall back to nvToolsExt.
+    if(TARGET CUDA::nvtx3)
+      list(APPEND REALM_LIBRARIES CUDA::nvtx3)
+    elseif(TARGET CUDA::nvToolsExt)
       list(APPEND REALM_LIBRARIES CUDA::nvToolsExt)
+    else()
+      # Silently disable NVTX if we cannot find it
+      set(REALM_USE_NVTX OFF)
     endif()
+
     if(NOT REALM_CUDA_DYNAMIC_LOAD)
       list(APPEND REALM_LIBRARIES CUDA::cuda_driver)
     endif()
@@ -730,7 +739,7 @@ if(TARGET CUDA::cuda_driver AND REALM_ENABLE_CUDA)
   set(REALM_USE_CUDA TRUE)
 endif()
 
-if(TARGET CUDA::nvToolsExt AND REALM_ENABLE_CUDA)
+if((NOT DEFINED REALM_USE_NVTX) AND REALM_ENABLE_CUDA)
   set(REALM_USE_NVTX TRUE)
 endif()
 add_feature_info(nvtx REALM_USE_NVTX "Enables NVTX annotations for profiling visibility")

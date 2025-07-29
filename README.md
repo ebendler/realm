@@ -1,5 +1,5 @@
 [![ci](https://github.com/stanfordlegion/realm/actions/workflows/ci.yml/badge.svg)](https://github.com/StanfordLegion/realm/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/release/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/releases/latest)
+[![Release](https://img.shields.io/github/release/stanfordlegion/realm.svg?include_prereleases)](https://github.com/StanfordLegion/realm/releases/latest)
 [![Documentation](https://img.shields.io/badge/docs-grey.svg?logo=doxygen&logoColor=white&labelColor=blue)](https://legion.stanford.edu/realm/doc)
 [![License](https://img.shields.io/github/license/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/blob/main/LICENSE.txt)
 [![Issues](https://img.shields.io/github/issues/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/issues)

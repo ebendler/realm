@@ -18,8 +18,15 @@
 
 #include "realm/realm_config.h"
 
-#include <map>
+#if __has_include(<nvtx3/nvtx3.hpp>)
+#include <nvtx3/nvtx3.hpp>
+#elif __has_include(<nvtx3/nvToolsExt.h>)
 #include <nvtx3/nvToolsExt.h>
+#else
+#error "Configuration failed to find suitable NVTX headers"
+#endif
+
+#include <map>
 #include <string>
 #include <vector>
 

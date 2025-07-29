@@ -370,6 +370,7 @@ if(REALM_ENABLE_CUDA OR (hip_FOUND AND HIP_PLATFORM STREQUAL "nvidia"))
     # the CUDA::nvtx3 and CUDA::nvToolsExt targets are mutually exclusive, they don't
     # appear to be so in earlier versions. So if we have nvtx3, prefer that, otherwise
     # fall back to nvToolsExt.
+    set(REALM_USE_NVTX ON)
     if(TARGET CUDA::nvtx3)
       list(APPEND REALM_LIBRARIES CUDA::nvtx3)
     elseif(TARGET CUDA::nvToolsExt)
@@ -746,9 +747,6 @@ if(TARGET CUDA::cuda_driver AND REALM_ENABLE_CUDA)
   set(REALM_USE_CUDA TRUE)
 endif()
 
-if((NOT DEFINED REALM_USE_NVTX) AND REALM_ENABLE_CUDA)
-  set(REALM_USE_NVTX TRUE)
-endif()
 add_feature_info(nvtx REALM_USE_NVTX "Enables NVTX annotations for profiling visibility")
 
 if(TARGET hip::host)

@@ -12278,15 +12278,7 @@ namespace Legion {
       // Deactivate all our points 
       for (std::vector<PointTask*>::const_iterator it = points.begin();
             it != points.end(); it++)
-      {
-        // Check to see if we are origin mapped or not which 
-        // determines whether we should commit this operation or
-        // just deactivate it like normal
-        if (is_origin_mapped() && !is_remote())
-          (*it)->deactivate();
-        else
-          (*it)->commit_operation(true/*deactivate*/);
-      }
+        (*it)->deactivate();
       points.clear(); 
 #ifdef DEBUG_LEGION
       assert(local_regions.empty());

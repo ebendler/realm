@@ -1,0 +1,37 @@
+# Ignore these with git archive
+.github export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+.gitkeep export-ignore
+
+.gitignore text
+
+.gitattributes text
+.gitattributes linguist-language=gitattributes
+.gitattributes linguist-detectable=true
+.gitattributes linguist-documentation=false
+
+*.h.in linguist-language=c++
+*.cc.in linguist-language=c++
+
+[attr]c-style whitespace=tab-in-indent format.clang-format=15
+[attr]cmake-style whitespace=tab-in-indent format.cmake-format=true
+
+*.h      c-style
+*.h.in   c-style
+*.hpp    c-style
+*.inl    c-style
+*.c      c-style
+*.cc     c-style
+*.cc.in  c-style
+*.cu     c-style
+*.cmake         cmake-style
+*.cmake.in      cmake-style
+*CMakeLists.txt cmake-style
+
+*.png binary
+*.md linguist-documentation
+doxygen/** linguist-documentation
+
+# Expand VERSION with the version information with git archive
+VERSION export-subst

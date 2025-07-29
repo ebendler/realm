@@ -1435,12 +1435,15 @@ namespace Legion {
       struct MapperState {
       public:
         MapperState(void)
-          : queue_guard(false) { }
+          : queue_guard(false), queue_dirty(false) { }
       public:
         std::list<SingleTask*> ready_queue;
         RtEvent deferral_event;
         RtUserEvent queue_waiter;
         bool queue_guard;
+        // If new tasks were added to the ready queue while
+        // the queue_guard flag was set
+        bool queue_dirty;
       };
       // State for each mapper for scheduling purposes
       std::map<MapperID,MapperState> mapper_states;

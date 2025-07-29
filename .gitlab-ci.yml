@@ -24,10 +24,21 @@ variables:
   GASNET_SHA256: "f3b379b2c650b8deb24e33ca101303c1af2482e996e603291ebf16c02a708da1"
   GASNET_COMMIT: "3db4ea2f92ea6bfba6fe9538cb001b6a34b2f373"
 
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        CCACHE_POLICY: pull-push
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      variables:
+        CCACHE_POLICY: pull
+
 cache: &global_cache
-  - key: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG"
+  - key: "$CI_JOB_NAME"
     paths:
       - $CCACHE_DIR
+    policy: $CCACHE_POLICY
   - key: "cpm_src_cache"
     paths:
       - $CPM_SOURCE_CACHE

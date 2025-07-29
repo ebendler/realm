@@ -54,6 +54,8 @@ function(add_backend_plugin backend)
     ${arg_NAME}
     PROPERTIES PREFIX ""
                VERSION ${Realm_VERSION}
+               MACHO_CURRENT_VERSION 0
+               MACHO_COMPATIBILITY_VERSION 0
                SOVERSION ${Realm_VERSION_MAJOR}
   )
   list(APPEND UCX_BACKENDS ${arg_NAME})

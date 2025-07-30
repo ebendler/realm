@@ -100,19 +100,21 @@ TEST_F(CEventTest, MergeEventsNoEvents)
 }
 
 // TODO: remove the get_runtime in the has_triggered function to unblock the test, merge
-// calls it. TEST_F(CEventTest, MergeEventsSuccess)
-// {
-//   int num_events = 2;
-//   realm_user_event_t wait_for_events[num_events];
-//   realm_runtime_t runtime = *runtime_impl;
-//   for (int i = 0; i < num_events; i++) {
-//     realm_status_t status = realm_user_event_create(runtime, &wait_for_events[i]);
-//     ASSERT_REALM(status);
-//   }
-//   realm_user_event_t event = REALM_NO_EVENT;
-//   realm_status_t status = realm_event_merge(runtime, wait_for_events, num_events,
-//   &event); EXPECT_EQ(status, REALM_SUCCESS); EXPECT_TRUE(ID(event).is_event());
-// }
+// calls it.
+TEST_F(CEventTest, DISABLED_MergeEventsSuccess)
+{
+  int num_events = 2;
+  realm_user_event_t wait_for_events[num_events];
+  realm_runtime_t runtime = *runtime_impl;
+  for(int i = 0; i < num_events; i++) {
+    realm_status_t status = realm_user_event_create(runtime, &wait_for_events[i]);
+    ASSERT_REALM(status);
+  }
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_status_t status = realm_event_merge(runtime, wait_for_events, num_events, &event);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EXPECT_TRUE(ID(event).is_event());
+}
 
 TEST_F(CEventTest, EventWaitNullRuntime)
 {
@@ -122,43 +124,52 @@ TEST_F(CEventTest, EventWaitNullRuntime)
 }
 
 // TODO: finish this test once we remove the get_runtime and threading
-// TEST_F(CEventTest, EventWaitTriggeredEvent)
-// {
-//   realm_user_event_t event = REALM_NO_EVENT;
-//   realm_runtime_t runtime = *runtime_impl;
-//   ASSERT_REALM(realm_user_event_create(runtime, &event));
-//   ASSERT_REALM(realm_user_event_trigger(runtime, event));
+TEST_F(CEventTest, DISABLED_EventWaitTriggeredEvent)
+{
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_runtime_t runtime = *runtime_impl;
+  ASSERT_REALM(realm_user_event_create(runtime, &event));
+  ASSERT_REALM(realm_user_event_trigger(runtime, event));
 
-//   realm_status_t status = realm_event_wait(runtime, event);
-//   EXPECT_EQ(status, REALM_SUCCESS);
-// }
+  realm_status_t status = realm_event_wait(runtime, event);
+  EXPECT_EQ(status, REALM_SUCCESS);
+}
 
-// TEST_F(CEventTest, EventWaitNotTriggeredEvent)
-// {
-//   realm_user_event_t event = REALM_NO_EVENT;
-//   realm_runtime_t runtime = *runtime_impl;
-//   ASSERT_REALM(realm_user_event_create(runtime, &event));
+TEST_F(CEventTest, DISABLED_EventWaitNotTriggeredEvent)
+{
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_runtime_t runtime = *runtime_impl;
+  ASSERT_REALM(realm_user_event_create(runtime, &event));
 
-//   realm_status_t status = realm_event_wait(runtime, event);
-//   EXPECT_EQ(status, REALM_SUCCESS);
-// }
+  realm_status_t status = realm_event_wait(runtime, event);
+  EXPECT_EQ(status, REALM_SUCCESS);
+}
 
 // // an event id with maybe a higher generation than is triggered should return an error
-// TEST_F(CEventTest, EventWaitInvalidEvent)
-// {
-// }
+TEST_F(CEventTest, DISABLED_EventWaitInvalidEvent)
+{
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_runtime_t runtime = *runtime_impl;
+  ASSERT_REALM(realm_user_event_create(runtime, &event));
+  // we bump the generation
+  GenEventImpl *e = runtime_impl->get_genevent_impl(Event(event));
+  e->generation.store(e->generation.load() + 1);
+
+  realm_status_t status = realm_event_wait(runtime, event);
+  EXPECT_EQ(status, REALM_SUCCESS);
+}
 
 // TODO: remove the get_runtime in the trigger function
-// TEST_F(CEventTest, UserEventTriggerSuccess)
-// {
-//   realm_user_event_t event = REALM_NO_EVENT;
-//   realm_runtime_t runtime = *runtime_impl;
-//   realm_status_t status = realm_user_event_create(runtime, &event);
-//   ASSERT_REALM(status);
+TEST_F(CEventTest, DISABLED_UserEventTriggerSuccess)
+{
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_runtime_t runtime = *runtime_impl;
+  realm_status_t status = realm_user_event_create(runtime, &event);
+  ASSERT_REALM(status);
 
-//   status = realm_user_event_trigger(runtime, event);
-//   EXPECT_EQ(status, REALM_SUCCESS);
-//   EventImpl *e = runtime_impl->get_event_impl(Event(event));
-//   bool poisoned = false;
-//   EXPECT_TRUE(e->has_triggered(ID(event).event_generation(), poisoned));
-// }
+  status = realm_user_event_trigger(runtime, event);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EventImpl *e = runtime_impl->get_event_impl(Event(event));
+  bool poisoned = false;
+  EXPECT_TRUE(e->has_triggered(ID(event).event_generation(), poisoned));
+}

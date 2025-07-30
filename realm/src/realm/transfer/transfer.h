@@ -376,12 +376,29 @@ namespace Realm {
 
   class TransferDesc {
   public:
+    // Copy the srcs, dsts, and indirects
     template <int N, typename T>
     TransferDesc(
         IndexSpace<N, T> _is, const std::vector<CopySrcDstField> &_srcs,
         const std::vector<CopySrcDstField> &_dsts,
         const std::vector<const typename CopyIndirection<N, T>::Base *> &_indirects,
         const ProfilingRequestSet &requests);
+
+    // Move the srcs, dsts, and indirects
+    template <int N, typename T>
+    TransferDesc(
+        IndexSpace<N, T> _is, std::vector<CopySrcDstField> &&_srcs,
+        std::vector<CopySrcDstField> &&_dsts,
+        const std::vector<const typename CopyIndirection<N, T>::Base *> &_indirects,
+        const ProfilingRequestSet &requests);
+
+  private:
+    template <int N, typename T, typename SrcVec, typename DstVec>
+    TransferDesc(
+        IndexSpace<N, T> _is, SrcVec &&_srcs, DstVec &&_dsts,
+        const std::vector<const typename CopyIndirection<N, T>::Base *> &_indirects,
+        const ProfilingRequestSet &requests,
+        std::true_type); // the true_type is used to disambiguate the constructor
 
   protected:
     // reference-counted - do not delete directly
@@ -627,6 +644,18 @@ namespace Realm {
     std::vector<off_t> ib_offsets;
     atomic<unsigned> ib_responses_needed;
     int priority;
+  };
+
+  template <int N, typename T>
+  using CopyImplFn =
+      Event (*)(const IndexSpace<N, T> &, const std::vector<CopySrcDstField> &,
+                const std::vector<CopySrcDstField> &,
+                const std::vector<const typename CopyIndirection<N, T>::Base *> &,
+                const Realm::ProfilingRequestSet &, Event, int);
+
+  template <int N, typename T>
+  struct CopyImplRouter {
+    static CopyImplFn<N, T> impl;
   };
 
 }; // namespace Realm

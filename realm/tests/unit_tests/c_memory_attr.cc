@@ -43,7 +43,7 @@ protected:
     CMemoryBaseTest::initialize();
     MockRuntimeImplMachineModel::ProcessorMemoriesToBeAdded procs_mems = {
         {{0, Processor::Kind::LOC_PROC, 0}},
-        {{0, Memory::Kind::SYSTEM_MEM, 1024}},
+        {{0, Memory::Kind::SYSTEM_MEM, 1024, 0}},
         {{0, 0, 1000, 1}}};
     runtime_impl->setup_mock_proc_mems(procs_mems);
     set_memory(ID::make_memory(0, 0).convert<Memory>());

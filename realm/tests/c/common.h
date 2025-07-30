@@ -32,3 +32,9 @@ static void realm_processor_query_first(realm_processor_query_t query,
   realm_status_t status = realm_processor_query_iter(query, retrieve_processor, proc, 1);
   assert(status == REALM_SUCCESS);
 }
+
+#define CHECK_REALM(expr)                                                                \
+  do {                                                                                   \
+    realm_status_t _status = (expr);                                                     \
+    assert(_status == REALM_SUCCESS);                                                    \
+  } while(0)

@@ -553,7 +553,8 @@ namespace Realm {
 					      read_only);
     }
 
-    /*static*/ const RegionInstance RegionInstance::NO_INST = {/* zero-initialization */};
+    /*static*/ const RegionInstance RegionInstance::NO_INST{
+        REALM_NO_INST /* zero-initialization */};
 
     // before you can get an instance's index space or construct an accessor for
     //  a given processor, the necessary metadata for the instance must be
@@ -1640,19 +1641,19 @@ namespace Realm {
   // class ExternalMemoryResource
 
     ExternalMemoryResource::ExternalMemoryResource()
-      : ExternalInstanceResource(REALM_HASH_TOKEN(ExternalMemoryResource))
+      : ExternalInstanceResource(REALM_HASH_TOKEN(Realm::ExternalMemoryResource))
     {}
 
     ExternalMemoryResource::ExternalMemoryResource(uintptr_t _base, size_t _size_in_bytes,
                                                    bool _read_only)
-      : ExternalInstanceResource(REALM_HASH_TOKEN(ExternalMemoryResource))
+      : ExternalInstanceResource(REALM_HASH_TOKEN(Realm::ExternalMemoryResource))
       , base(_base)
       , size_in_bytes(_size_in_bytes)
       , read_only(_read_only)
     {}
 
     ExternalMemoryResource::ExternalMemoryResource(void *_base, size_t _size_in_bytes)
-      : ExternalInstanceResource(REALM_HASH_TOKEN(ExternalMemoryResource))
+      : ExternalInstanceResource(REALM_HASH_TOKEN(Realm::ExternalMemoryResource))
       , base(reinterpret_cast<uintptr_t>(_base))
       , size_in_bytes(_size_in_bytes)
       , read_only(false)
@@ -1660,7 +1661,7 @@ namespace Realm {
 
     ExternalMemoryResource::ExternalMemoryResource(const void *_base,
                                                    size_t _size_in_bytes)
-      : ExternalInstanceResource(REALM_HASH_TOKEN(ExternalMemoryResource))
+      : ExternalInstanceResource(REALM_HASH_TOKEN(Realm::ExternalMemoryResource))
       , base(reinterpret_cast<uintptr_t>(_base))
       , size_in_bytes(_size_in_bytes)
       , read_only(true)

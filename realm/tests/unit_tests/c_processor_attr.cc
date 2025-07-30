@@ -45,7 +45,7 @@ protected:
     CProcessorAttrBaseTest::initialize();
     MockRuntimeImplMachineModel::ProcessorMemoriesToBeAdded procs_mems = {
         {{0, Processor::Kind::LOC_PROC, 0}},
-        {{0, Memory::Kind::SYSTEM_MEM, 1024}},
+        {{0, Memory::Kind::SYSTEM_MEM, 1024, 0}},
         {{0, 0, 1000, 1}}};
     runtime_impl->setup_mock_proc_mems(procs_mems);
     set_processor(ID::make_processor(0, 0).convert<Processor>());
@@ -152,7 +152,7 @@ protected:
 
     MockRuntimeImplMachineModel::ProcessorMemoriesToBeAdded procs_mems = {
         {{0, static_cast<Realm::Processor::Kind>(kind), address_space}},
-        {{0, Memory::Kind::SYSTEM_MEM, 1024}},
+        {{0, Memory::Kind::SYSTEM_MEM, 1024, address_space}},
         {{0, 0, 1000, 1}}};
     runtime_impl->setup_mock_proc_mems(procs_mems);
     set_processor(ID::make_processor(address_space, 0).convert<Processor>());

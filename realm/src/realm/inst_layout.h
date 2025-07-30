@@ -70,6 +70,8 @@ namespace Realm {
     InstanceLayoutConstraints(const std::vector<FieldID>& field_ids,
 			      const std::vector<size_t>& field_sizes,
 			      size_t block_size);
+    InstanceLayoutConstraints(const FieldID *field_ids, const size_t *field_sizes,
+                              size_t num_fields, size_t block_size);
 
     struct FieldInfo {
       FieldID field_id;

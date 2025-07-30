@@ -909,6 +909,18 @@ namespace Realm {
 		requests, wait_on, priority);
   }
 
+  template <int N, typename T>
+  inline Event IndexSpace<N,T>::copy(std::vector<CopySrcDstField> &&srcs,
+				     std::vector<CopySrcDstField> &&dsts,
+				     const ProfilingRequestSet &requests,
+				     Event wait_on /*= Event::NO_EVENT*/,
+				     int priority  /*=0*/) const
+  {
+    return copy(std::move(srcs), std::move(dsts),
+		std::vector<const typename CopyIndirection<N,T>::Base *>(),
+		requests, wait_on, priority);
+  }
+
   // integer version of weighted subspace is a wrapper around size_t version
   template <int N, typename T>
   inline Event IndexSpace<N,T>::create_weighted_subspaces(size_t count, size_t granularity,

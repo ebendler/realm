@@ -63,6 +63,14 @@ namespace Realm {
   public:
     typedef ::realm_id_t id_t;
     id_t id;
+
+    RegionInstance() = default;
+    constexpr explicit RegionInstance(id_t id)
+      : id(id)
+    {}
+
+    constexpr operator id_t() const { return id; }
+
     bool operator<(const RegionInstance &rhs) const;
     bool operator==(const RegionInstance &rhs) const;
     bool operator!=(const RegionInstance &rhs) const;

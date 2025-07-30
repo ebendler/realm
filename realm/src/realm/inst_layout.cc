@@ -73,39 +73,47 @@ namespace Realm {
     }
   }
 
-  InstanceLayoutConstraints::InstanceLayoutConstraints(const std::vector<FieldID>& field_ids,
-						       const std::vector<size_t>& field_sizes,
-						       size_t block_size)
+  InstanceLayoutConstraints::InstanceLayoutConstraints(
+      const std::vector<FieldID> &field_ids, const std::vector<size_t> &field_sizes,
+      size_t block_size)
+    : InstanceLayoutConstraints(field_ids.data(), field_sizes.data(), field_ids.size(),
+                                block_size)
+  {}
+
+  InstanceLayoutConstraints::InstanceLayoutConstraints(const FieldID *field_ids,
+                                                       const size_t *field_sizes,
+                                                       size_t num_fields,
+                                                       size_t block_size)
   {
     switch(block_size) {
     case 0:
       {
 	// SOA - each field is its own "group"
-	field_groups.resize(field_sizes.size());
-	for(size_t i = 0; i < field_sizes.size(); i++) {
-	  field_groups[i].resize(1);
-	  field_groups[i][0].field_id = field_ids[i];
-	  field_groups[i][0].fixed_offset = false;
-	  field_groups[i][0].offset = 0;
-	  field_groups[i][0].size = field_sizes[i];
-	  field_groups[i][0].alignment = field_sizes[i]; // natural alignment 
-	}
-	break;
+        field_groups.resize(num_fields);
+        for(size_t i = 0; i < num_fields; i++) {
+          field_groups[i].resize(1);
+          field_groups[i][0].field_id = field_ids[i];
+          field_groups[i][0].fixed_offset = false;
+          field_groups[i][0].offset = 0;
+          field_groups[i][0].size = field_sizes[i];
+          field_groups[i][0].alignment = field_sizes[i]; // natural alignment
+        }
+        break;
       }
 
     case 1:
       {
 	// AOS - all field_groups in same group
 	field_groups.resize(1);
-	field_groups[0].resize(field_sizes.size());
-	for(size_t i = 0; i < field_sizes.size(); i++) {
-	  field_groups[0][i].field_id = field_ids[i];
-	  field_groups[0][i].fixed_offset = false;
-	  field_groups[0][i].offset = 0;
-	  field_groups[0][i].size = field_sizes[i];
-	  field_groups[0][i].alignment = field_sizes[i]; // natural alignment 
-	}
-	break;
+        field_groups[0].resize(num_fields);
+        for(size_t i = 0; i < num_fields; i++) {
+          field_groups[0][i].field_id = field_ids[i];
+          field_groups[0][i].fixed_offset = false;
+          field_groups[0][i].offset = 0;
+          field_groups[0][i].size = field_sizes[i];
+          field_groups[0][i].alignment = field_sizes[i]; // natural alignment
+        }
+        break;
       }
 
     default:

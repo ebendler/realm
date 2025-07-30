@@ -156,7 +156,8 @@ TEST_F(CMemoryQueryTest, IterCallbackReturnsError)
   runtime_impl->setup_mock_proc_mems(
       MockRuntimeImplMachineModel::ProcessorMemoriesToBeAdded{
           {{0, Processor::Kind::LOC_PROC, 0}},
-          {{0, Memory::Kind::SYSTEM_MEM, 1024}, {1, Memory::Kind::SYSTEM_MEM, 1024}},
+          {{0, Memory::Kind::SYSTEM_MEM, 1024, 0},
+           {1, Memory::Kind::SYSTEM_MEM, 1024, 0}},
           {{0, 0, 1000, 1}, {0, 1, 1000, 1}}});
 
   realm_runtime_t runtime = *runtime_impl;
@@ -174,7 +175,8 @@ TEST_F(CMemoryQueryTest, IterCallbackIsLimitedBySize)
   runtime_impl->setup_mock_proc_mems(
       MockRuntimeImplMachineModel::ProcessorMemoriesToBeAdded{
           {{0, Processor::Kind::LOC_PROC, 0}},
-          {{0, Memory::Kind::SYSTEM_MEM, 1024}, {1, Memory::Kind::SYSTEM_MEM, 1024}},
+          {{0, Memory::Kind::SYSTEM_MEM, 1024, 0},
+           {1, Memory::Kind::SYSTEM_MEM, 1024, 0}},
           {{0, 0, 1000, 1}, {0, 1, 1000, 1}}});
 
   realm_runtime_t runtime = *runtime_impl;

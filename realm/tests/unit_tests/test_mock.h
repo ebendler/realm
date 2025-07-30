@@ -2,6 +2,7 @@
 #include "realm/machine_impl.h"
 #include "realm/proc_impl.h"
 #include "realm/mem_impl.h"
+#include "realm/inst_impl.h"
 #include <vector>
 
 using namespace Realm;
@@ -101,18 +102,30 @@ public:
                                               bool need_alloc_result, bool poisoned,
                                               TimeLimit work_until) override
   {
+    if(allocated_size + inst->metadata.layout->bytes_used > size) {
+      return AllocationResult::ALLOC_INSTANT_FAILURE;
+    }
+    allocated_size += inst->metadata.layout->bytes_used;
+    inst->metadata.inst_offset = allocated_size;
+    NodeSet early_reqs;
+    inst->metadata.mark_valid(early_reqs);
     return AllocationResult::ALLOC_INSTANT_SUCCESS;
   }
 
   void release_storage_immediate(RegionInstanceImpl *inst, bool poisoned,
                                  TimeLimit work_until) override
-  {}
+  {
+    allocated_size -= inst->metadata.layout->bytes_used;
+    inst->metadata.initiate_cleanup(inst->me.id, true);
+  }
 
   void get_bytes(off_t offset, void *dst, size_t size) override {}
 
   void put_bytes(off_t offset, const void *src, size_t size) override {}
 
   void *get_direct_ptr(off_t offset, size_t size) override { return nullptr; }
+
+  size_t allocated_size{0};
 };
 
 // MockRuntimeImpl for machine model tests

@@ -583,6 +583,25 @@ namespace Realm {
     ///@{
     /**
      * Copy data from source fields to destination fields in the index
+     * space.
+     *
+     * \param srcs Vector of CopySrcDstField's describing the source fields.
+     * \param dsts Vector of CopySrcDstField's describing the destination
+     * fields.
+     * \param requests Set of profiling requests.
+     * \param wait_on Event to wait on before performing the copy operation.
+     * \param priority Task priority.
+     * \return Event representing the copy operation.
+     */
+    REALM_PUBLIC_API
+    Event copy(std::vector<CopySrcDstField> &&srcs, std::vector<CopySrcDstField> &&dsts,
+               const ProfilingRequestSet &requests, Event wait_on = Event::NO_EVENT,
+               int priority = 0) const;
+    ///@}
+
+    ///@{
+    /**
+     * Copy data from source fields to destination fields in the index
      * space with indirection.
      *
      * \param srcs Vector of CopySrcDstField's describing the source fields.
@@ -596,12 +615,32 @@ namespace Realm {
      * \return Event representing the copy operation.
      */
     REALM_PUBLIC_API
-    Event copy(const std::vector<CopySrcDstField>& srcs,
-               const std::vector<CopySrcDstField>& dsts,
-               const std::vector<const typename CopyIndirection<N, T>::Base*>&
-                   indirects,
-               const ProfilingRequestSet& requests,
-               Event wait_on = Event::NO_EVENT, int priority = 0) const;
+    Event copy(const std::vector<CopySrcDstField> &srcs,
+               const std::vector<CopySrcDstField> &dsts,
+               const std::vector<const typename CopyIndirection<N, T>::Base *> &indirects,
+               const ProfilingRequestSet &requests, Event wait_on = Event::NO_EVENT,
+               int priority = 0) const;
+    ///@}
+
+    ///@{
+    /**
+     * Copy data from source fields to destination fields in the index
+     * space with indirection.
+     *
+     * \param srcs Vector of CopySrcDstField's describing the source fields. It will be
+     * moved. \param dsts Vector of CopySrcDstField's describing the destination fields.
+     * It will be moved. \param indirects Vector of pointers to the base class of the
+     * indirections.
+     * \param requests Set of profiling requests.
+     * \param wait_on Event to wait on before performing the copy operation.
+     * \param priority Task priority.
+     * \return Event representing the copy operation.
+     */
+    REALM_PUBLIC_API
+    Event copy(std::vector<CopySrcDstField> &&srcs, std::vector<CopySrcDstField> &&dsts,
+               const std::vector<const typename CopyIndirection<N, T>::Base *> &indirects,
+               const ProfilingRequestSet &requests, Event wait_on = Event::NO_EVENT,
+               int priority = 0) const;
     ///@}
 
     // Partitioning operations

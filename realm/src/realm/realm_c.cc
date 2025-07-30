@@ -18,8 +18,14 @@
 #include "realm/runtime_impl.h"
 #include "realm/proc_impl.h"
 #include "realm/mem_impl.h"
+#include "realm/event_impl.h"
+#include "realm/inst_impl.h"
+#include "realm/indexspace.h"
 #include "realm/mutex.h"
 #include "realm/utils.h"
+#ifdef REALM_USE_CUDA
+#include "realm/cuda/cuda_access.h"
+#endif
 #include <cassert>
 
 namespace Realm {
@@ -62,8 +68,8 @@ namespace Realm {
 
 Realm::Logger log_realm_c("realmc");
 
-static inline realm_status_t check_runtime_validity_and_assign(realm_runtime_t runtime,
-                                                               Realm::RuntimeImpl *&impl)
+[[nodiscard]] static inline realm_status_t
+check_runtime_validity_and_assign(realm_runtime_t runtime, Realm::RuntimeImpl *&impl)
 {
   if(runtime == nullptr) {
     return REALM_RUNTIME_ERROR_NOT_INITIALIZED;
@@ -76,7 +82,8 @@ static inline realm_status_t check_runtime_validity_and_assign(realm_runtime_t r
   return REALM_SUCCESS;
 }
 
-static inline realm_status_t check_processor_validity(realm_processor_t proc)
+[[nodiscard]] static inline realm_status_t
+check_processor_validity(realm_processor_t proc)
 {
   if(proc == REALM_NO_PROC) {
     return REALM_PROCESSOR_ERROR_INVALID_PROCESSOR;
@@ -85,7 +92,8 @@ static inline realm_status_t check_processor_validity(realm_processor_t proc)
                                         : REALM_PROCESSOR_ERROR_INVALID_PROCESSOR;
 }
 
-static inline realm_status_t check_processor_kind_validity(realm_processor_kind_t kind)
+[[nodiscard]] static inline realm_status_t
+check_processor_kind_validity(realm_processor_kind_t kind)
 {
   if(kind >= TOC_PROC && kind <= PY_PROC) {
     return REALM_SUCCESS;
@@ -93,7 +101,7 @@ static inline realm_status_t check_processor_kind_validity(realm_processor_kind_
   return REALM_PROCESSOR_ERROR_INVALID_PROCESSOR_KIND;
 }
 
-static inline realm_status_t check_event_validity(realm_event_t event)
+[[nodiscard]] static inline realm_status_t check_event_validity(realm_event_t event)
 {
   if(event == REALM_NO_EVENT) {
     return REALM_SUCCESS;
@@ -101,7 +109,7 @@ static inline realm_status_t check_event_validity(realm_event_t event)
   return Realm::ID(event).is_event() ? REALM_SUCCESS : REALM_EVENT_ERROR_INVALID_EVENT;
 }
 
-static inline realm_status_t check_memory_validity(realm_memory_t mem)
+[[nodiscard]] static inline realm_status_t check_memory_validity(realm_memory_t mem)
 {
   if(mem == REALM_NO_MEM) {
     return REALM_MEMORY_ERROR_INVALID_MEMORY;
@@ -109,13 +117,85 @@ static inline realm_status_t check_memory_validity(realm_memory_t mem)
   return Realm::ID(mem).is_memory() ? REALM_SUCCESS : REALM_MEMORY_ERROR_INVALID_MEMORY;
 }
 
-static inline realm_status_t check_memory_kind_validity(realm_memory_kind_t kind)
+[[nodiscard]] static inline realm_status_t
+check_memory_kind_validity(realm_memory_kind_t kind)
 {
   if(kind >= GLOBAL_MEM && kind <= GPU_DYNAMIC_MEM) {
     return REALM_SUCCESS;
   }
   return REALM_MEMORY_ERROR_INVALID_MEMORY_KIND;
 }
+
+[[nodiscard]] static inline realm_status_t
+check_region_instance_validity(realm_region_instance_t instance)
+{
+  if(instance == REALM_NO_INST) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_INSTANCE;
+  }
+  return Realm::ID(instance).is_instance() ? REALM_SUCCESS
+                                           : REALM_REGION_INSTANCE_ERROR_INVALID_INSTANCE;
+}
+
+[[nodiscard]] static inline realm_status_t check_region_instance_create_params_validity(
+    const realm_region_instance_create_params_t *instance_creation_params)
+{
+  if(instance_creation_params == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_PARAMS;
+  }
+  realm_status_t status = check_memory_validity(instance_creation_params->memory);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(instance_creation_params->lower_bound == nullptr ||
+     instance_creation_params->upper_bound == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_DIMS;
+  }
+  if(instance_creation_params->num_dims == 0 ||
+     instance_creation_params->num_dims > REALM_MAX_DIM) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_DIMS;
+  }
+  if(instance_creation_params->field_ids == nullptr ||
+     instance_creation_params->field_sizes == nullptr ||
+     instance_creation_params->num_fields == 0) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_FIELDS;
+  }
+  return REALM_SUCCESS;
+}
+
+[[nodiscard]] static inline realm_status_t check_region_instance_copy_params_validity(
+    const realm_region_instance_copy_params_t *instance_copy_params)
+{
+  if(instance_copy_params == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_PARAMS;
+  }
+  if(instance_copy_params->srcs == nullptr || instance_copy_params->dsts == nullptr ||
+     instance_copy_params->num_fields == 0) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_FIELDS;
+  }
+  realm_status_t status =
+      check_region_instance_validity(instance_copy_params->srcs->inst);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_region_instance_validity(instance_copy_params->dsts->inst);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(instance_copy_params->srcs->size == 0 || instance_copy_params->dsts->size == 0) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_FIELDS;
+  }
+  if(instance_copy_params->lower_bound == nullptr ||
+     instance_copy_params->upper_bound == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_DIMS;
+  }
+  if(instance_copy_params->num_dims == 0 ||
+     instance_copy_params->num_dims > REALM_MAX_DIM) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_DIMS;
+  }
+  return REALM_SUCCESS;
+}
+
+// Public C API starts here
 
 realm_status_t realm_get_library_version(const char **version)
 {
@@ -250,8 +330,9 @@ realm_status_t realm_runtime_collective_spawn(realm_runtime_t runtime,
   }
   // TODO: check the validation of the task id if target_proc is local, if it is not
   // local, we will poison the event.
-  *event = runtime_impl->collective_spawn(Realm::Processor(target_proc), task_id, args,
-                                          arglen, Realm::Event(wait_on), priority);
+  *event =
+      runtime_impl->collective_spawn(Realm::Processor(target_proc), task_id, args, arglen,
+                                     Realm::Event(wait_on), priority);
   return REALM_SUCCESS;
 }
 
@@ -459,8 +540,8 @@ realm_processor_query_restrict_to_address_space(realm_processor_query_t query,
   return REALM_SUCCESS;
 }
 
-static Realm::Processor realm_processor_query_next(Realm::ProcessorQueryImpl *query_impl,
-                                                   Realm::Processor after)
+[[nodiscard]] static Realm::Processor
+realm_processor_query_next(Realm::ProcessorQueryImpl *query_impl, Realm::Processor after)
 {
   Realm::Processor proc;
   if(Realm::Config::use_machine_query_cache) {
@@ -613,8 +694,8 @@ realm_status_t realm_memory_query_restrict_by_capacity(realm_memory_query_t quer
   return REALM_SUCCESS;
 }
 
-static Realm::Memory realm_memory_query_next(Realm::MemoryQueryImpl *query_impl,
-                                             Realm::Memory after)
+[[nodiscard]] static Realm::Memory
+realm_memory_query_next(Realm::MemoryQueryImpl *query_impl, Realm::Memory after)
 {
   Realm::Memory m;
   if(Realm::Config::use_machine_query_cache) {
@@ -719,5 +800,516 @@ realm_status_t realm_user_event_trigger(realm_runtime_t runtime, realm_user_even
     return status;
   }
   Realm::UserEvent(event).trigger();
+  return REALM_SUCCESS;
+}
+
+// Region Instance API
+
+template <typename T, typename Functor, typename... Fnargs>
+constexpr decltype(auto) realm_dim_dispatch(size_t dim, Functor f, Fnargs &&...args)
+{
+  switch(dim) {
+#if REALM_MAX_DIM >= 1
+  case 1:
+  {
+    return f.template operator()<1, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 2
+  case 2:
+  {
+    return f.template operator()<2, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 3
+  case 3:
+  {
+    return f.template operator()<3, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 4
+  case 4:
+  {
+    return f.template operator()<4, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 5
+  case 5:
+  {
+    return f.template operator()<5, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 6
+  case 6:
+  {
+    return f.template operator()<6, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 7
+  case 7:
+  {
+    return f.template operator()<7, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 8
+  case 8:
+  {
+    return f.template operator()<8, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+#if REALM_MAX_DIM >= 9
+  case 9:
+  {
+    return f.template operator()<9, T>(std::forward<Fnargs>(args)...);
+  }
+#endif
+  default:
+  {
+    log_realm_c.error("Invalid number of dimension: %zu", dim);
+    return REALM_REGION_INSTANCE_ERROR_INVALID_DIMS;
+  }
+  }
+  return f.template operator()<1, T>(std::forward<Fnargs>(args)...);
+}
+
+class RealmRegionInstanceCreate {
+public:
+  template <int N, typename T>
+  [[nodiscard]] realm_status_t
+  operator()(Realm::RuntimeImpl *runtime_impl, Realm::Memory memory, const T *lower_bound,
+             const T *upper_bound, const Realm::FieldID *field_ids,
+             const size_t *field_sizes, size_t num_fields, size_t block_size,
+             realm_external_instance_resource_t resource,
+             const Realm::ProfilingRequestSet &prs, Realm::Event wait_on,
+             Realm::RegionInstance &inst, Realm::Event &out_event)
+  {
+    // smoosh hybrid block sizes back to SOA for now
+    if(block_size > 1) {
+      block_size = 0;
+    }
+    Realm::InstanceLayoutConstraints ilc(field_ids, field_sizes, num_fields, block_size);
+    // We use fortran order here
+    Realm::Rect<N, T> rect;
+    int dim_order[N];
+    for(int dim = 0; dim < N; dim++) {
+      dim_order[dim] = dim;
+      rect.lo[dim] = lower_bound[dim];
+      rect.hi[dim] = upper_bound[dim];
+    }
+    Realm::InstanceLayoutGeneric *layout =
+        Realm::InstanceLayoutGeneric::choose_instance_layout<N, T>(
+            Realm::IndexSpace<N, T>(rect), ilc, dim_order);
+
+    if(resource == nullptr) {
+      // regular instance
+      out_event = Realm::RegionInstanceImpl::create_instance(
+          runtime_impl, inst, Realm::Memory(memory), layout, nullptr, prs, wait_on);
+    } else {
+      // external instance
+
+      // cast the external instance resource to the correct type
+      Realm::ExternalInstanceResource *resource_cxx =
+          reinterpret_cast<Realm::ExternalInstanceResource *>(resource);
+      switch(resource_cxx->get_type_id()) {
+      case REALM_HASH_TOKEN(Realm::ExternalMemoryResource):
+      {
+        Realm::ExternalMemoryResource *memory_resource_cxx =
+            reinterpret_cast<Realm::ExternalMemoryResource *>(resource_cxx);
+        out_event = Realm::RegionInstanceImpl::create_instance(
+            runtime_impl, inst, Realm::Memory(memory), layout, memory_resource_cxx, prs,
+            wait_on);
+        break;
+      }
+#ifdef REALM_USE_CUDA
+      case REALM_HASH_TOKEN(Realm::ExternalCudaMemoryResource):
+      {
+        Realm::ExternalCudaMemoryResource *cuda_resource_cxx =
+            reinterpret_cast<Realm::ExternalCudaMemoryResource *>(resource_cxx);
+        out_event = Realm::RegionInstanceImpl::create_instance(
+            runtime_impl, inst, Realm::Memory(memory), layout, cuda_resource_cxx, prs,
+            wait_on);
+        break;
+      }
+#endif
+      default:
+      {
+        log_realm_c.error("Unsupported external memory resource");
+        // we failed to create the external instance, so we need to delete the layout
+        delete layout;
+        return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_TYPE;
+      }
+      }
+    }
+    return REALM_SUCCESS;
+  }
+};
+
+realm_status_t realm_region_instance_create(
+    realm_runtime_t runtime,
+    const realm_region_instance_create_params_t *instance_creation_params,
+    realm_profiling_request_set_t prs, realm_event_t wait_on,
+    realm_region_instance_t *instance, realm_event_t *event)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_region_instance_create_params_validity(instance_creation_params);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_event_validity(wait_on);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(instance == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_INSTANCE;
+  }
+  if(event == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_EVENT;
+  }
+
+  // TODO: do not copy the prs, need to pass the prs pointer directly.
+  // profiling request set
+  Realm::ProfilingRequestSet prs_set;
+  if(prs != nullptr) {
+    prs_set = *reinterpret_cast<Realm::ProfilingRequestSet *>(prs);
+  }
+
+  Realm::RegionInstance inst = Realm::RegionInstance::NO_INST;
+  Realm::Event out_event = Realm::Event::NO_EVENT;
+
+  switch(instance_creation_params->coord_type) {
+  case REALM_COORD_TYPE_LONG_LONG:
+  {
+    const long long *lower_bound_long_long =
+        reinterpret_cast<const long long *>(instance_creation_params->lower_bound);
+    const long long *upper_bound_long_long =
+        reinterpret_cast<const long long *>(instance_creation_params->upper_bound);
+    status = realm_dim_dispatch<long long>(
+        instance_creation_params->num_dims, RealmRegionInstanceCreate(), runtime_impl,
+        Realm::Memory(instance_creation_params->memory), lower_bound_long_long,
+        upper_bound_long_long, instance_creation_params->field_ids,
+        instance_creation_params->field_sizes, instance_creation_params->num_fields,
+        instance_creation_params->block_size, instance_creation_params->external_resource,
+        prs_set, Realm::Event(wait_on), inst, out_event);
+    break;
+  }
+  case REALM_COORD_TYPE_INT:
+  {
+    const int *lower_bound_int =
+        reinterpret_cast<const int *>(instance_creation_params->lower_bound);
+    const int *upper_bound_int =
+        reinterpret_cast<const int *>(instance_creation_params->upper_bound);
+    status = realm_dim_dispatch<int>(
+        instance_creation_params->num_dims, RealmRegionInstanceCreate(), runtime_impl,
+        Realm::Memory(instance_creation_params->memory), lower_bound_int, upper_bound_int,
+        instance_creation_params->field_ids, instance_creation_params->field_sizes,
+        instance_creation_params->num_fields, instance_creation_params->block_size,
+        instance_creation_params->external_resource, prs_set, Realm::Event(wait_on), inst,
+        out_event);
+    break;
+  }
+  default:
+  {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_COORD_TYPE;
+  }
+  }
+  *instance = inst;
+  *event = out_event;
+  return status;
+}
+
+class RealmRegionInstanceCopy {
+public:
+  template <int N, typename T>
+  [[nodiscard]] realm_status_t
+  operator()(Realm::RuntimeImpl *runtime_impl, std::vector<Realm::CopySrcDstField> &&srcs,
+             std::vector<Realm::CopySrcDstField> &&dsts, size_t num_fields,
+             const T *lower_bound, const T *upper_bound, size_t num_dims,
+             realm_sparsity_handle_t sparsity_map, const Realm::ProfilingRequestSet &prs,
+             Realm::Event wait_on, int priority, Realm::Event &out_event)
+  {
+    Realm::Rect<N, T> rect;
+    for(int dim = 0; dim < N; ++dim) {
+      rect.lo[dim] = lower_bound[dim];
+      rect.hi[dim] = upper_bound[dim];
+    }
+    // using IndirectionBase = typename CopyIndirection<N, T>::Base;
+    // std::vector<const IndirectionBase *> empty_indirects;
+    Realm::IndexSpace<N, T> ispace(rect);
+    out_event = ispace.copy(std::move(srcs), std::move(dsts), prs, wait_on, priority);
+    return REALM_SUCCESS;
+  }
+};
+
+realm_status_t realm_region_instance_copy(
+    realm_runtime_t runtime,
+    const realm_region_instance_copy_params_t *instance_copy_params,
+    realm_profiling_request_set_t prs, realm_event_t wait_on, int priority,
+    realm_event_t *event)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_region_instance_copy_params_validity(instance_copy_params);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_event_validity(wait_on);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(event == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_EVENT;
+  }
+
+  // TODO: do not copy the srcs and dsts.
+  // construct srcs and dsts
+  std::vector<Realm::CopySrcDstField> srcs_vec(instance_copy_params->num_fields);
+  std::vector<Realm::CopySrcDstField> dsts_vec(instance_copy_params->num_fields);
+  for(size_t i = 0; i < instance_copy_params->num_fields; i++) {
+    srcs_vec[i].set_field(Realm::RegionInstance(instance_copy_params->srcs[i].inst),
+                          instance_copy_params->srcs[i].field_id,
+                          instance_copy_params->srcs[i].size);
+    dsts_vec[i].set_field(Realm::RegionInstance(instance_copy_params->dsts[i].inst),
+                          instance_copy_params->dsts[i].field_id,
+                          instance_copy_params->dsts[i].size);
+  }
+
+  // TODO: do not copy the prs, need to pass the prs pointer directly.
+  // profiling request set
+  Realm::ProfilingRequestSet prs_set;
+  if(prs != nullptr) {
+    prs_set = *reinterpret_cast<Realm::ProfilingRequestSet *>(prs);
+  }
+
+  Realm::Event out_event = Realm::Event::NO_EVENT;
+
+  switch(instance_copy_params->coord_type) {
+  case REALM_COORD_TYPE_LONG_LONG:
+  {
+    const long long *lower_bound_long_long =
+        reinterpret_cast<const long long *>(instance_copy_params->lower_bound);
+    const long long *upper_bound_long_long =
+        reinterpret_cast<const long long *>(instance_copy_params->upper_bound);
+    status = realm_dim_dispatch<long long>(
+        instance_copy_params->num_dims, RealmRegionInstanceCopy(), runtime_impl,
+        std::move(srcs_vec), std::move(dsts_vec), instance_copy_params->num_fields,
+        lower_bound_long_long, upper_bound_long_long, instance_copy_params->num_dims,
+        instance_copy_params->sparsity_map, prs_set, Realm::Event(wait_on), priority,
+        out_event);
+    break;
+  }
+  case REALM_COORD_TYPE_INT:
+  {
+    const int *lower_bound_int =
+        reinterpret_cast<const int *>(instance_copy_params->lower_bound);
+    const int *upper_bound_int =
+        reinterpret_cast<const int *>(instance_copy_params->upper_bound);
+    status = realm_dim_dispatch<int>(
+        instance_copy_params->num_dims, RealmRegionInstanceCopy(), runtime_impl,
+        std::move(srcs_vec), std::move(dsts_vec), instance_copy_params->num_fields,
+        lower_bound_int, upper_bound_int, instance_copy_params->num_dims,
+        instance_copy_params->sparsity_map, prs_set, Realm::Event(wait_on), priority,
+        out_event);
+    break;
+  }
+  default:
+  {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_COORD_TYPE;
+  }
+  }
+  *event = out_event;
+  return status;
+}
+
+realm_status_t realm_region_instance_destroy(realm_runtime_t runtime,
+                                             realm_region_instance_t instance,
+                                             realm_event_t wait_on)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_region_instance_validity(instance);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+
+  Realm::ID id{instance};
+  Realm::MemoryImpl *mem_impl = runtime_impl->get_memory_impl(id);
+  assert(mem_impl != nullptr && "invalid memory handle");
+  Realm::RegionInstanceImpl *inst_impl = mem_impl->get_instance(id);
+  mem_impl->release_storage_deferrable(inst_impl, Realm::Event(wait_on));
+
+  return REALM_SUCCESS;
+}
+
+realm_status_t realm_region_instance_fetch_metadata(realm_runtime_t runtime,
+                                                    realm_region_instance_t instance,
+                                                    realm_processor_t target,
+                                                    realm_event_t *event)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_region_instance_validity(instance);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_processor_validity(target);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(event == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_EVENT;
+  }
+  Realm::ID id{instance};
+  Realm::MemoryImpl *mem_impl = runtime_impl->get_memory_impl(id);
+  assert(mem_impl != nullptr && "invalid memory handle");
+  Realm::RegionInstanceImpl *inst_impl = mem_impl->get_instance(id);
+  *event = inst_impl->fetch_metadata(Realm::Processor(target));
+  return REALM_SUCCESS;
+}
+
+realm_status_t
+realm_external_instance_resource_create(realm_runtime_t runtime, const void *params,
+                                        realm_external_instance_resource_t *resource)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(resource == nullptr) {
+    return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_RESOURCE;
+  }
+  if(params == nullptr) {
+    return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_PARAMS;
+  }
+  switch(static_cast<const realm_external_instance_resource_create_params_t *>(params)
+             ->type) {
+  case REALM_EXTERNAL_INSTANCE_RESOURCE_TYPE_CUDA_MEMORY:
+  {
+#ifdef REALM_USE_CUDA
+    const realm_external_cuda_memory_resource_create_params_t *cuda_memory_params =
+        static_cast<const realm_external_cuda_memory_resource_create_params_t *>(params);
+    if(cuda_memory_params->base == nullptr) {
+      return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_BASE;
+    }
+    if(cuda_memory_params->size == 0) {
+      return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_SIZE;
+    }
+    if(cuda_memory_params->cuda_device_id < 0) {
+      return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_CUDA_DEVICE_ID;
+    }
+    Realm::ExternalCudaMemoryResource *resource_cxx =
+        new Realm::ExternalCudaMemoryResource(
+            cuda_memory_params->cuda_device_id,
+            reinterpret_cast<uintptr_t>(cuda_memory_params->base),
+            cuda_memory_params->size, static_cast<bool>(cuda_memory_params->read_only));
+    *resource = reinterpret_cast<realm_external_instance_resource_t>(resource_cxx);
+    break;
+#else
+    return REALM_CUDA_ERROR_NOT_ENABLED;
+#endif
+  }
+  case REALM_EXTERNAL_INSTANCE_RESOURCE_TYPE_SYSTEM_MEMORY:
+  {
+    const realm_external_system_memory_resource_create_params_t *system_memory_params =
+        static_cast<const realm_external_system_memory_resource_create_params_t *>(
+            params);
+    if(system_memory_params->base == nullptr) {
+      return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_BASE;
+    }
+    if(system_memory_params->size == 0) {
+      return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_SIZE;
+    }
+    Realm::ExternalMemoryResource *resource_cxx = new Realm::ExternalMemoryResource(
+        reinterpret_cast<uintptr_t>(system_memory_params->base),
+        system_memory_params->size, static_cast<bool>(system_memory_params->read_only));
+    *resource = reinterpret_cast<realm_external_instance_resource_t>(resource_cxx);
+    break;
+  }
+  default:
+  {
+    return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_TYPE;
+  }
+  }
+  return REALM_SUCCESS;
+}
+
+realm_status_t
+realm_external_instance_resource_destroy(realm_runtime_t runtime,
+                                         realm_external_instance_resource_t resource)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(resource == nullptr) {
+    return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_RESOURCE;
+  }
+  // cast the external instance resource to the correct type
+  Realm::ExternalInstanceResource *resource_cxx =
+      reinterpret_cast<Realm::ExternalInstanceResource *>(resource);
+  if(resource_cxx->get_type_id() == REALM_HASH_TOKEN(Realm::ExternalMemoryResource)) {
+    Realm::ExternalMemoryResource *memory_resource_cxx =
+        static_cast<Realm::ExternalMemoryResource *>(resource_cxx);
+    delete memory_resource_cxx;
+  }
+#ifdef REALM_USE_CUDA
+  else if(resource_cxx->get_type_id() ==
+          REALM_HASH_TOKEN(Realm::ExternalCudaMemoryResource)) {
+    Realm::ExternalCudaMemoryResource *cuda_memory_resource_cxx =
+        static_cast<Realm::ExternalCudaMemoryResource *>(resource_cxx);
+    delete cuda_memory_resource_cxx;
+  }
+#endif
+  else {
+    assert(0 && "unsupported external memory resource");
+  }
+  return REALM_SUCCESS;
+}
+
+realm_status_t realm_external_instance_resource_suggested_memory(
+    realm_runtime_t runtime, realm_external_instance_resource_t resource,
+    realm_memory_t *memory)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(resource == nullptr) {
+    return REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_RESOURCE;
+  }
+  // cast the external instance resource to the correct type
+  Realm::ExternalInstanceResource *resource_cxx =
+      reinterpret_cast<Realm::ExternalInstanceResource *>(resource);
+  if(resource_cxx->get_type_id() == REALM_HASH_TOKEN(Realm::ExternalMemoryResource)) {
+    Realm::ExternalMemoryResource *memory_resource_cxx =
+        static_cast<Realm::ExternalMemoryResource *>(resource_cxx);
+    *memory = Realm::Memory(memory_resource_cxx->suggested_memory());
+  }
+#ifdef REALM_USE_CUDA
+  else if(resource_cxx->get_type_id() ==
+          REALM_HASH_TOKEN(Realm::ExternalCudaMemoryResource)) {
+    Realm::ExternalCudaMemoryResource *cuda_memory_resource_cxx =
+        static_cast<Realm::ExternalCudaMemoryResource *>(resource_cxx);
+    *memory = Realm::Memory(cuda_memory_resource_cxx->suggested_memory());
+  }
+#endif
+  else {
+    assert(0 && "unsupported external memory resource");
+  }
   return REALM_SUCCESS;
 }

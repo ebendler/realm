@@ -102,7 +102,7 @@ namespace Realm {
                                                          uintptr_t _base,
                                                          size_t _size_in_bytes,
                                                          bool _read_only)
-    : ExternalInstanceResource(REALM_HASH_TOKEN(ExternalCudaMemoryResource))
+    : ExternalInstanceResource(REALM_HASH_TOKEN(Realm::ExternalCudaMemoryResource))
     , cuda_device_id(_cuda_device_id)
     , base(_base)
     , size_in_bytes(_size_in_bytes)
@@ -111,7 +111,7 @@ namespace Realm {
 
   ExternalCudaMemoryResource::ExternalCudaMemoryResource(int _cuda_device_id, void *_base,
                                                          size_t _size_in_bytes)
-    : ExternalInstanceResource(REALM_HASH_TOKEN(ExternalCudaMemoryResource))
+    : ExternalInstanceResource(REALM_HASH_TOKEN(Realm::ExternalCudaMemoryResource))
     , cuda_device_id(_cuda_device_id)
     , base(reinterpret_cast<uintptr_t>(_base))
     , size_in_bytes(_size_in_bytes)
@@ -121,7 +121,7 @@ namespace Realm {
   ExternalCudaMemoryResource::ExternalCudaMemoryResource(int _cuda_device_id,
                                                          const void *_base,
                                                          size_t _size_in_bytes)
-    : ExternalInstanceResource(REALM_HASH_TOKEN(ExternalCudaMemoryResource))
+    : ExternalInstanceResource(REALM_HASH_TOKEN(Realm::ExternalCudaMemoryResource))
     , cuda_device_id(_cuda_device_id)
     , base(reinterpret_cast<uintptr_t>(_base))
     , size_in_bytes(_size_in_bytes)

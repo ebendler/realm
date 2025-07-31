@@ -287,45 +287,7 @@ if(REALM_ENABLE_COVERAGE)
   endif()
 endif()
 
-if(REALM_ENABLE_HIP)
-  if(NOT DEFINED ROCM_PATH)
-    if(NOT DEFINED ENV{ROCM_PATH})
-      set(ROCM_PATH
-          "/opt/rocm"
-          CACHE PATH "Path to which HIP has been installed"
-      )
-    else()
-      set(ROCM_PATH
-          $ENV{ROCM_PATH}
-          CACHE PATH "Path to which HIP has been installed"
-      )
-    endif()
-  endif()
-  list(APPEND CMAKE_PREFIX_PATH "${ROCM_PATH}")
-  find_package(hip CONFIG)
-  if(HIP_PLATFORM STREQUAL "nvidia")
-    set_target_properties(
-      hip::host PROPERTIES INTERFACE_COMPILE_DEFINITIONS "__HIP_PLATFORM_NVIDIA__"
-      INTERFACE_LINK_LIBRARIES CUDA::cudart
-    )
-  endif()
-  if(NOT HIP_ROOT_DIR)
-    set(HIP_ROOT_DIR "${ROCM_PATH}")
-  endif()
-  if(hip_FOUND)
-    list(APPEND REALM_STATIC_DEPENDS hip)
-    list(APPEND REALM_LIBRARIES hip::host)
-    # Deal with an issue on some hip configs where the include directory is not
-    # set in the interface
-    get_target_property(HIPHOST_INC_DIR hip::host INTERFACE_INCLUDE_DIRECTORIES)
-    if (HIPHOST_INC_DIR STREQUAL "HIPHOST_INC_DIR-NOTFOUND")
-      set_target_properties(hip::host PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${HIP_INCLUDE_DIR})
-      #message(FATAL_ERROR ${HIP_INCLUDE_DIR})
-    endif()
-  endif()
-endif()
-
-if(REALM_ENABLE_CUDA OR (hip_FOUND AND HIP_PLATFORM STREQUAL "nvidia"))
+if(REALM_ENABLE_CUDA OR (REALM_ENABLE_HIP AND CMAKE_HIP_PLATFORM STREQUAL "nvidia"))
   find_package(CUDAToolkit 11.7)
   if(CUDAToolkit_FOUND)
     set(CMAKE_CUDA_COMPILER ${CUDAToolkit_NVCC_EXECUTABLE})
@@ -354,7 +316,9 @@ if(REALM_ENABLE_CUDA OR (hip_FOUND AND HIP_PLATFORM STREQUAL "nvidia"))
       list(APPEND CMAKE_CUDA_FLAGS "-std=c++${CMAKE_CUDA_STANDARD}")
     endif()
 
-    enable_language(CUDA)
+    if (REALM_ENABLE_CUDA)
+      enable_language(CUDA)
+    endif()
     get_filename_component(CUDAToolkit_LIBRARY_ROOT "${CUDAToolkit_BIN_DIR}" DIRECTORY CACHE)
     # Unfortunately, FindCUDAToolkit doesn't always find CUPTI due to directory changes in the
     # toolkit, so correct it here
@@ -384,6 +348,50 @@ if(REALM_ENABLE_CUDA OR (hip_FOUND AND HIP_PLATFORM STREQUAL "nvidia"))
       list(APPEND REALM_LIBRARIES CUDA::cuda_driver)
     endif()
     list(APPEND REALM_STATIC_DEPENDS CUDAToolkit)
+  endif()
+endif()
+
+if(REALM_ENABLE_HIP)
+  if(NOT DEFINED ROCM_PATH)
+    if(NOT DEFINED ENV{ROCM_PATH})
+      set(ROCM_PATH
+          "/opt/rocm"
+          CACHE PATH "Path to which HIP has been installed"
+      )
+    else()
+      set(ROCM_PATH
+          $ENV{ROCM_PATH}
+          CACHE PATH "Path to which HIP has been installed"
+      )
+    endif()
+  endif()
+  list(APPEND CMAKE_PREFIX_PATH "${ROCM_PATH}")
+  set(HIP_PLATFORM ${CMAKE_HIP_PLATFORM})
+  find_package(hip CONFIG)
+  if(CMAKE_HIP_PLATFORM STREQUAL "nvidia")
+    # nvidia HIP_PLATFORM requies 3.28+ for enable_language(HIP) to work properly
+    cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
+    set_target_properties(
+      hip::host PROPERTIES INTERFACE_COMPILE_DEFINITIONS "__HIP_PLATFORM_NVIDIA__"
+      INTERFACE_LINK_LIBRARIES CUDA::cudart
+    )
+    set(CMAKE_HIP_COMPILER ${CUDAToolkit_NVCC_EXECUTABLE})
+  endif()
+  if(NOT HIP_ROOT_DIR)
+    set(HIP_ROOT_DIR "${ROCM_PATH}")
+  endif()
+  set(CMAKE_HIP_COMPILER_ROCM_ROOT "${HIP_ROOT_DIR}")
+  if(hip_FOUND)
+    list(APPEND REALM_STATIC_DEPENDS hip)
+    list(APPEND REALM_LIBRARIES hip::host)
+    # Deal with an issue on some hip configs where the include directory is not
+    # set in the interface
+    get_target_property(HIPHOST_INC_DIR hip::host INTERFACE_INCLUDE_DIRECTORIES)
+    if (HIPHOST_INC_DIR STREQUAL "HIPHOST_INC_DIR-NOTFOUND")
+      set_target_properties(hip::host PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${HIP_INCLUDE_DIR})
+      #message(FATAL_ERROR ${HIP_INCLUDE_DIR})
+    endif()
+    enable_language(HIP)
   endif()
 endif()
 

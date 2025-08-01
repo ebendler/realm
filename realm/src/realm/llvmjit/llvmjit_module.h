@@ -32,7 +32,7 @@ namespace Realm {
     class LLVMJitModule : public Module {
     protected:
       LLVMJitModule(void);
-      
+
     public:
       virtual ~LLVMJitModule(void);
 
@@ -61,7 +61,6 @@ namespace Realm {
       virtual void cleanup(void);
 
     public:
-
       LLVMJitInternal *internal;
     };
 

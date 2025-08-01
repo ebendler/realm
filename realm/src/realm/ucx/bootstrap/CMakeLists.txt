@@ -21,10 +21,10 @@ project(
   DESCRIPTION "UCX Bootloaders for Realm"
 )
 
-if (NOT Realm_VERSION)
+if(NOT Realm_VERSION)
   find_package(Realm REQUIRED)
 endif()
-if (NOT Realm_VERSION_MAJOR)
+if(NOT Realm_VERSION_MAJOR)
   string(REGEX MATCH "([0-9]+)" _ ${Realm_VERSION})
   set(Realm_VERSION_MAJOR ${CMAKE_MATCH_1})
 endif()
@@ -46,9 +46,7 @@ set(UCX_BACKENDS)
 
 function(add_backend_plugin backend)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "NAME" "SOURCES;LIBRARIES")
-  add_library(
-    ${arg_NAME} MODULE ${arg_SOURCES}
-  )
+  add_library(${arg_NAME} MODULE ${arg_SOURCES})
   target_link_libraries(${arg_NAME} ${arg_LIBRARIES})
   set_target_properties(
     ${arg_NAME}
@@ -59,12 +57,18 @@ function(add_backend_plugin backend)
                SOVERSION ${Realm_VERSION_MAJOR}
   )
   list(APPEND UCX_BACKENDS ${arg_NAME})
-  set(UCX_BACKENDS ${UCX_BACKENDS} PARENT_SCOPE)
+  set(UCX_BACKENDS
+      ${UCX_BACKENDS}
+      PARENT_SCOPE
+  )
 endfunction()
 
 if(UCX_BOOTSTRAP_ENABLE_MPI)
   find_package(MPI)
-  add_backend_plugin(NAME realm_ucp_bootstrap_mpi SOURCES ${UCX_BOOTSTRAP_ROOT_DIR}/bootstrap_mpi.c LIBRARIES MPI::MPI_C)
+  add_backend_plugin(
+    NAME realm_ucp_bootstrap_mpi SOURCES ${UCX_BOOTSTRAP_ROOT_DIR}/bootstrap_mpi.c LIBRARIES
+    MPI::MPI_C
+  )
 endif()
 add_backend_plugin(NAME realm_bootstrap_p2p SOURCES ${UCX_BOOTSTRAP_ROOT_DIR}/bootstrap_p2p.cc)
 #endregion
@@ -73,4 +77,7 @@ if(REALM_INSTALL)
   install(TARGETS ${UCX_BACKENDS})
 endif()
 
-set(UCX_BACKENDS ${UCX_BACKENDS} PARENT_SCOPE)
+set(UCX_BACKENDS
+    ${UCX_BACKENDS}
+    PARENT_SCOPE
+)

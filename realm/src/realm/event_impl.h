@@ -345,4 +345,3 @@ namespace Realm {
 #include "realm/event_impl.inl"
 
 #endif // ifndef REALM_EVENT_IMPL_H
-

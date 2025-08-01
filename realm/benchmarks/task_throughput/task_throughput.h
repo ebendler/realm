@@ -29,14 +29,14 @@ namespace TestConfig {
   extern bool with_profiling;
   extern bool chain_tasks;
   extern bool user_posttrigger_barrier;
-};
+}; // namespace TestConfig
 
-void dummy_task_body(const void *args, size_t arglen, 
-		     const void *userdata, size_t userlen, Processor p);
+void dummy_task_body(const void *args, size_t arglen, const void *userdata,
+                     size_t userlen, Processor p);
 
 #if defined(REALM_USE_CUDA) || defined(REALM_USE_HIP)
-void dummy_gpu_task(const void *args, size_t arglen, 
-		    const void *userdata, size_t userlen, Processor p);
+void dummy_gpu_task(const void *args, size_t arglen, const void *userdata, size_t userlen,
+                    Processor p);
 #endif
 
 #endif

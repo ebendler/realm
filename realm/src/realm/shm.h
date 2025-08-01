@@ -31,10 +31,9 @@ namespace Realm {
     SharedMemoryInfo(void);
     /// @name Move semantics
     /// @{
-    SharedMemoryInfo(SharedMemoryInfo&& other);
-    SharedMemoryInfo &operator=(SharedMemoryInfo&& other);
+    SharedMemoryInfo(SharedMemoryInfo &&other);
+    SharedMemoryInfo &operator=(SharedMemoryInfo &&other);
     /// @}
-
 
     /// @brief On destruction, the SharedMemoryInfo will unmap the memory associated with
     /// this shared region, if any, and unlink it from the file system if it owns it

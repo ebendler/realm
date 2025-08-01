@@ -43,10 +43,10 @@ namespace Realm {
 
   // return info on the memory and cpu in each NUMA node
   // default is to restrict to only those nodes enabled in the current affinity mask
-  bool numasysif_get_mem_info(std::map<int, NumaNodeMemInfo>& info,
-			      bool only_available = true);
-  bool numasysif_get_cpu_info(std::map<int, NumaNodeCpuInfo>& info,
-			      bool only_available = true);
+  bool numasysif_get_mem_info(std::map<int, NumaNodeMemInfo> &info,
+                              bool only_available = true);
+  bool numasysif_get_cpu_info(std::map<int, NumaNodeCpuInfo> &info,
+                              bool only_available = true);
 
   // return the "distance" between two nodes - try to normalize to Linux's model of
   //  10 being the same node and the cost for other nodes increasing by roughly 10
@@ -63,6 +63,6 @@ namespace Realm {
   // may fail if the memory has already been touched
   bool numasysif_bind_mem(int node, void *base, size_t bytes, bool pin);
 
-};
+}; // namespace Realm
 
 #endif

@@ -164,9 +164,11 @@ int main(int argc, const char *argv[])
   }
 
   ID::IDType prev = 0;
-  for(std::map<ID::IDType, ID::IDType>::const_iterator it = ranges.begin(); it != ranges.end(); it++) {
+  for(std::map<ID::IDType, ID::IDType>::const_iterator it = ranges.begin();
+      it != ranges.end(); it++) {
     if(verbose)
-      std::cout << names[it->first] << ": " << std::hex << it->first << " -> " << it->second << std::dec << "\n";
+      std::cout << names[it->first] << ": " << std::hex << it->first << " -> "
+                << it->second << std::dec << "\n";
     assert(it->first >= (1ULL << 60)); // all ids should be nonzero in the first nibble
     assert(it->first >= prev);
     prev = it->second + 1;

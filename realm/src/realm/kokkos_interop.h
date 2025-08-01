@@ -24,7 +24,7 @@
 #include <vector>
 
 namespace Realm {
-  
+
   namespace KokkosInterop {
 
     bool is_kokkos_cuda_enabled(void);
@@ -33,12 +33,12 @@ namespace Realm {
 
     // initializes the kokkos runtime, using the threads from local processors
     //  to initialize the various kokkos execution spaces
-    void kokkos_initialize(const std::vector<ProcessorImpl *>& local_procs);
-    
-    void kokkos_finalize(const std::vector<ProcessorImpl *>& local_procs);
-    
-  };
+    void kokkos_initialize(const std::vector<ProcessorImpl *> &local_procs);
 
-};
+    void kokkos_finalize(const std::vector<ProcessorImpl *> &local_procs);
+
+  }; // namespace KokkosInterop
+
+}; // namespace Realm
 
 #endif

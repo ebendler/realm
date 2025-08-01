@@ -29,7 +29,7 @@ endif()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Papi DEFAULT_MSG Papi_LIBDIR Papi_INCLUDEDIR)
-if (TARGET PkgConfig::Papi)
+if(TARGET PkgConfig::Papi)
   add_library(Papi::Papi ALIAS PkgConfig::Papi)
 endif()
 

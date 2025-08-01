@@ -93,7 +93,11 @@ namespace Realm {
               size_t MAX_RECTS = (MAX_CUDA_PARAM_CONSTBANK_SIZE - 2) /
                                  sizeof(AffineCopyPair<N, Offset_t>)>
     struct alignas(AffineCopyPair<N, Offset_t>) AffineCopyInfo {
-      enum { MAX_NUM_RECTS = MAX_RECTS, DIM = N };
+      enum
+      {
+        MAX_NUM_RECTS = MAX_RECTS,
+        DIM = N
+      };
 
       AffineCopyPair<N, Offset_t> subrects[MAX_RECTS];
       unsigned short num_rects;
@@ -126,5 +130,3 @@ namespace Realm {
 } // namespace Realm
 
 #endif // CUDA_MEMCPY_H
-
-

@@ -23,18 +23,16 @@ namespace Realm {
   // class LLVMIRImplementation
 
   template <typename S>
-  bool LLVMIRImplementation::serialize(S& serializer) const
+  bool LLVMIRImplementation::serialize(S &serializer) const
   {
-    return ((serializer << ir) &&
-	    (serializer << entry_symbol));
+    return ((serializer << ir) && (serializer << entry_symbol));
   }
 
   template <typename S>
-  /*static*/ CodeImplementation *LLVMIRImplementation::deserialize_new(S& deserializer)
+  /*static*/ CodeImplementation *LLVMIRImplementation::deserialize_new(S &deserializer)
   {
     LLVMIRImplementation *i = new LLVMIRImplementation;
-    if((deserializer >> i->ir) &&
-       (deserializer >> i->entry_symbol)) {
+    if((deserializer >> i->ir) && (deserializer >> i->entry_symbol)) {
       return i;
     } else {
       delete i;

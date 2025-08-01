@@ -69,10 +69,10 @@ namespace TestConfig {
   size_t chunks = 2;            // number of sparse chunks in each rect
   size_t rects = 1;             // number of rects for the kernel
   size_t rect_increasement = 0; // width increasement between rects
-  bool verify = true;          // wether to verify the result of kernel
+  bool verify = true;           // wether to verify the result of kernel
   bool verbose = false;         // wether to print the result of kernel
   bool test_sparse = false;     // if true, dst will also be sparse
-}; // namespace TestConfig
+};                              // namespace TestConfig
 
 template <int N, typename T, typename FT>
 void copy(RegionInstance src_inst, RegionInstance dst_inst, FieldID fid,
@@ -175,16 +175,15 @@ void run_test(Processor p)
 
   std::vector<Memory> gpu_mems;
   Machine machine = Machine::get_machine();
-  for (Machine::MemoryQuery::iterator it =
-           Machine::MemoryQuery(machine).begin();
-       it; ++it) {
+  for(Machine::MemoryQuery::iterator it = Machine::MemoryQuery(machine).begin(); it;
+      ++it) {
     Memory m = *it;
-    if (!ID(m).is_ib_memory() && m.kind() == Memory::GPU_FB_MEM) {
+    if(!ID(m).is_ib_memory() && m.kind() == Memory::GPU_FB_MEM) {
       gpu_mems.push_back(m);
     }
   }
 
-  for (Memory src_mem : gpu_mems) {
+  for(Memory src_mem : gpu_mems) {
     RegionInstance inst_src;
     RegionInstance::create_instance(inst_src, src_mem, d, field_sizes, 0,
                                     ProfilingRequestSet())
@@ -209,7 +208,7 @@ void run_test(Processor p)
       }
     }
 
-    for (Memory dst_mem: gpu_mems) {
+    for(Memory dst_mem : gpu_mems) {
       RegionInstance inst_dst;
       if(TestConfig::test_sparse) {
         RegionInstance::create_instance(inst_dst, dst_mem, d_sparse, field_sizes, 0,
@@ -229,13 +228,14 @@ void run_test(Processor p)
           d_dst = d_sparse;
         }
 
-        if (!TestConfig::test_sparse) assert(0);
+        if(!TestConfig::test_sparse)
+          assert(0);
 
         std::vector<CopySrcDstField> srcs(TestConfig::copy_fields);
-        for (int i = 0; i < TestConfig::copy_fields; i++)
+        for(int i = 0; i < TestConfig::copy_fields; i++)
           srcs[i].set_field(inst_src, FID_BASE + i, sizeof(T));
         std::vector<CopySrcDstField> dsts(TestConfig::copy_fields);
-        for (int i = 0; i < TestConfig::copy_fields; i++)
+        for(int i = 0; i < TestConfig::copy_fields; i++)
           dsts[i].set_field(inst_dst, FID_BASE + i, sizeof(T));
 
         long long single_copy_time = -1;
@@ -261,9 +261,8 @@ void run_test(Processor p)
 
       inst_dst.destroy();
 
-      double sparse_bw =
-          static_cast<double>(sparse_elements) * sizeof(T) /
-          (static_cast<double>(sparse_total_time) * TestConfig::copy_reps);
+      double sparse_bw = static_cast<double>(sparse_elements) * sizeof(T) /
+                         (static_cast<double>(sparse_total_time) * TestConfig::copy_reps);
       double sparse_time_gpu =
           static_cast<double>(sparse_total_time) / TestConfig::copy_reps;
 
@@ -356,4 +355,3 @@ int main(int argc, char **argv)
 
   return 0;
 }
-

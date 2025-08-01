@@ -19,7 +19,6 @@
 #ifndef REALM_HIP_HIJACK_H
 #define REALM_HIP_HIJACK_H
 
-
 #include "realm/mutex.h"
 
 #include <set>
@@ -32,7 +31,7 @@ namespace Realm {
     //  an application is linked with -lcudart, we will NOT be hijacking the
     //  application's calls, and the cuda module needs to know that)
     extern bool cudart_hijack_active;
-    
+
     // files compiled with nvcc will use global registrations of modules, variables, etc.
     //  that get broadcast to all contexts
 
@@ -49,9 +48,9 @@ namespace Realm {
       const char *device_fun;
 
       RegisteredFunction(const FatBin *_fat_bin, const void *_host_fun,
-			 const char *_device_fun);
+                         const char *_device_fun);
     };
-     
+
     struct RegisteredVariable {
       const FatBin *fat_bin;
       const void *host_var;
@@ -74,7 +73,7 @@ namespace Realm {
       GlobalRegistrations(void);
       ~GlobalRegistrations(void);
 
-      static GlobalRegistrations& get_global_registrations(void);
+      static GlobalRegistrations &get_global_registrations(void);
 
     public:
       // called by a GPU when it has created its context - will result in calls back
@@ -99,7 +98,7 @@ namespace Realm {
       std::vector<RegisteredVariable *> variables;
       std::vector<RegisteredFunction *> functions;
     };
-  };
-};
+  }; // namespace Hip
+};   // namespace Realm
 
 #endif

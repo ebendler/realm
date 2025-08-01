@@ -22,32 +22,30 @@ namespace Realm {
   // class PythonSourceImplementation
 
   /*static*/ Serialization::PolymorphicSerdezSubclass<CodeImplementation,
-                                                    PythonSourceImplementation> PythonSourceImplementation::serdez_subclass;
+                                                      PythonSourceImplementation>
+      PythonSourceImplementation::serdez_subclass;
 
-  PythonSourceImplementation::PythonSourceImplementation(void)
+  PythonSourceImplementation::PythonSourceImplementation(void) {}
+
+  PythonSourceImplementation::PythonSourceImplementation(
+      const std::string &_module_name, const std::vector<std::string> &_function_name)
+    : module_name(_module_name)
+    , function_name(_function_name)
   {}
 
-  PythonSourceImplementation::PythonSourceImplementation(const std::string& _module_name,
-                                                         const std::vector<std::string>& _function_name)
-    : module_name(_module_name), function_name(_function_name)
+  PythonSourceImplementation::PythonSourceImplementation(
+      const std::string &_module_name, const std::string &_function_name)
+    : module_name(_module_name)
+    , function_name(1, _function_name)
   {}
 
-  PythonSourceImplementation::PythonSourceImplementation(const std::string& _module_name,
-                                                         const std::string& _function_name)
-    : module_name(_module_name), function_name(1, _function_name)
-  {}
-
-  PythonSourceImplementation::~PythonSourceImplementation(void)
-  {}
+  PythonSourceImplementation::~PythonSourceImplementation(void) {}
 
   CodeImplementation *PythonSourceImplementation::clone(void) const
   {
     return new PythonSourceImplementation(module_name, function_name);
   }
 
-  bool PythonSourceImplementation::is_portable(void) const
-  {
-    return true;
-  }
+  bool PythonSourceImplementation::is_portable(void) const { return true; }
 
 }; // namespace Realm

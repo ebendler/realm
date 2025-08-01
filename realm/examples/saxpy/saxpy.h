@@ -26,7 +26,8 @@ namespace realm = Realm;
 
 using namespace realm;
 
-enum {
+enum
+{
   FID_X = 101,
   FID_Y = 102,
   FID_Z = 103,

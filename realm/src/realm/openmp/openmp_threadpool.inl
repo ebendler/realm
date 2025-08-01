@@ -30,7 +30,8 @@ namespace Realm {
   //
   // class ThreadPool
 
-  /*static*/ inline ThreadPool::WorkerInfo *ThreadPool::get_worker_info(bool warn_if_missing)
+  /*static*/ inline ThreadPool::WorkerInfo *
+  ThreadPool::get_worker_info(bool warn_if_missing)
   {
     ThreadPool::WorkerInfo *info = ThreadLocal::threadpool_workerinfo;
     if(REALM_UNLIKELY(!info && warn_if_missing))

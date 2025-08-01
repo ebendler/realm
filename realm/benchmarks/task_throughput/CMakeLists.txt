@@ -34,7 +34,7 @@ elseif(Legion_USE_HIP)
   if(Legion_HIP_TARGET STREQUAL "CUDA")
     add_executable(task_throughput ${CPU_SOURCES} ${GPU_SOURCES})
     target_compile_definitions(task_throughput PRIVATE __HIP_PLATFORM_NVIDIA__)
-  elseif (Legion_HIP_TARGET STREQUAL "ROCM")
+  elseif(Legion_HIP_TARGET STREQUAL "ROCM")
     hip_add_executable(task_throughput ${CPU_SOURCES} ${GPU_SOURCES})
     target_compile_definitions(task_throughput PRIVATE __HIP_PLATFORM_AMD__)
   endif()
@@ -43,7 +43,11 @@ else()
   add_executable(task_throughput ${CPU_SOURCES})
 endif()
 target_link_libraries(task_throughput Legion::Realm)
-target_compile_options(task_throughput PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${CXX_BUILD_WARNING_FLAGS}>)
+target_compile_options(
+  task_throughput PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${CXX_BUILD_WARNING_FLAGS}>
+)
 if(Legion_ENABLE_TESTING)
-  add_test(NAME task_throughput COMMAND ${Legion_TEST_LAUNCHER} $<TARGET_FILE:task_throughput> ${Legion_TEST_ARGS})
+  add_test(NAME task_throughput COMMAND ${Legion_TEST_LAUNCHER} $<TARGET_FILE:task_throughput>
+                                        ${Legion_TEST_ARGS}
+  )
 endif()

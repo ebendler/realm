@@ -15,7 +15,7 @@ if(TARGET GASNet::GASNet)
 endif()
 
 find_package(PkgConfig)
-if (NOT PkgConfig_FOUND)
+if(NOT PkgConfig_FOUND)
   return()
 endif()
 
@@ -57,7 +57,7 @@ pkg_search_module(GASNet ${_GASNet_search_modules} IMPORTED_TARGET GASNet)
 # contained within MPI, we really just need the MPI library, so add it as a
 # transitive dependency here.  In theory, there may be more of these cases with
 # different conduits, but we'll deal with those on a case-by-case basis
-if (GASNet_FOUND)
+if(GASNet_FOUND)
   pkg_get_variable(_needs_mpi ${GASNet_MODULE_NAME} GASNET_LD_REQUIRES_MPI)
 
   if(_needs_mpi STREQUAL "1")

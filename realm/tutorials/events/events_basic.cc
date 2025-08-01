@@ -35,26 +35,29 @@ struct TaskArgs {
   int x;
 };
 
-void reader_task_0(const void *args, size_t arglen, const void *userdata,
-                   size_t userlen, Processor p) {
+void reader_task_0(const void *args, size_t arglen, const void *userdata, size_t userlen,
+                   Processor p)
+{
   const TaskArgs *task_args = reinterpret_cast<const TaskArgs *>(args);
   log_app.info() << "reader task 0: proc=" << p << " x=" << task_args->x;
 }
 
-void reader_task_1(const void *args, size_t arglen, const void *userdata,
-                   size_t userlen, Processor p) {
+void reader_task_1(const void *args, size_t arglen, const void *userdata, size_t userlen,
+                   Processor p)
+{
   const TaskArgs *task_args = reinterpret_cast<const TaskArgs *>(args);
   log_app.info() << "reader task 1: proc=" << p << " x=" << task_args->x;
 }
 
-void main_task(const void *args, size_t arglen, const void *userdata,
-                    size_t userlen, Processor p) {
+void main_task(const void *args, size_t arglen, const void *userdata, size_t userlen,
+               Processor p)
+{
   TaskArgs task_args{.x = 7};
 
   UserEvent user_event = UserEvent::create_user_event();
 
   std::vector<Event> events;
-  for (size_t i = 0; i < ProgramConfig::num_tasks; i++) {
+  for(size_t i = 0; i < ProgramConfig::num_tasks; i++) {
     Event reader_event0 =
         p.spawn(READER_TASK_0, &task_args, sizeof(TaskArgs), user_event);
     Event reader_event1 =
@@ -69,7 +72,8 @@ void main_task(const void *args, size_t arglen, const void *userdata,
   Runtime::get_runtime().shutdown(Event::NO_EVENT, 0 /*success*/);
 }
 
-int main(int argc, const char **argv) {
+int main(int argc, const char **argv)
+{
   Runtime rt;
 
   rt.init(&argc, (char ***)&argv);
@@ -78,25 +82,22 @@ int main(int argc, const char **argv) {
                     .only_kind(Processor::LOC_PROC)
                     .first();
 
-  if (!p.exists()) {
+  if(!p.exists()) {
     p = Machine::ProcessorQuery(Machine::get_machine()).first();
   }
 
   assert(p.exists());
 
   Processor::register_task_by_kind(p.kind(), false /*!global*/, MAIN_TASK,
-                                   CodeDescriptor(main_task),
-                                   ProfilingRequestSet())
+                                   CodeDescriptor(main_task), ProfilingRequestSet())
       .external_wait();
 
   Processor::register_task_by_kind(p.kind(), false /*!global*/, READER_TASK_0,
-                                   CodeDescriptor(reader_task_0),
-                                   ProfilingRequestSet())
+                                   CodeDescriptor(reader_task_0), ProfilingRequestSet())
       .external_wait();
 
   Processor::register_task_by_kind(p.kind(), false /*!global*/, READER_TASK_1,
-                                   CodeDescriptor(reader_task_1),
-                                   ProfilingRequestSet())
+                                   CodeDescriptor(reader_task_1), ProfilingRequestSet())
       .external_wait();
 
   rt.collective_spawn(p, MAIN_TASK, 0, 0);

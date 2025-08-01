@@ -29,5 +29,7 @@ target_link_libraries(event_ubench Legion::Realm)
 target_compile_options(event_ubench PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${CXX_BUILD_WARNING_FLAGS}>)
 if(Legion_ENABLE_TESTING)
   # Limit the number of samples for CI
-  add_test(NAME event_ubench COMMAND ${Legion_TEST_LAUNCHER} $<TARGET_FILE:event_ubench> ${Legion_TEST_ARGS} -s 100)
+  add_test(NAME event_ubench COMMAND ${Legion_TEST_LAUNCHER} $<TARGET_FILE:event_ubench>
+                                     ${Legion_TEST_ARGS} -s 100
+  )
 endif()

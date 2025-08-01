@@ -26,13 +26,14 @@ namespace Realm {
 
     class NumaModuleConfig : public ModuleConfig {
       friend class NumaModule;
+
     protected:
       NumaModuleConfig(void);
 
       bool discover_resource(void);
 
     public:
-      virtual void configure_from_cmdline(std::vector<std::string>& cmdline);
+      virtual void configure_from_cmdline(std::vector<std::string> &cmdline);
 
     protected:
       size_t cfg_numa_mem_size = 0;
@@ -49,7 +50,7 @@ namespace Realm {
     class REALM_INTERNAL_API_EXTERNAL_LINKAGE NumaModule : public Module {
     protected:
       NumaModule(void);
-      
+
     public:
       virtual ~NumaModule(void);
 

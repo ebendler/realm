@@ -315,7 +315,9 @@ endif()
 if(REALM_ENABLE_CUDA OR (REALM_ENABLE_HIP AND CMAKE_HIP_PLATFORM STREQUAL "nvidia"))
   find_package(CUDAToolkit 11.7)
   if(CUDAToolkit_FOUND)
-    set(CMAKE_CUDA_COMPILER ${CUDAToolkit_NVCC_EXECUTABLE})
+    if (NOT DEFINED CMAKE_CUDA_COMPILER)
+      set(CMAKE_CUDA_COMPILER ${CUDAToolkit_NVCC_EXECUTABLE})
+    endif()
     if(NOT CMAKE_CUDA_ARCHITECTURES)
       execute_process(
         COMMAND ${CUDAToolkit_NVCC_EXECUTABLE} --list-gpu-arch OUTPUT_VARIABLE compute_archs

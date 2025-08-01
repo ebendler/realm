@@ -679,7 +679,7 @@ if(REALM_ENABLE_GASNETEX)
     # necessacary build flags via pkg-config. One could create imported library targets for each
     # conduit, including its external dependencies in order to enable these builds at build-time,
     # but this is not maintainable long term.
-    set(GASNet_ROOT_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/gasnet-install)
+    set(GASNet_ROOT ${CMAKE_CURRENT_BINARY_DIR}/_deps/gasnet-install)
     set(GASNet_SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/gasnet)
 
     if(NOT GASNet_CONFIG_ARGS)
@@ -715,7 +715,7 @@ if(REALM_ENABLE_GASNETEX)
     list(
       APPEND
       GASNet_CONFIG_ARGS
-      "--prefix=${GASNet_ROOT_DIR}"
+      "--prefix=${GASNet_ROOT}"
       "--with-cflags=${CMAKE_C_FLAGS} ${_GASNet_FPIC}"
       "--with-cxxflags=${CMAKE_CXX_FLAGS} ${_GASNet_FPIC}"
       "--with-mpi-cflags=${CMAKE_C_FLAGS} ${_GASNet_FPIC}"
@@ -727,7 +727,7 @@ if(REALM_ENABLE_GASNETEX)
       GASNet
       URL https://gasnet.lbl.gov/EX/GASNet-2024.5.0.tar.gz
       URL_HASH SHA256=f945e80f71d340664766b66290496d230e021df5e5cd88f404d101258446daa9
-      SOURCE_DIR "${GASNet_SOURCE_DIR}" INSTALL_DIR "${GASNet_ROOT_DIR}"
+      SOURCE_DIR "${GASNet_SOURCE_DIR}" INSTALL_DIR "${GASNet_ROOT}"
     )
     if(NOT GASNet_populated)
       FetchContent_Populate(GASNet)

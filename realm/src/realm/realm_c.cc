@@ -733,7 +733,8 @@ realm_status_t realm_memory_query_iter(realm_memory_query_t query,
 
 /* Event API */
 
-realm_status_t realm_event_wait(realm_runtime_t runtime, realm_event_t event)
+realm_status_t realm_event_wait(realm_runtime_t runtime, realm_event_t event,
+                                int *poisoned)
 {
   Realm::RuntimeImpl *runtime_impl = nullptr;
   realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
@@ -745,12 +746,17 @@ realm_status_t realm_event_wait(realm_runtime_t runtime, realm_event_t event)
     return status;
   }
   Realm::Event cxx_event = Realm::Event(event);
-  cxx_event.wait();
+  bool poisoned_cxx = false;
+  cxx_event.wait_faultaware(poisoned_cxx);
+  if(poisoned != nullptr) {
+    *poisoned = poisoned_cxx ? 1 : 0;
+  }
   return REALM_SUCCESS;
 }
 
 realm_status_t realm_event_merge(realm_runtime_t runtime, const realm_event_t *wait_for,
-                                 size_t num_events, realm_event_t *event)
+                                 size_t num_events, realm_event_t *event,
+                                 int ignore_faults)
 {
   Realm::RuntimeImpl *runtime_impl = nullptr;
   realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
@@ -762,8 +768,8 @@ realm_status_t realm_event_merge(realm_runtime_t runtime, const realm_event_t *w
   }
   Realm::Event *event_array =
       const_cast<Realm::Event *>(reinterpret_cast<const Realm::Event *>(wait_for));
-  *event = Realm::Event::merge_events(
-      Realm::span<const Realm::Event>(event_array, num_events));
+  *event = Realm::GenEventImpl::merge_events(
+      Realm::span<const Realm::Event>(event_array, num_events), ignore_faults != 0);
   return REALM_SUCCESS;
 }
 
@@ -788,7 +794,8 @@ realm_status_t realm_user_event_create(realm_runtime_t runtime, realm_user_event
   return REALM_SUCCESS;
 }
 
-realm_status_t realm_user_event_trigger(realm_runtime_t runtime, realm_user_event_t event)
+realm_status_t realm_user_event_trigger(realm_runtime_t runtime, realm_user_event_t event,
+                                        realm_event_t wait_on, int ignore_faults)
 {
   Realm::RuntimeImpl *runtime_impl = nullptr;
   realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
@@ -799,7 +806,7 @@ realm_status_t realm_user_event_trigger(realm_runtime_t runtime, realm_user_even
   if(status != REALM_SUCCESS) {
     return status;
   }
-  Realm::UserEvent(event).trigger();
+  Realm::UserEvent(event).trigger(Realm::Event(wait_on), ignore_faults != 0);
   return REALM_SUCCESS;
 }
 

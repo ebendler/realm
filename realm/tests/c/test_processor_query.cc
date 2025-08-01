@@ -98,7 +98,7 @@ int main(int argc, char **argv)
       runtime, LOC_PROC, REALM_REGISTER_TASK_DEFAULT, TOP_LEVEL_TASK, top_level_task, 0,
       0, &register_task_event);
   assert(status == REALM_SUCCESS);
-  status = realm_event_wait(runtime, register_task_event);
+  status = realm_event_wait(runtime, register_task_event, nullptr);
   assert(status == REALM_SUCCESS);
 
   realm_processor_query_t proc_query;

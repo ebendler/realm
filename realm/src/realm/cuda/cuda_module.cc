@@ -51,12 +51,6 @@
 #include <algorithm>
 #include <utility>
 
-#if CUDA_VERSION < 11030
-// Define cuGetProcAddress if it isn't defined, so we can query for it's existence later
-typedef CUresult CUDAAPI (*PFN_cuGetProcAddress)(const char *, void **, int, int);
-#define CU_GET_PROC_ADDRESS_DEFAULT 0
-#endif
-
 // The embedded fat binary that holds all the internal
 // realm cuda kernels (see generated file realm_fatbin.c)
 extern const unsigned char realm_fatbin[];
@@ -112,13 +106,9 @@ namespace Realm {
 
     bool cuda_api_fnptrs_loaded = false;
 
-#if CUDA_VERSION >= 11030
-// cuda 11.3+ gives us handy PFN_... types
-#define DEFINE_FNPTR(name, ver) PFN_##name name##_fnptr = 0;
-#else
-// before cuda 11.3, we have to rely on typeof/decltype
+// Make sure to only use decltype here, to ensure it matches the cuda.h definition
 #define DEFINE_FNPTR(name, ver) decltype(&name) name##_fnptr = 0;
-#endif
+
     CUDA_DRIVER_APIS(DEFINE_FNPTR);
 #undef DEFINE_FNPTR
 
@@ -2674,25 +2664,35 @@ namespace Realm {
 #define STRINGIFY(s) #s
 #endif
 
-    template <typename Fn>
-    static void cuGetProcAddress_stable(PFN_cuGetProcAddress loader, Fn &fnptr,
-                                        const char *name, int version,
-                                        const char *err_msg)
+    // Small rant: this is arguably more effort than it's worth, especially since there is
+    // a maintaince burden on us to keep tabs on what version each new API we want to use
+    // is introduced in order to properly retrieve the correct function.  We could just
+    // use dlopen/dlsym and not use cuGetProcAddress altogether.  We already cannot use
+    // the PFN_ types that cuda defines since they won't match with what we expect.
+    // Unfortunately, due to cuda's loader chain issues on some platforms,
+    // cuGetProcAddress has better performance as it requires the fewest jumps to get to
+    // the real driver.  If we had a cleaner version of cuGetProcAddress, this wouldn't be
+    // a problem.
+    template <typename LoaderFn, typename Fn>
+    static void cuGetProcAddress_stable(LoaderFn loader, Fn &fnptr, const char *name,
+                                        int version, const char *err_msg)
     {
       CUresult ret = CUDA_SUCCESS;
       // When using cuGetProcAddress, we need to make sure to specify the either the
-      // version the API was introduced, or the current compilation version, whichever is
-      // newer.  This is to deal with CUDA changing the API signature for the same API,
-      // but allows us to retrieve APIs from drivers newer than what we're compiling with
+      // version the API was introduced, or the current compatible compilation version,
+      // whichever is newer.  This is to deal with CUDA changing the API signature for
+      // the same API, but also allows us to retrieve APIs from drivers newer than what
+      // we're compiling with We need to use CUDA_VERSION_COMPAT as the minimum here in
+      // order to ensure the function pointer returned matches what is in cuda.h
 #if CUDA_VERSION < 12000
       ret = (loader)(name, reinterpret_cast<void **>(&fnptr),
-                     std::max(CUDA_VERSION, version), CU_GET_PROC_ADDRESS_DEFAULT);
+                     std::max(CUDA_VERSION_COMPAT, version), CU_GET_PROC_ADDRESS_DEFAULT);
 #else
       // cuGetProcAddress changed signature in 12.0+ to include more diagnostic
       // information we don't need.
-      ret =
-          (loader)(name, reinterpret_cast<void **>(&fnptr),
-                   std::max(CUDA_VERSION, version), CU_GET_PROC_ADDRESS_DEFAULT, nullptr);
+      ret = (loader)(name, reinterpret_cast<void **>(&fnptr),
+                     std::max(CUDA_VERSION_COMPAT, version), CU_GET_PROC_ADDRESS_DEFAULT,
+                     nullptr);
 #endif
       if(ret != CUDA_SUCCESS) {
         REPORT_CU_ERROR(Logger::LEVEL_INFO, err_msg, ret);
@@ -2705,7 +2705,7 @@ namespace Realm {
         return true;
       }
 
-      PFN_cuGetProcAddress cuGetProcAddress_fnptr = nullptr;
+      decltype(&cuGetProcAddress) cuGetProcAddress_fnptr = nullptr;
 
 #if defined(REALM_USE_LIBDL)
       log_gpu.info() << "dynamically loading libcuda.so";
@@ -2715,7 +2715,7 @@ namespace Realm {
         return false;
       }
       // Use the symbol we get from the dynamically loaded library
-      cuGetProcAddress_fnptr = reinterpret_cast<PFN_cuGetProcAddress>(
+      cuGetProcAddress_fnptr = reinterpret_cast<decltype(cuGetProcAddress_fnptr)>(
           dlsym(libcuda, STRINGIFY(cuGetProcAddress)));
 #elif CUDA_VERSION >= 11030
       // Use the statically available symbol
@@ -2732,7 +2732,7 @@ namespace Realm {
       } else {
 #if defined(REALM_USE_LIBDL)
 #define DRIVER_GET_FNPTR(name, ver)                                                      \
-  if(CUDA_SUCCESS != (nullptr != (name##_fnptr = reinterpret_cast<PFN_##name>(           \
+  if(CUDA_SUCCESS != (nullptr != (name##_fnptr = reinterpret_cast<decltype(&name)>(      \
                                       dlsym(libcuda, STRINGIFY(name)))))) {              \
     log_gpu.info() << "Could not retrieve symbol " #name;                                \
   }

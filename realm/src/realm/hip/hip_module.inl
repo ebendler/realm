@@ -19,7 +19,7 @@
 #include "realm/runtime.h"
 
 namespace Realm {
-  
+
   namespace Hip {
 
     // a running task on a HIP processor is assigned a stream by Realm, and

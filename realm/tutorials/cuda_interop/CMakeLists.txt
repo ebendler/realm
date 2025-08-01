@@ -27,7 +27,7 @@ set(CUDA_INTEROP_SRCS cuda_interop.cc)
 include(CheckLanguage)
 
 check_language(CUDA)
-if (CMAKE_CUDA_COMPILER)
+if(CMAKE_CUDA_COMPILER)
   enable_language(CUDA)
   list(APPEND CUDA_INTEROP_SRCS gpu_kernel.cu)
   set(CUDA_INTEROP_DEFINITIONS INTEROP_ENABLE_CUDA=1)

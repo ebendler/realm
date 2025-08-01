@@ -62,8 +62,11 @@ endif()
 macro(add_example_test name)
   add_subdirectory(${name})
   add_test(NAME example_${name} COMMAND $<TARGET_FILE:${name}> ${TEST_ARGS} ${${name}_ARGS})
-  set_property(TEST example_${name} PROPERTY RESOURCE_LOCK $<REMOVE_DUPLICATES:${TEST_RESOURCE_LOCK} ${${target}_RESOURCE_LOCK}>)
-  if (REALM_USE_UCX)
+  set_property(
+    TEST example_${name} PROPERTY RESOURCE_LOCK $<REMOVE_DUPLICATES:${TEST_RESOURCE_LOCK}
+                                  ${${target}_RESOURCE_LOCK}>
+  )
+  if(REALM_USE_UCX)
     add_dependencies(${name} realm_ucp_bootstrap_mpi)
   endif()
   list(APPEND _example_list example_${name})
@@ -92,7 +95,6 @@ if(MSVC)
 else()
   set_tests_properties(
     ${_example_list} PROPERTIES ENVIRONMENT_MODIFICATION
-                              "LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
+                                "LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
   )
 endif()
-

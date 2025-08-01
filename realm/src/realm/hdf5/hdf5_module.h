@@ -26,11 +26,12 @@ namespace Realm {
 
     class HDF5ModuleConfig : public ModuleConfig {
       friend class HDF5Module;
+
     protected:
       HDF5ModuleConfig(void);
 
     public:
-      virtual void configure_from_cmdline(std::vector<std::string>& cmdline);
+      virtual void configure_from_cmdline(std::vector<std::string> &cmdline);
 
     protected:
       bool cfg_showerrors = true;
@@ -40,12 +41,12 @@ namespace Realm {
     class HDF5Module : public Module {
     protected:
       HDF5Module(void);
-      
+
     public:
       virtual ~HDF5Module(void);
-      
+
       static ModuleConfig *create_module_config(RuntimeImpl *runtime);
-      
+
       static Module *create_module(RuntimeImpl *runtime);
 
       // do any general initialization - this is called after all configuration is

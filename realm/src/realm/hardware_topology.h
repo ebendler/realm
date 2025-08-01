@@ -194,8 +194,8 @@ namespace Realm {
     friend std::ostream &operator<<(std::ostream &os, const HardwareTopology &topo);
 
   private:
-    size_t sys_memory_size{0};                       ///< Total system memory size.
-    unsigned physical_cores{0};                      ///< Number of physical cores.
+    size_t sys_memory_size{0};  ///< Total system memory size.
+    unsigned physical_cores{0}; ///< Number of physical cores.
 
     typedef std::map<ProcID, Proc> ProcMap; ///< Map of processors by ID.
 

@@ -20,9 +20,9 @@
 namespace Realm {
   namespace Hip {
 
-    extern Logger log_cudart;   
+    extern Logger log_cudart;
     extern Logger log_stream;
-    
+
     static GPUProcessor *get_gpu_or_die(const char *funcname)
     {
       // mark that the hijack code is active - this covers the calls below
@@ -37,39 +37,38 @@ namespace Realm {
     }
 
   }; // namespace Hip
-}; // namespace Realm
+};   // namespace Realm
 
 // these are all "C" functions
 extern "C" {
-  
-  using namespace Realm;
-  using namespace Realm::Hip;
 
-  REALM_PUBLIC_API
-  hipError_t hipMemcpy_H(void* dst, const void* src, size_t size, hipMemcpyKind kind)
-  {
-    printf("in hipMemcpy_H\n");
-    GPUProcessor *p = get_gpu_or_die("cudaMemcpy");
-    p->gpu_memcpy(dst, src, size, kind);
-    return hipSuccess;
-  }
+using namespace Realm;
+using namespace Realm::Hip;
 
-  REALM_PUBLIC_API  
-  hipError_t hipMemcpyAsync_H(void* dst, const void* src, size_t size, hipMemcpyKind kind, hipStream_t stream)
-  {
-    printf("in hipMemcpyAsync_H\n");
-    GPUProcessor *p = get_gpu_or_die("cudaMemcpy");
-    p->gpu_memcpy_async(dst, src, size, kind, stream);
-    return hipSuccess;
-  } 
+REALM_PUBLIC_API
+hipError_t hipMemcpy_H(void *dst, const void *src, size_t size, hipMemcpyKind kind)
+{
+  printf("in hipMemcpy_H\n");
+  GPUProcessor *p = get_gpu_or_die("cudaMemcpy");
+  p->gpu_memcpy(dst, src, size, kind);
+  return hipSuccess;
+}
 
-  REALM_PUBLIC_API
-  hipStream_t hipGetTaskStream()
-  {
-    hipStream_t stream = HIPModule::get_task_hip_stream();
-    HIPModule::set_task_ctxsync_required(false);
-    return stream;
-  }
+REALM_PUBLIC_API
+hipError_t hipMemcpyAsync_H(void *dst, const void *src, size_t size, hipMemcpyKind kind,
+                            hipStream_t stream)
+{
+  printf("in hipMemcpyAsync_H\n");
+  GPUProcessor *p = get_gpu_or_die("cudaMemcpy");
+  p->gpu_memcpy_async(dst, src, size, kind, stream);
+  return hipSuccess;
+}
+
+REALM_PUBLIC_API
+hipStream_t hipGetTaskStream()
+{
+  hipStream_t stream = HIPModule::get_task_hip_stream();
+  HIPModule::set_task_ctxsync_required(false);
+  return stream;
+}
 }; // extern "C"
-
-

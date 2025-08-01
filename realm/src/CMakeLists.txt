@@ -135,8 +135,8 @@ list(TRANSFORM REALM_CUDA_SOURCES PREPEND "${REALM_SOURCE_DIR}/")
 # Generated sources
 # TODO(cperry): fix path so realm_defines.h lives in realm directory
 configure_file(
-  "${PROJECT_SOURCE_DIR}/cmake/realm_defines.h.in"
-  "${PROJECT_BINARY_DIR}/include/realm_defines.h" @ONLY
+  "${PROJECT_SOURCE_DIR}/cmake/realm_defines.h.in" "${PROJECT_BINARY_DIR}/include/realm_defines.h"
+  @ONLY
 )
 
 # generate per-dimension object files for deppart stuff

@@ -28,7 +28,7 @@
 #include <nvml.h>
 #include <cupti.h>
 #if defined(REALM_USE_CUDART_HIJACK)
-#include <cuda_runtime_api.h>   // For cudaDeviceProp
+#include <cuda_runtime_api.h> // For cudaDeviceProp
 #endif
 
 // For CUDA runtime's dim3 definition
@@ -46,15 +46,15 @@
 #include "realm/cuda/cuda_memcpy.h"
 
 #if CUDART_VERSION < 11000
-#define CHECK_CUDART(cmd)                                                      \
-  do {                                                                         \
-    int ret = (int)(cmd);                                                      \
-    if (ret != 0) {                                                            \
-      fprintf(stderr, "CUDART: %s = %d\n", #cmd, ret);                         \
-      assert(0);                                                               \
-      exit(1);                                                                 \
-    }                                                                          \
-  } while (0)
+#define CHECK_CUDART(cmd)                                                                \
+  do {                                                                                   \
+    int ret = (int)(cmd);                                                                \
+    if(ret != 0) {                                                                       \
+      fprintf(stderr, "CUDART: %s = %d\n", #cmd, ret);                                   \
+      assert(0);                                                                         \
+      exit(1);                                                                           \
+    }                                                                                    \
+  } while(0)
 #else
 // Since CUDA TK11.0, runtime and driver error codes are 1:1 correlated
 #define CHECK_CUDART(cmd) CHECK_CU((CUresult)(cmd))
@@ -277,10 +277,10 @@ namespace Realm {
 
       Mutex mutex;
       struct PendingEvent {
-	CUevent event;
-	GPUWorkFence *fence;
-	GPUWorkStart *start;
-	GPUCompletionNotification* notification;
+        CUevent event;
+        GPUWorkFence *fence;
+        GPUWorkStart *start;
+        GPUCompletionNotification *notification;
       };
 #ifdef USE_CQ
       Realm::CircularQueue<PendingEvent> pending_events;
@@ -302,8 +302,7 @@ namespace Realm {
 
       // used to start a dedicate thread (mutually exclusive with being
       //  registered with a background work manager)
-      void start_background_thread(Realm::CoreReservationSet& crs,
-				   size_t stack_size);
+      void start_background_thread(Realm::CoreReservationSet &crs, size_t stack_size);
       void shutdown_background_thread(void);
 
       bool do_work(TimeLimit work_until);
@@ -357,9 +356,8 @@ namespace Realm {
     //  small thread pool to handle these
     class ContextSynchronizer {
     public:
-      ContextSynchronizer(GPU *_gpu, CUcontext _context,
-			  CoreReservationSet& crs,
-			  int _max_threads);
+      ContextSynchronizer(GPU *_gpu, CUcontext _context, CoreReservationSet &crs,
+                          int _max_threads);
       ~ContextSynchronizer();
 
       void add_fence(GPUWorkFence *fence);
@@ -386,12 +384,11 @@ namespace Realm {
     struct RegisteredFunction;
 
     // a GPU object represents our use of a given CUDA-capable GPU - this will
-    //  have an associated CUDA context, a (possibly shared) worker thread, a 
+    //  have an associated CUDA context, a (possibly shared) worker thread, a
     //  processor, and an FB memory (the ZC memory is shared across all GPUs)
     class GPU {
     public:
-      GPU(CudaModule *_module, GPUInfo *_info, GPUWorker *worker,
-	  CUcontext _context);
+      GPU(CudaModule *_module, GPUInfo *_info, GPUWorker *worker, CUcontext _context);
       ~GPU(void);
 
       void push_context(void);
@@ -414,9 +411,8 @@ namespace Realm {
 
       void launch_batch_affine_fill_kernel(void *fill_info, size_t dim, size_t elemSize,
                                            size_t volume, GPUStream *stream);
-      void launch_batch_affine_kernel(void *copy_info, size_t dim,
-                                      size_t elemSize, size_t volume,
-                                      GPUStream *stream);
+      void launch_batch_affine_kernel(void *copy_info, size_t dim, size_t elemSize,
+                                      size_t volume, GPUStream *stream);
       void launch_transpose_kernel(MemcpyTransposeInfo<size_t> &copy_info,
                                    size_t elemSize, GPUStream *stream);
 
@@ -527,9 +523,10 @@ namespace Realm {
     // helper to push/pop a GPU's context by scope
     class AutoGPUContext {
     public:
-      AutoGPUContext(GPU& _gpu);
+      AutoGPUContext(GPU &_gpu);
       AutoGPUContext(GPU *_gpu);
       ~AutoGPUContext(void);
+
     protected:
       GPU *gpu;
     };
@@ -541,9 +538,8 @@ namespace Realm {
       virtual ~GPUProcessor(void);
 
     public:
-      virtual bool register_task(Processor::TaskFuncID func_id,
-				 CodeDescriptor& codedesc,
-				 const ByteArrayRef& user_data);
+      virtual bool register_task(Processor::TaskFuncID func_id, CodeDescriptor &codedesc,
+                                 const ByteArrayRef &user_data);
 
       virtual void shutdown(void);
 
@@ -558,13 +554,13 @@ namespace Realm {
       Realm::CoreReservation *core_rsrv;
 
       struct GPUTaskTableEntry {
-	Processor::TaskFuncPtr fnptr;
-	Cuda::StreamAwareTaskFuncPtr stream_aware_fnptr;
-	ByteArray user_data;
+        Processor::TaskFuncPtr fnptr;
+        Cuda::StreamAwareTaskFuncPtr stream_aware_fnptr;
+        ByteArray user_data;
       };
 
       // we're not using the parent's task table, but we can use the mutex
-      //RWLock task_table_mutex;
+      // RWLock task_table_mutex;
       std::map<Processor::TaskFuncID, GPUTaskTableEntry> gpu_task_table;
     };
 
@@ -573,8 +569,7 @@ namespace Realm {
     //  context's processor and dma channels to work with it
     // the creator is expected to know what CUcontext they want but need
     //  not know which GPU object that corresponds to
-    class CudaDeviceMemoryInfo : public ModuleSpecificInfo
-    {
+    class CudaDeviceMemoryInfo : public ModuleSpecificInfo {
     public:
       CudaDeviceMemoryInfo(CUcontext _context);
 
@@ -598,15 +593,14 @@ namespace Realm {
       // GPUFBMemory supports ExternalCudaMemoryResource and
       //  ExternalCudaArrayResource
       virtual bool attempt_register_external_resource(RegionInstanceImpl *inst,
-                                                      size_t& inst_offset);
+                                                      size_t &inst_offset);
       virtual void unregister_external_resource(RegionInstanceImpl *inst);
 
       // for re-registration purposes, generate an ExternalInstanceResource *
       //  (if possible) for a given instance, or a subset of one
-      virtual ExternalInstanceResource *generate_resource_info(RegionInstanceImpl *inst,
-							       const IndexSpaceGeneric *subspace,
-							       span<const FieldID> fields,
-							       bool read_only);
+      virtual ExternalInstanceResource *
+      generate_resource_info(RegionInstanceImpl *inst, const IndexSpaceGeneric *subspace,
+                             span<const FieldID> fields, bool read_only);
 
     public:
       GPU *gpu;
@@ -624,13 +618,12 @@ namespace Realm {
 
       // deferred allocation not supported
       virtual AllocationResult allocate_storage_immediate(RegionInstanceImpl *inst,
-							  bool need_alloc_result,
-							  bool poisoned,
-							  TimeLimit work_until);
+                                                          bool need_alloc_result,
+                                                          bool poisoned,
+                                                          TimeLimit work_until);
 
-      virtual void release_storage_immediate(RegionInstanceImpl *inst,
-					     bool poisoned,
-					     TimeLimit work_until);
+      virtual void release_storage_immediate(RegionInstanceImpl *inst, bool poisoned,
+                                             TimeLimit work_until);
 
       // these work, but they are SLOW
       virtual void get_bytes(off_t offset, void *dst, size_t size);
@@ -641,21 +634,20 @@ namespace Realm {
       // GPUDynamicFBMemory supports ExternalCudaMemoryResource and
       //  ExternalCudaArrayResource
       virtual bool attempt_register_external_resource(RegionInstanceImpl *inst,
-                                                      size_t& inst_offset);
+                                                      size_t &inst_offset);
       virtual void unregister_external_resource(RegionInstanceImpl *inst);
 
       // for re-registration purposes, generate an ExternalInstanceResource *
       //  (if possible) for a given instance, or a subset of one
-      virtual ExternalInstanceResource *generate_resource_info(RegionInstanceImpl *inst,
-							       const IndexSpaceGeneric *subspace,
-							       span<const FieldID> fields,
-							       bool read_only);
+      virtual ExternalInstanceResource *
+      generate_resource_info(RegionInstanceImpl *inst, const IndexSpaceGeneric *subspace,
+                             span<const FieldID> fields, bool read_only);
 
     public:
       GPU *gpu;
       Mutex mutex;
       size_t cur_size;
-      std::map<RegionInstance, std::pair<CUdeviceptr, size_t> > alloc_bases;
+      std::map<RegionInstance, std::pair<CUdeviceptr, size_t>> alloc_bases;
       NetworkSegment local_segment;
     };
 
@@ -675,15 +667,14 @@ namespace Realm {
 
       // GPUZCMemory supports ExternalCudaPinnedHostResource
       virtual bool attempt_register_external_resource(RegionInstanceImpl *inst,
-                                                      size_t& inst_offset);
+                                                      size_t &inst_offset);
       virtual void unregister_external_resource(RegionInstanceImpl *inst);
 
       // for re-registration purposes, generate an ExternalInstanceResource *
       //  (if possible) for a given instance, or a subset of one
-      virtual ExternalInstanceResource *generate_resource_info(RegionInstanceImpl *inst,
-							       const IndexSpaceGeneric *subspace,
-							       span<const FieldID> fields,
-							       bool read_only);
+      virtual ExternalInstanceResource *
+      generate_resource_info(RegionInstanceImpl *inst, const IndexSpaceGeneric *subspace,
+                             span<const FieldID> fields, bool read_only);
 
     public:
       CUdeviceptr gpu_base;
@@ -715,8 +706,8 @@ namespace Realm {
     public:
       const void *src_base;
       void *dst_base;
-      //off_t src_gpu_off, dst_gpu_off;
-      GPU* dst_gpu;
+      // off_t src_gpu_off, dst_gpu_off;
+      GPU *dst_gpu;
       GPUCompletionEvent event;
     };
 
@@ -745,9 +736,8 @@ namespace Realm {
 
     class GPUTransferCompletion : public GPUCompletionNotification {
     public:
-      GPUTransferCompletion(XferDes *_xd, int _read_port_idx,
-                            size_t _read_offset, size_t _read_size,
-                            int _write_port_idx, size_t _write_offset,
+      GPUTransferCompletion(XferDes *_xd, int _read_port_idx, size_t _read_offset,
+                            size_t _read_size, int _write_port_idx, size_t _write_offset,
                             size_t _write_size);
 
       virtual void request_completed(void);
@@ -771,12 +761,9 @@ namespace Realm {
     class AddressInfoCudaArray : public TransferIterator::AddressInfoCustom {
     public:
       virtual int set_rect(const RegionInstanceImpl *inst,
-                           const InstanceLayoutPieceBase *piece,
-                           size_t field_size, size_t field_offset,
-                           int ndims,
-                           const int64_t lo[/*ndims*/],
-                           const int64_t hi[/*ndims*/],
-                           const int order[/*ndims*/]);
+                           const InstanceLayoutPieceBase *piece, size_t field_size,
+                           size_t field_offset, int ndims, const int64_t lo[/*ndims*/],
+                           const int64_t hi[/*ndims*/], const int order[/*ndims*/]);
 
       CUarray array;
       int dim;
@@ -788,13 +775,11 @@ namespace Realm {
 
     class GPUXferDes : public XferDes {
     public:
-      GPUXferDes(uintptr_t _dma_op, Channel *_channel,
-		 NodeID _launch_node, XferDesID _guid,
-		 const std::vector<XferDesPortInfo>& inputs_info,
-		 const std::vector<XferDesPortInfo>& outputs_info,
-		 int _priority);
+      GPUXferDes(uintptr_t _dma_op, Channel *_channel, NodeID _launch_node,
+                 XferDesID _guid, const std::vector<XferDesPortInfo> &inputs_info,
+                 const std::vector<XferDesPortInfo> &outputs_info, int _priority);
 
-      long get_requests(Request** requests, long nr);
+      long get_requests(Request **requests, long nr);
 
       bool progress_xd(GPUChannel *channel, TimeLimit work_until);
 
@@ -906,37 +891,32 @@ namespace Realm {
       //  default (can be re-enabled with -cuda:mtdma 1)
       static const bool is_ordered = true;
 
-      virtual XferDes *create_xfer_des(uintptr_t dma_op,
-				       NodeID launch_node,
-				       XferDesID guid,
-				       const std::vector<XferDesPortInfo>& inputs_info,
-				       const std::vector<XferDesPortInfo>& outputs_info,
-				       int priority,
-				       XferDesRedopInfo redop_info,
-				       const void *fill_data, size_t fill_size,
+      virtual XferDes *create_xfer_des(uintptr_t dma_op, NodeID launch_node,
+                                       XferDesID guid,
+                                       const std::vector<XferDesPortInfo> &inputs_info,
+                                       const std::vector<XferDesPortInfo> &outputs_info,
+                                       int priority, XferDesRedopInfo redop_info,
+                                       const void *fill_data, size_t fill_size,
                                        size_t fill_total);
 
-      long submit(Request** requests, long nr);
+      long submit(Request **requests, long nr);
       GPU *get_gpu() const { return src_gpu; }
 
     private:
-      GPU* src_gpu;
-      //std::deque<Request*> pending_copies;
+      GPU *src_gpu;
+      // std::deque<Request*> pending_copies;
     };
 
     class GPUfillChannel;
 
     class GPUfillXferDes : public XferDes {
     public:
-      GPUfillXferDes(uintptr_t _dma_op, Channel *_channel,
-		     NodeID _launch_node, XferDesID _guid,
-		     const std::vector<XferDesPortInfo>& inputs_info,
-		     const std::vector<XferDesPortInfo>& outputs_info,
-		     int _priority,
-		     const void *_fill_data, size_t _fill_size,
-                     size_t _fill_total);
+      GPUfillXferDes(uintptr_t _dma_op, Channel *_channel, NodeID _launch_node,
+                     XferDesID _guid, const std::vector<XferDesPortInfo> &inputs_info,
+                     const std::vector<XferDesPortInfo> &outputs_info, int _priority,
+                     const void *_fill_data, size_t _fill_size, size_t _fill_total);
 
-      long get_requests(Request** requests, long nr);
+      long get_requests(Request **requests, long nr);
 
       bool progress_xd(GPUfillChannel *channel, TimeLimit work_until);
 
@@ -946,41 +926,37 @@ namespace Realm {
 
     class GPUfillChannel : public SingleXDQChannel<GPUfillChannel, GPUfillXferDes> {
     public:
-      GPUfillChannel(GPU* _gpu, BackgroundWorkManager *bgwork);
+      GPUfillChannel(GPU *_gpu, BackgroundWorkManager *bgwork);
 
       // multiple concurrent cuda fills ok
       static const bool is_ordered = false;
 
-      virtual XferDes *create_xfer_des(uintptr_t dma_op,
-				       NodeID launch_node,
-				       XferDesID guid,
-				       const std::vector<XferDesPortInfo>& inputs_info,
-				       const std::vector<XferDesPortInfo>& outputs_info,
-				       int priority,
-				       XferDesRedopInfo redop_info,
-				       const void *fill_data, size_t fill_size,
+      virtual XferDes *create_xfer_des(uintptr_t dma_op, NodeID launch_node,
+                                       XferDesID guid,
+                                       const std::vector<XferDesPortInfo> &inputs_info,
+                                       const std::vector<XferDesPortInfo> &outputs_info,
+                                       int priority, XferDesRedopInfo redop_info,
+                                       const void *fill_data, size_t fill_size,
                                        size_t fill_total);
 
-      long submit(Request** requests, long nr);
+      long submit(Request **requests, long nr);
 
     protected:
       friend class GPUfillXferDes;
 
-      GPU* gpu;
+      GPU *gpu;
     };
 
     class GPUreduceChannel;
 
     class GPUreduceXferDes : public XferDes {
     public:
-      GPUreduceXferDes(uintptr_t _dma_op, Channel *_channel,
-                       NodeID _launch_node, XferDesID _guid,
-                       const std::vector<XferDesPortInfo>& inputs_info,
-                       const std::vector<XferDesPortInfo>& outputs_info,
-                       int _priority,
+      GPUreduceXferDes(uintptr_t _dma_op, Channel *_channel, NodeID _launch_node,
+                       XferDesID _guid, const std::vector<XferDesPortInfo> &inputs_info,
+                       const std::vector<XferDesPortInfo> &outputs_info, int _priority,
                        XferDesRedopInfo _redop_info);
 
-      long get_requests(Request** requests, long nr);
+      long get_requests(Request **requests, long nr);
 
       bool progress_xd(GPUreduceChannel *channel, TimeLimit work_until);
 
@@ -1018,26 +994,26 @@ namespace Realm {
     protected:
       friend class GPUreduceXferDes;
 
-      GPU* gpu;
+      GPU *gpu;
     };
 
     class GPUreduceRemoteChannelInfo : public SimpleRemoteChannelInfo {
     public:
-      GPUreduceRemoteChannelInfo(NodeID _owner, XferDesKind _kind,
-                                 uintptr_t _remote_ptr,
-                                 const std::vector<Channel::SupportedPath>& _paths);
+      GPUreduceRemoteChannelInfo(NodeID _owner, XferDesKind _kind, uintptr_t _remote_ptr,
+                                 const std::vector<Channel::SupportedPath> &_paths);
 
       virtual RemoteChannel *create_remote_channel();
 
       template <typename S>
-      bool serialize(S& serializer) const;
+      bool serialize(S &serializer) const;
 
       template <typename S>
-      static RemoteChannelInfo *deserialize_new(S& deserializer);
+      static RemoteChannelInfo *deserialize_new(S &deserializer);
 
     protected:
       static Serialization::PolymorphicSerdezSubclass<RemoteChannelInfo,
-                                                      GPUreduceRemoteChannelInfo> serdez_subclass;
+                                                      GPUreduceRemoteChannelInfo>
+          serdez_subclass;
     };
 
     class GPUreduceRemoteChannel : public RemoteChannel {

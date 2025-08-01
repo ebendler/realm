@@ -41,7 +41,7 @@ namespace Realm {
     //  and be followed by a call to commit_writes for the appropriate address
     //  range
     void commit_writes(void *start, size_t bytes);
-  
+
     // heap listeners are told when new chunks are created and when data is
     //  updated (e.g. allowing software-managed coherency of mirrors of the
     //  heap)
@@ -77,6 +77,6 @@ namespace Realm {
     std::set<Listener *> listeners;
   };
 
-};
+}; // namespace Realm
 
 #endif

@@ -19,7 +19,7 @@
 #include "realm/runtime.h"
 
 namespace Realm {
-  
+
   namespace Cuda {
 
     // a running task on a CUDA processor is assigned a stream by Realm, and
@@ -36,9 +36,9 @@ namespace Realm {
     {
       CudaModule *mod = Runtime::get_runtime().get_module<CudaModule>("cuda");
       if(mod)
-	return mod->get_task_cuda_stream();
+        return mod->get_task_cuda_stream();
       else
-	return 0;
+        return 0;
     }
 
     // when Realm is not using the CUDA runtime hijack to force work onto the
@@ -51,10 +51,11 @@ namespace Realm {
     {
       CudaModule *mod = Runtime::get_runtime().get_module<CudaModule>("cuda");
       if(mod)
-	mod->set_task_ctxsync_required(is_required);
+        mod->set_task_ctxsync_required(is_required);
     }
 
-    // fill in cuda related info according to CUDA-capable device associated with processor
+    // fill in cuda related info according to CUDA-capable device associated with
+    // processor
     //  `p` if available and returns true, or returns false if processor is unknown,
     //  not associated with a CUDA-capable device, or information is unavailable
     inline bool get_cuda_device_uuid(Processor p, Uuid *uuid)

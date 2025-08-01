@@ -204,6 +204,7 @@ typedef enum realm_runtime_attr_enum
 } realm_runtime_attr_t;
 
 // Different Processor types
+// clang-format off
 #define REALM_PROCESSOR_KINDS(__op__) \
   __op__(NO_KIND, "") \
   __op__(TOC_PROC, "Throughput core") \
@@ -214,14 +215,17 @@ typedef enum realm_runtime_attr_enum
   __op__(PROC_SET, "Set of Processors for OpenMP/Kokkos etc.") \
   __op__(OMP_PROC, "OpenMP (or similar) thread pool") \
   __op__(PY_PROC, "Python interpreter")
+// clang-format on
 
-typedef enum realm_processor_kind_t {
+typedef enum realm_processor_kind_t
+{
 #define C_ENUMS(name, desc) name,
   REALM_PROCESSOR_KINDS(C_ENUMS)
 #undef C_ENUMS
 } realm_processor_kind_t;
 
 // Different Memory types
+// clang-format off
 #define REALM_MEMORY_KINDS(__op__) \
   __op__(NO_MEMKIND, "") \
   __op__(GLOBAL_MEM, "Guaranteed visible to all processors on all nodes (e.g. GASNet memory, universally slow)") \
@@ -238,8 +242,10 @@ typedef enum realm_processor_kind_t {
   __op__(LEVEL1_CACHE, "CPU L1 Visible to all processors on the node, better performance to one processor") \
   __op__(GPU_MANAGED_MEM, "Managed memory that can be cached by either host or GPU") \
   __op__(GPU_DYNAMIC_MEM, "Dynamically-allocated framebuffer memory for one GPU and all its SMs")
+// clang-format on
 
-typedef enum realm_memory_kind_t {
+typedef enum realm_memory_kind_t
+{
 #define C_ENUMS(name, desc) name,
   REALM_MEMORY_KINDS(C_ENUMS)
 #undef C_ENUMS

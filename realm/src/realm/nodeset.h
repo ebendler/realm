@@ -25,7 +25,7 @@
 #include <iterator>
 
 #ifdef DEBUG_REALM
-//define DEBUG_REALM_NODESET
+// define DEBUG_REALM_NODESET
 #endif
 
 #ifdef DEBUG_REALM_NODESET
@@ -47,18 +47,18 @@ namespace Realm {
     typedef NodeID value_type;
     typedef std::ptrdiff_t difference_type;
     typedef NodeID *pointer;
-    typedef NodeID& reference;
+    typedef NodeID &reference;
 
     NodeSetIterator();
-    NodeSetIterator(const NodeSet& _nodeset);
+    NodeSetIterator(const NodeSet &_nodeset);
 
-    bool operator==(const NodeSetIterator& compare_to) const;
-    bool operator!=(const NodeSetIterator& compare_to) const;
+    bool operator==(const NodeSetIterator &compare_to) const;
+    bool operator!=(const NodeSetIterator &compare_to) const;
 
     NodeID operator*() const;
     const NodeID *operator->() const;
 
-    NodeSetIterator& operator++(/*prefix*/);
+    NodeSetIterator &operator++(/*prefix*/);
     NodeSetIterator operator++(int /*postfix*/);
 
   protected:
@@ -72,9 +72,8 @@ namespace Realm {
     NodeSetBitmask();
 
   public:
-    static void configure_allocator(NodeID _max_node_id,
-				    size_t _bitsets_per_chunk,
-				    bool _use_twolevel);
+    static void configure_allocator(NodeID _max_node_id, size_t _bitsets_per_chunk,
+                                    bool _use_twolevel);
     static void free_allocations();
 
     static NodeSetBitmask *acquire_bitmask();
@@ -118,11 +117,11 @@ namespace Realm {
     NodeSet();
     ~NodeSet();
 
-    NodeSet(const NodeSet& copy_from);
+    NodeSet(const NodeSet &copy_from);
 
-    NodeSet& operator=(const NodeSet& copy_from);
+    NodeSet &operator=(const NodeSet &copy_from);
 
-    void swap(NodeSet& swap_with);
+    void swap(NodeSet &swap_with);
 
     bool empty() const;
     size_t size() const;
@@ -147,10 +146,11 @@ namespace Realm {
 
     unsigned count;
 
-    enum {
+    enum
+    {
       ENC_EMPTY,
-      ENC_VALS, // one or more distinct values
-      ENC_RANGES, // one or more non-overlapping ranges
+      ENC_VALS,    // one or more distinct values
+      ENC_RANGES,  // one or more non-overlapping ranges
       ENC_BITMASK, // full (externally-allocated) bitmask
     };
     unsigned char enc_format;
@@ -159,7 +159,9 @@ namespace Realm {
     static const short MAX_RANGES = 2;
     union EncodingUnion {
       NodeID values[MAX_VALUES];
-      struct { NodeID lo,hi; } ranges[MAX_RANGES];
+      struct {
+        NodeID lo, hi;
+      } ranges[MAX_RANGES];
       NodeSetBitmask *bitmask;
     };
     EncodingUnion data;
@@ -170,7 +172,7 @@ namespace Realm {
     void convert_to_bitmask();
   };
 
-};
+}; // namespace Realm
 
 #include "realm/nodeset.inl"
 

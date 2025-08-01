@@ -38,7 +38,8 @@ namespace Realm {
 
   class REALM_PUBLIC_API LLVMIRImplementation : public CodeImplementation {
   public:
-    LLVMIRImplementation(const void *irdata, size_t irlen, const std::string& _entry_symbol);
+    LLVMIRImplementation(const void *irdata, size_t irlen,
+                         const std::string &_entry_symbol);
 
     virtual ~LLVMIRImplementation(void);
 
@@ -47,17 +48,19 @@ namespace Realm {
     virtual bool is_portable(void) const;
 
     template <typename S>
-    bool serialize(S& serializer) const;
+    bool serialize(S &serializer) const;
 
     template <typename S>
-    static CodeImplementation *deserialize_new(S& deserializer);
+    static CodeImplementation *deserialize_new(S &deserializer);
 
   protected:
     LLVMIRImplementation(void);
 
-    static Serialization::PolymorphicSerdezSubclass<CodeImplementation, LLVMIRImplementation> serdez_subclass;
+    static Serialization::PolymorphicSerdezSubclass<CodeImplementation,
+                                                    LLVMIRImplementation>
+        serdez_subclass;
 
-    virtual void print(std::ostream& os) const;
+    virtual void print(std::ostream &os) const;
 
   public:
     ByteArray ir;

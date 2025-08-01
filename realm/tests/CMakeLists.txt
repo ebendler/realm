@@ -120,11 +120,14 @@ add_executable(realm_unit_tests ${REALM_UNIT_TESTS})
 # Needed for designated initializers
 # TODO(apriakhin): to be removed
 target_compile_features(realm_unit_tests PUBLIC cxx_std_20)
-target_link_libraries(realm_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS})
+target_link_libraries(
+  realm_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS}
+)
 
 # TODO(wei): To be merged into realm_unit_tests once runtime singleton is
 # removed from all unit tests
-list(APPEND
+list(
+  APPEND
   REALM_C_UNIT_TESTS
   c_processor_query.cc
   c_memory_query.cc
@@ -143,7 +146,9 @@ add_executable(realm_c_unit_tests ${REALM_C_UNIT_TESTS})
 # Needed for designated initializers
 # TODO(apriakhin): to be removed
 target_compile_features(realm_c_unit_tests PUBLIC cxx_std_20)
-target_link_libraries(realm_c_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS})
+target_link_libraries(
+  realm_c_unit_tests PRIVATE realm_obj GTest::gmock_main ${REALM_LIBRARIES} ${REALM_EXTRA_OBJS}
+)
 
 include(GoogleTest)
 if((NOT REALM_SANITIZER OR REALM_SANITIZER STREQUAL "NONE") AND NOT WIN32)
@@ -220,7 +225,7 @@ set(_integ_list)
 # TODO(cperry): make a cmake script that will allow to override test arguments at runtime
 macro(add_integration_test target)
   add_executable(${target} ${ARGN})
-  if (REALM_USE_HIP)
+  if(REALM_USE_HIP)
     set(SRC_LIST ${ARGN})
     list(FILTER SRC_LIST INCLUDE REGEX "\.cu")
     list(TRANSFORM SRC_LIST REPLACE ".*:(.*\.cu)>" "\\1")

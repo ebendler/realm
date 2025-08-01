@@ -330,9 +330,8 @@ realm_status_t realm_runtime_collective_spawn(realm_runtime_t runtime,
   }
   // TODO: check the validation of the task id if target_proc is local, if it is not
   // local, we will poison the event.
-  *event =
-      runtime_impl->collective_spawn(Realm::Processor(target_proc), task_id, args, arglen,
-                                     Realm::Event(wait_on), priority);
+  *event = runtime_impl->collective_spawn(Realm::Processor(target_proc), task_id, args,
+                                          arglen, Realm::Event(wait_on), priority);
   return REALM_SUCCESS;
 }
 

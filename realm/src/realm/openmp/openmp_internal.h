@@ -67,6 +67,6 @@ namespace Realm {
 #endif
   };
 
-};
+}; // namespace Realm
 
 #endif

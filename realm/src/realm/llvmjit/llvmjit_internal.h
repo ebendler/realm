@@ -35,7 +35,7 @@ namespace Realm {
       LLVMJitInternal(void);
       ~LLVMJitInternal(void);
 
-      void *llvmir_to_fnptr(const ByteArray& ir, const std::string& entry_symbol);
+      void *llvmir_to_fnptr(const ByteArray &ir, const std::string &entry_symbol);
 
 #ifdef REALM_ALLOW_MISSING_LLVM_LIBS
       static bool detect_llvm_libraries(void);

@@ -133,7 +133,7 @@ namespace Realm {
     nvtxNameOsThread(pthread_self(), thread_name);
 #endif
 
-    nvtx_categories = new std::map<std::string, NvtxCategory *>();
+        nvtx_categories = new std::map<std::string, NvtxCategory *>();
     nvtx_categories->clear();
 
     if(enabled_nvtx_modules.size() == 1 and enabled_nvtx_modules[0] == "all") {

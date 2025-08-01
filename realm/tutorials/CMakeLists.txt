@@ -62,8 +62,11 @@ endif()
 macro(add_tutorial_test name)
   add_subdirectory(${name})
   add_test(NAME tutorial_${name} COMMAND $<TARGET_FILE:${name}> ${TEST_ARGS} ${${name}_ARGS})
-  set_property(TEST tutorial_${name} PROPERTY RESOURCE_LOCK $<REMOVE_DUPLICATES:${TEST_RESOURCE_LOCK} ${${target}_RESOURCE_LOCK}>)
-  if (REALM_USE_UCX)
+  set_property(
+    TEST tutorial_${name} PROPERTY RESOURCE_LOCK $<REMOVE_DUPLICATES:${TEST_RESOURCE_LOCK}
+                                   ${${target}_RESOURCE_LOCK}>
+  )
+  if(REALM_USE_UCX)
     add_dependencies(${name} realm_ucp_bootstrap_mpi)
   endif()
   list(APPEND _tutorial_list tutorial_${name})
@@ -82,7 +85,7 @@ add_tutorial_test(subgraph)
 add_tutorial_test(reservation)
 add_tutorial_test(completion_queue)
 add_tutorial_test(profiling)
-if (REALM_USE_CUDA)
+if(REALM_USE_CUDA)
   add_tutorial_test(cuda_interop)
 endif()
 
@@ -105,6 +108,6 @@ if(MSVC)
 else()
   set_tests_properties(
     ${_tutorial_list} PROPERTIES ENVIRONMENT_MODIFICATION
-                              "LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
+                                 "LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
   )
 endif()

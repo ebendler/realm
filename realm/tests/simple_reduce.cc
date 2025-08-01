@@ -20,8 +20,9 @@ using namespace Realm;
 Logger log_app("app");
 
 // Task IDs, some IDs are reserved so start at first available number
-enum {
-  TOP_LEVEL_TASK = Processor::TASK_ID_FIRST_AVAILABLE+0,
+enum
+{
+  TOP_LEVEL_TASK = Processor::TASK_ID_FIRST_AVAILABLE + 0,
   MEMSPEED_TASK,
   COPYPROF_TASK,
 };
@@ -32,20 +33,19 @@ enum
   FID_LHS = 88,
 };
 
-enum {
+enum
+{
   REDOP_MIXED_ADD = 99,
 };
 
 namespace TestConfig {
   bool all_memories = true;
   unsigned dim_mask = 7; // i.e. 1-D, 2-D, 3-D
-};
+};                       // namespace TestConfig
 
 template <int N, typename T>
-bool test_reduction(IndexSpace<N,T> domain, IndexSpace<N,T> bloat,
-                    Memory dst_mem,
-                    const std::vector<Memory>& src_mems,
-                    Memory chk_mem)
+bool test_reduction(IndexSpace<N, T> domain, IndexSpace<N, T> bloat, Memory dst_mem,
+                    const std::vector<Memory> &src_mems, Memory chk_mem)
 {
   std::map<FieldID, size_t> fields;
   fields[FID_RHS] = sizeof(ReductionOpMixedAdd::RHS);
@@ -54,19 +54,19 @@ bool test_reduction(IndexSpace<N,T> domain, IndexSpace<N,T> bloat,
   RegionInstance dst_inst, chk_inst;
   std::vector<RegionInstance> src_insts;
 
-  RegionInstance::create_instance(dst_inst, dst_mem, bloat,
-                                  fields, 0 /*SOA*/,
-                                  ProfilingRequestSet()).wait();
+  RegionInstance::create_instance(dst_inst, dst_mem, bloat, fields, 0 /*SOA*/,
+                                  ProfilingRequestSet())
+      .wait();
 
-  RegionInstance::create_instance(chk_inst, chk_mem, bloat,
-                                  fields, 0 /*SOA*/,
-                                  ProfilingRequestSet()).wait();
+  RegionInstance::create_instance(chk_inst, chk_mem, bloat, fields, 0 /*SOA*/,
+                                  ProfilingRequestSet())
+      .wait();
 
   src_insts.resize(src_mems.size());
   for(size_t i = 0; i < src_mems.size(); i++)
-    RegionInstance::create_instance(src_insts[i], src_mems[i], bloat,
-                                    fields, 0 /*SOA*/,
-                                    ProfilingRequestSet()).wait();
+    RegionInstance::create_instance(src_insts[i], src_mems[i], bloat, fields, 0 /*SOA*/,
+                                    ProfilingRequestSet())
+        .wait();
 
   std::vector<Event> events;
   {
@@ -113,13 +113,14 @@ bool test_reduction(IndexSpace<N,T> domain, IndexSpace<N,T> bloat,
     e.wait();
 
     AffineAccessor<ReductionOpMixedAdd::LHS, N, T> acc(chk_inst, FID_LHS);
-    for(IndexSpaceIterator<N,T> it(domain); it.valid; it.step())
-      for(PointInRectIterator<N,T> it2(it.rect); it2.valid; it2.step()) {
+    for(IndexSpaceIterator<N, T> it(domain); it.valid; it.step())
+      for(PointInRectIterator<N, T> it2(it.rect); it2.valid; it2.step()) {
         ReductionOpMixedAdd::LHS exp = 1 + (src_mems.size() + 1) * (src_mems.size() + 1);
         ReductionOpMixedAdd::LHS act = acc[it2.p];
         if(act != exp) {
           if(++errors < 10) {
-            log_app.error() << "apply mismatch: [" << it2.p << "] = " << act << " (expected " << exp << ")";
+            log_app.error() << "apply mismatch: [" << it2.p << "] = " << act
+                            << " (expected " << exp << ")";
           }
         }
       }
@@ -146,13 +147,14 @@ bool test_reduction(IndexSpace<N,T> domain, IndexSpace<N,T> bloat,
     e.wait();
 
     AffineAccessor<int, N, T> acc(chk_inst, FID_RHS);
-    for(IndexSpaceIterator<N,T> it(domain); it.valid; it.step())
-      for(PointInRectIterator<N,T> it2(it.rect); it2.valid; it2.step()) {
+    for(IndexSpaceIterator<N, T> it(domain); it.valid; it.step())
+      for(PointInRectIterator<N, T> it2(it.rect); it2.valid; it2.step()) {
         int exp = (src_mems.size() + 1) * (src_mems.size() + 1);
         int act = acc[it2.p];
         if(act != exp) {
           if(++errors < 10) {
-            log_app.error() << "fold mismatch: [" << it2.p << "] = " << act << " (expected " << exp << ")";
+            log_app.error() << "fold mismatch: [" << it2.p << "] = " << act
+                            << " (expected " << exp << ")";
           }
         }
       }
@@ -167,8 +169,8 @@ bool test_reduction(IndexSpace<N,T> domain, IndexSpace<N,T> bloat,
   return (errors == 0);
 }
 
-void top_level_task(const void *data, size_t datalen,
-                    const void *userdata, size_t userlen, Processor p)
+void top_level_task(const void *data, size_t datalen, const void *userdata,
+                    size_t userlen, Processor p)
 {
   std::vector<Memory> mems;
   Machine::MemoryQuery mq = Machine::MemoryQuery(Machine::get_machine()).has_capacity(1);
@@ -179,7 +181,8 @@ void top_level_task(const void *data, size_t datalen,
   }
 
   // pick a memory we have affinity to that we'll do verification in
-  Memory chk_mem = Machine::MemoryQuery(Machine::get_machine()).has_affinity_to(p).first();
+  Memory chk_mem =
+      Machine::MemoryQuery(Machine::get_machine()).has_affinity_to(p).first();
   assert(chk_mem.exists());
 
   bool ok = true;
@@ -187,11 +190,14 @@ void top_level_task(const void *data, size_t datalen,
   for(size_t i = 0; i < (TestConfig::all_memories ? mems.size() : 1); i++) {
     if(TestConfig::dim_mask & 1) {
       // 1-D
-      Rect<1> r(0,7);
-      Rect<1> smaller(0,7);
-  
-      if(ok) ok = test_reduction(IndexSpace<1>(r), IndexSpace<1>(r), mems[i], mems, chk_mem);
-      if(ok) ok = test_reduction(IndexSpace<1>(smaller), IndexSpace<1>(r), mems[i], mems, chk_mem);
+      Rect<1> r(0, 7);
+      Rect<1> smaller(0, 7);
+
+      if(ok)
+        ok = test_reduction(IndexSpace<1>(r), IndexSpace<1>(r), mems[i], mems, chk_mem);
+      if(ok)
+        ok = test_reduction(IndexSpace<1>(smaller), IndexSpace<1>(r), mems[i], mems,
+                            chk_mem);
     }
 
     if(TestConfig::dim_mask & 2) {
@@ -200,11 +206,18 @@ void top_level_task(const void *data, size_t datalen,
       Rect<2> smaller(Point<2>(2, 9), Point<2>(4, 12));
       Rect<2> xstrip(Point<2>(2, 9), Point<2>(5, 9));
       Rect<2> ystrip(Point<2>(2, 9), Point<2>(2, 12));
-  
-      if(ok) ok = test_reduction(IndexSpace<2>(r), IndexSpace<2>(r), mems[i], mems, chk_mem);
-      if(ok) ok = test_reduction(IndexSpace<2>(smaller), IndexSpace<2>(r), mems[i], mems, chk_mem);
-      if(ok) ok = test_reduction(IndexSpace<2>(xstrip), IndexSpace<2>(r), mems[i], mems, chk_mem);
-      if(ok) ok = test_reduction(IndexSpace<2>(ystrip), IndexSpace<2>(r), mems[i], mems, chk_mem);
+
+      if(ok)
+        ok = test_reduction(IndexSpace<2>(r), IndexSpace<2>(r), mems[i], mems, chk_mem);
+      if(ok)
+        ok = test_reduction(IndexSpace<2>(smaller), IndexSpace<2>(r), mems[i], mems,
+                            chk_mem);
+      if(ok)
+        ok = test_reduction(IndexSpace<2>(xstrip), IndexSpace<2>(r), mems[i], mems,
+                            chk_mem);
+      if(ok)
+        ok = test_reduction(IndexSpace<2>(ystrip), IndexSpace<2>(r), mems[i], mems,
+                            chk_mem);
     }
 
     if(TestConfig::dim_mask & 4) {
@@ -212,18 +225,19 @@ void top_level_task(const void *data, size_t datalen,
       Rect<3> r(Point<3>(1, 8, 14), Point<3>(5, 13, 17));
       Rect<3> smaller(Point<3>(2, 9, 15), Point<3>(4, 12, 17));
 
-      if(ok) ok = test_reduction(IndexSpace<3>(r), IndexSpace<3>(r), mems[i], mems, chk_mem);
-      if(ok) ok = test_reduction(IndexSpace<3>(smaller), IndexSpace<3>(r), mems[i], mems, chk_mem);
+      if(ok)
+        ok = test_reduction(IndexSpace<3>(r), IndexSpace<3>(r), mems[i], mems, chk_mem);
+      if(ok)
+        ok = test_reduction(IndexSpace<3>(smaller), IndexSpace<3>(r), mems[i], mems,
+                            chk_mem);
     }
   }
 
-  Runtime::get_runtime().shutdown(Event::NO_EVENT,
-				  ok ? 0 : 1);
+  Runtime::get_runtime().shutdown(Event::NO_EVENT, ok ? 0 : 1);
 }
 
 #if defined(REALM_USE_CUDA) || defined(REALM_USE_HIP)
-extern void register_gpu_reduction(Realm::Runtime& realm,
-                                   Realm::ReductionOpID redop_id);
+extern void register_gpu_reduction(Realm::Runtime &realm, Realm::ReductionOpID redop_id);
 #endif
 
 int main(int argc, char **argv)
@@ -234,7 +248,7 @@ int main(int argc, char **argv)
 
   CommandLineParser cp;
   cp.add_option_bool("-all", TestConfig::all_memories)
-    .add_option_int("-dims", TestConfig::dim_mask);
+      .add_option_int("-dims", TestConfig::dim_mask);
   bool ok = cp.parse_command_line(argc, const_cast<const char **>(argv));
   assert(ok);
 
@@ -249,8 +263,8 @@ int main(int argc, char **argv)
 
   // select a processor to run the top level task on
   Processor p = Machine::ProcessorQuery(Machine::get_machine())
-    .only_kind(Processor::LOC_PROC)
-    .first();
+                    .only_kind(Processor::LOC_PROC)
+                    .first();
   assert(p.exists());
 
   // collective launch of a single task - top level will issue shutdown
@@ -258,6 +272,6 @@ int main(int argc, char **argv)
 
   // now sleep this thread until that shutdown actually happens
   int result = rt.wait_for_shutdown();
-  
+
   return result;
 }

@@ -16,6 +16,7 @@
 #ifndef __LEGION_TRIE_H__
 #define __LEGION_TRIE_H__
 
+#include <cstdint>
 #include <unordered_map>
 
 namespace Legion {

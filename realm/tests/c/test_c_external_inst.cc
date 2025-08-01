@@ -79,7 +79,7 @@ bool create_instance_and_copy_and_verify(
   realm_event_t event = REALM_NO_EVENT;
   CHECK_REALM(realm_region_instance_create(runtime, &src_instance_params, nullptr,
                                            REALM_NO_EVENT, &src_inst, &event));
-  CHECK_REALM(realm_event_wait(runtime, event));
+  CHECK_REALM(realm_event_wait(runtime, event, nullptr));
 
   Realm::RegionInstance src_inst_cxx = Realm::RegionInstance(src_inst);
   const Realm::InstanceLayoutGeneric *src_layout = src_inst_cxx.get_layout();
@@ -107,7 +107,7 @@ bool create_instance_and_copy_and_verify(
 
   CHECK_REALM(realm_region_instance_copy(runtime, &copy_params, nullptr, REALM_NO_EVENT,
                                          0, &event));
-  CHECK_REALM(realm_event_wait(runtime, event));
+  CHECK_REALM(realm_event_wait(runtime, event, nullptr));
 
   Realm::RegionInstance dst_inst_cxx = Realm::RegionInstance(dst_inst);
   dst_inst_cxx.fetch_metadata(Realm::Processor(proc)).wait();
@@ -157,7 +157,7 @@ static void test_copy(realm_runtime_t runtime, realm_memory_t dst_mem,
   realm_region_instance_t dst_inst;
   CHECK_REALM(realm_region_instance_create(runtime, &dst_instance_params, nullptr,
                                            REALM_NO_EVENT, &dst_inst, &event));
-  CHECK_REALM(realm_event_wait(runtime, event));
+  CHECK_REALM(realm_event_wait(runtime, event, nullptr));
 
   Realm::RegionInstance dst_inst_cxx = Realm::RegionInstance(dst_inst);
   const Realm::InstanceLayoutGeneric *dst_layout = dst_inst_cxx.get_layout();
@@ -323,7 +323,7 @@ int main(int argc, char **argv)
   CHECK_REALM(realm_processor_register_task_by_kind(
       runtime, target_proc_kind, REALM_REGISTER_TASK_DEFAULT, MAIN_TASK, main_task, 0, 0,
       &register_task_event));
-  CHECK_REALM(realm_event_wait(runtime, register_task_event));
+  CHECK_REALM(realm_event_wait(runtime, register_task_event, nullptr));
 
   realm_processor_query_t proc_query;
   CHECK_REALM(realm_processor_query_create(runtime, &proc_query));

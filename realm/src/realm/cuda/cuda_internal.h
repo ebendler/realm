@@ -34,10 +34,6 @@
 // For CUDA runtime's dim3 definition
 #include <vector_types.h>
 
-#if CUDA_VERSION >= 11030
-#include <cudaTypedefs.h>
-#endif
-
 #include "realm/operation.h"
 #include "realm/threads.h"
 #include "realm/circ_queue.h"
@@ -1291,12 +1287,17 @@ namespace Realm {
       CUipcMemHandle ipc_handle;
     };
 
+    // Define these APIs locally here if we know the definition isn't in cuda.h.  This
+    // allows us to use this driver function even if it is unavailable to our current
+    // toolkit
+
+#if CUDA_VERSION < 11030
+#define CU_GET_PROC_ADDRESS_DEFAULT 0
+    CUresult cuGetProcAddress(const char *, void **, int, int);
+#endif
+
 #if CUDA_VERSION < 12050
-    // Instead of defining this as part of CUDA_DRIVER_APIS, define it locally here if we
-    // know the definition isn't in cuda.h.  This allows us to use this driver function
-    // even if it is unavailable to our current toolkit
     CUresult cuCtxRecordEvent(CUcontext hctx, CUevent event);
-    typedef decltype(&cuCtxRecordEvent) PFN_cuCtxRecordEvent;
 #endif
 
     // cuda driver and/or runtime entry points
@@ -1305,121 +1306,120 @@ namespace Realm {
 
 // Only APIs that are available in the minimum base driver version that Realm supports
 // should be listed here
-#define CUDA_DRIVER_APIS_BASE(__op__)                                                    \
-  __op__(cuModuleGetFunction, CUDA_VERSION);                                             \
-  __op__(cuCtxGetDevice, CUDA_VERSION);                                                  \
-  __op__(cuCtxEnablePeerAccess, CUDA_VERSION);                                           \
-  __op__(cuCtxGetFlags, CUDA_VERSION);                                                   \
-  __op__(cuCtxGetStreamPriorityRange, CUDA_VERSION);                                     \
-  __op__(cuCtxPopCurrent, CUDA_VERSION);                                                 \
-  __op__(cuCtxPushCurrent, CUDA_VERSION);                                                \
-  __op__(cuCtxSynchronize, CUDA_VERSION);                                                \
-  __op__(cuDeviceCanAccessPeer, CUDA_VERSION);                                           \
-  __op__(cuDeviceGet, CUDA_VERSION);                                                     \
-  __op__(cuDeviceGetUuid, CUDA_VERSION);                                                 \
-  __op__(cuDeviceGetAttribute, CUDA_VERSION);                                            \
-  __op__(cuDeviceGetCount, CUDA_VERSION);                                                \
-  __op__(cuDeviceGetName, CUDA_VERSION);                                                 \
-  __op__(cuDevicePrimaryCtxRelease, CUDA_VERSION);                                       \
-  __op__(cuDevicePrimaryCtxRetain, CUDA_VERSION);                                        \
-  __op__(cuDevicePrimaryCtxSetFlags, CUDA_VERSION);                                      \
-  __op__(cuDeviceTotalMem, CUDA_VERSION);                                                \
-  __op__(cuEventCreate, CUDA_VERSION);                                                   \
-  __op__(cuEventDestroy, CUDA_VERSION);                                                  \
-  __op__(cuEventQuery, CUDA_VERSION);                                                    \
-  __op__(cuEventRecord, CUDA_VERSION);                                                   \
-  __op__(cuGetErrorName, CUDA_VERSION);                                                  \
-  __op__(cuGetErrorString, CUDA_VERSION);                                                \
-  __op__(cuInit, CUDA_VERSION);                                                          \
-  __op__(cuIpcCloseMemHandle, CUDA_VERSION);                                             \
-  __op__(cuIpcGetMemHandle, CUDA_VERSION);                                               \
-  __op__(cuIpcOpenMemHandle, CUDA_VERSION);                                              \
-  __op__(cuLaunchKernel, CUDA_VERSION);                                                  \
-  __op__(cuMemAllocManaged, CUDA_VERSION);                                               \
-  __op__(cuMemAlloc, CUDA_VERSION);                                                      \
-  __op__(cuMemcpy2DAsync, CUDA_VERSION);                                                 \
-  __op__(cuMemcpy3DAsync, CUDA_VERSION);                                                 \
-  __op__(cuMemcpyAsync, CUDA_VERSION);                                                   \
-  __op__(cuMemcpyDtoDAsync, CUDA_VERSION);                                               \
-  __op__(cuMemcpyDtoH, CUDA_VERSION);                                                    \
-  __op__(cuMemcpyDtoHAsync, CUDA_VERSION);                                               \
-  __op__(cuMemcpyHtoD, CUDA_VERSION);                                                    \
-  __op__(cuMemcpyHtoDAsync, CUDA_VERSION);                                               \
-  __op__(cuMemFreeHost, CUDA_VERSION);                                                   \
-  __op__(cuMemFree, CUDA_VERSION);                                                       \
-  __op__(cuMemGetInfo, CUDA_VERSION);                                                    \
-  __op__(cuMemHostAlloc, CUDA_VERSION);                                                  \
-  __op__(cuMemHostGetDevicePointer, CUDA_VERSION);                                       \
-  __op__(cuMemHostRegister, CUDA_VERSION);                                               \
-  __op__(cuMemHostUnregister, CUDA_VERSION);                                             \
-  __op__(cuMemsetD16Async, CUDA_VERSION);                                                \
-  __op__(cuMemsetD2D16Async, CUDA_VERSION);                                              \
-  __op__(cuMemsetD2D32Async, CUDA_VERSION);                                              \
-  __op__(cuMemsetD2D8Async, CUDA_VERSION);                                               \
-  __op__(cuMemsetD32Async, CUDA_VERSION);                                                \
-  __op__(cuMemsetD8Async, CUDA_VERSION);                                                 \
-  __op__(cuModuleLoadDataEx, CUDA_VERSION);                                              \
-  __op__(cuStreamAddCallback, CUDA_VERSION);                                             \
-  __op__(cuStreamCreate, CUDA_VERSION);                                                  \
-  __op__(cuStreamCreateWithPriority, CUDA_VERSION);                                      \
-  __op__(cuStreamDestroy, CUDA_VERSION);                                                 \
-  __op__(cuStreamSynchronize, CUDA_VERSION);                                             \
-  __op__(cuOccupancyMaxPotentialBlockSize, CUDA_VERSION);                                \
-  __op__(cuOccupancyMaxPotentialBlockSizeWithFlags, CUDA_VERSION);                       \
-  __op__(cuEventSynchronize, CUDA_VERSION);                                              \
-  __op__(cuEventElapsedTime, CUDA_VERSION);                                              \
-  __op__(cuOccupancyMaxActiveBlocksPerMultiprocessor, CUDA_VERSION);                     \
-  __op__(cuMemAddressReserve, CUDA_VERSION);                                             \
-  __op__(cuMemAddressFree, CUDA_VERSION);                                                \
-  __op__(cuMemCreate, CUDA_VERSION);                                                     \
-  __op__(cuMemRelease, CUDA_VERSION);                                                    \
-  __op__(cuMemMap, CUDA_VERSION);                                                        \
-  __op__(cuMemUnmap, CUDA_VERSION);                                                      \
-  __op__(cuMemSetAccess, CUDA_VERSION);                                                  \
-  __op__(cuMemGetAllocationGranularity, CUDA_VERSION);                                   \
-  __op__(cuMemGetAllocationPropertiesFromHandle, CUDA_VERSION);                          \
-  __op__(cuMemExportToShareableHandle, CUDA_VERSION);                                    \
-  __op__(cuMemImportFromShareableHandle, CUDA_VERSION);                                  \
-  __op__(cuStreamWaitEvent, CUDA_VERSION);                                               \
-  __op__(cuStreamQuery, CUDA_VERSION);                                                   \
-  __op__(cuMemGetAddressRange, CUDA_VERSION);                                            \
-  __op__(cuPointerGetAttributes, CUDA_VERSION);                                          \
-  __op__(cuDriverGetVersion, CUDA_VERSION);                                              \
-  __op__(cuMemAdvise, CUDA_VERSION);                                                     \
-  __op__(cuMemPrefetchAsync, CUDA_VERSION);                                              \
-  __op__(cuCtxSetSharedMemConfig, CUDA_VERSION);                                         \
-  __op__(cuCtxSetCacheConfig, CUDA_VERSION);                                             \
-  __op__(cuCtxSetLimit, CUDA_VERSION);                                                   \
-  __op__(cuCtxGetLimit, CUDA_VERSION);                                                   \
-  __op__(cuFuncSetAttribute, CUDA_VERSION);                                              \
-  __op__(cuFuncSetCacheConfig, CUDA_VERSION);                                            \
-  __op__(cuFuncSetSharedMemConfig, CUDA_VERSION);                                        \
-  __op__(cuFuncGetAttribute, CUDA_VERSION);                                              \
-  __op__(cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, CUDA_VERSION);            \
-  __op__(cuArray3DCreate, CUDA_VERSION);                                                 \
-  __op__(cuArrayDestroy, CUDA_VERSION);                                                  \
-  __op__(cuSurfObjectCreate, CUDA_VERSION);                                              \
-  __op__(cuSurfObjectDestroy, CUDA_VERSION);                                             \
-  __op__(cuLaunchCooperativeKernel, CUDA_VERSION);                                       \
-  __op__(cuModuleGetGlobal, CUDA_VERSION);                                               \
-  __op__(cuLaunchHostFunc, CUDA_VERSION);                                                \
-  __op__(cuArrayGetMemoryRequirements, CUDA_VERSION);
 
-// We specify the exact version for this api so we can pass it to cuGetProcAddress later.
-// This allows us to use the API even if it doesn't exist in our toolkit
-#define CUDA_DRIVER_APIS_12050(__op__) __op__(cuCtxRecordEvent, 12050);
+// Note: it is imperative for APIs introduced in minor versions after
+// the minimum version defined above to explicitly denote the version they were
+// introduced, otherwise it is possible to retrieve the wrong API and crash when called.
+
+// The mininum base driver version Realm supports
+#define CUDA_VERSION_MIN 11080
+// Source compatible version of cuda.h (the minimum version where the decltype(&fn)
+// matches the function returned from cuGetProcAddress(fn, CUDA_VERSION_COMPAT) )
+#define CUDA_VERSION_COMPAT ((CUDA_VERSION / 1000) * 1000)
 
 #define CUDA_DRIVER_APIS(__op__)                                                         \
-  CUDA_DRIVER_APIS_BASE(__op__)                                                          \
-  CUDA_DRIVER_APIS_12050(__op__)
+  __op__(cuModuleGetFunction, CUDA_VERSION_MIN);                                         \
+  __op__(cuCtxGetDevice, CUDA_VERSION_MIN);                                              \
+  __op__(cuCtxEnablePeerAccess, CUDA_VERSION_MIN);                                       \
+  __op__(cuCtxGetFlags, CUDA_VERSION_MIN);                                               \
+  __op__(cuCtxGetStreamPriorityRange, CUDA_VERSION_MIN);                                 \
+  __op__(cuCtxPopCurrent, CUDA_VERSION_MIN);                                             \
+  __op__(cuCtxPushCurrent, CUDA_VERSION_MIN);                                            \
+  __op__(cuCtxSynchronize, CUDA_VERSION_MIN);                                            \
+  __op__(cuDeviceCanAccessPeer, CUDA_VERSION_MIN);                                       \
+  __op__(cuDeviceGet, CUDA_VERSION_MIN);                                                 \
+  __op__(cuDeviceGetUuid, CUDA_VERSION_MIN);                                             \
+  __op__(cuDeviceGetAttribute, CUDA_VERSION_MIN);                                        \
+  __op__(cuDeviceGetCount, CUDA_VERSION_MIN);                                            \
+  __op__(cuDeviceGetName, CUDA_VERSION_MIN);                                             \
+  __op__(cuDevicePrimaryCtxRelease, CUDA_VERSION_MIN);                                   \
+  __op__(cuDevicePrimaryCtxRetain, CUDA_VERSION_MIN);                                    \
+  __op__(cuDevicePrimaryCtxSetFlags, CUDA_VERSION_MIN);                                  \
+  __op__(cuDeviceTotalMem, CUDA_VERSION_MIN);                                            \
+  __op__(cuEventCreate, CUDA_VERSION_MIN);                                               \
+  __op__(cuEventDestroy, CUDA_VERSION_MIN);                                              \
+  __op__(cuEventQuery, CUDA_VERSION_MIN);                                                \
+  __op__(cuEventRecord, CUDA_VERSION_MIN);                                               \
+  __op__(cuGetErrorName, CUDA_VERSION_MIN);                                              \
+  __op__(cuGetErrorString, CUDA_VERSION_MIN);                                            \
+  __op__(cuInit, CUDA_VERSION_MIN);                                                      \
+  __op__(cuIpcCloseMemHandle, CUDA_VERSION_MIN);                                         \
+  __op__(cuIpcGetMemHandle, CUDA_VERSION_MIN);                                           \
+  __op__(cuIpcOpenMemHandle, CUDA_VERSION_MIN);                                          \
+  __op__(cuLaunchKernel, CUDA_VERSION_MIN);                                              \
+  __op__(cuMemAllocManaged, CUDA_VERSION_MIN);                                           \
+  __op__(cuMemAlloc, CUDA_VERSION_MIN);                                                  \
+  __op__(cuMemcpy2DAsync, CUDA_VERSION_MIN);                                             \
+  __op__(cuMemcpy3DAsync, CUDA_VERSION_MIN);                                             \
+  __op__(cuMemcpyAsync, CUDA_VERSION_MIN);                                               \
+  __op__(cuMemcpyDtoDAsync, CUDA_VERSION_MIN);                                           \
+  __op__(cuMemcpyDtoH, CUDA_VERSION_MIN);                                                \
+  __op__(cuMemcpyDtoHAsync, CUDA_VERSION_MIN);                                           \
+  __op__(cuMemcpyHtoD, CUDA_VERSION_MIN);                                                \
+  __op__(cuMemcpyHtoDAsync, CUDA_VERSION_MIN);                                           \
+  __op__(cuMemFreeHost, CUDA_VERSION_MIN);                                               \
+  __op__(cuMemFree, CUDA_VERSION_MIN);                                                   \
+  __op__(cuMemGetInfo, CUDA_VERSION_MIN);                                                \
+  __op__(cuMemHostAlloc, CUDA_VERSION_MIN);                                              \
+  __op__(cuMemHostGetDevicePointer, CUDA_VERSION_MIN);                                   \
+  __op__(cuMemHostRegister, CUDA_VERSION_MIN);                                           \
+  __op__(cuMemHostUnregister, CUDA_VERSION_MIN);                                         \
+  __op__(cuMemsetD16Async, CUDA_VERSION_MIN);                                            \
+  __op__(cuMemsetD2D16Async, CUDA_VERSION_MIN);                                          \
+  __op__(cuMemsetD2D32Async, CUDA_VERSION_MIN);                                          \
+  __op__(cuMemsetD2D8Async, CUDA_VERSION_MIN);                                           \
+  __op__(cuMemsetD32Async, CUDA_VERSION_MIN);                                            \
+  __op__(cuMemsetD8Async, CUDA_VERSION_MIN);                                             \
+  __op__(cuModuleLoadDataEx, CUDA_VERSION_MIN);                                          \
+  __op__(cuStreamAddCallback, CUDA_VERSION_MIN);                                         \
+  __op__(cuStreamCreate, CUDA_VERSION_MIN);                                              \
+  __op__(cuStreamCreateWithPriority, CUDA_VERSION_MIN);                                  \
+  __op__(cuStreamDestroy, CUDA_VERSION_MIN);                                             \
+  __op__(cuStreamSynchronize, CUDA_VERSION_MIN);                                         \
+  __op__(cuOccupancyMaxPotentialBlockSize, CUDA_VERSION_MIN);                            \
+  __op__(cuOccupancyMaxPotentialBlockSizeWithFlags, CUDA_VERSION_MIN);                   \
+  __op__(cuEventSynchronize, CUDA_VERSION_MIN);                                          \
+  __op__(cuEventElapsedTime, CUDA_VERSION_MIN);                                          \
+  __op__(cuOccupancyMaxActiveBlocksPerMultiprocessor, CUDA_VERSION_MIN);                 \
+  __op__(cuMemAddressReserve, CUDA_VERSION_MIN);                                         \
+  __op__(cuMemAddressFree, CUDA_VERSION_MIN);                                            \
+  __op__(cuMemCreate, CUDA_VERSION_MIN);                                                 \
+  __op__(cuMemRelease, CUDA_VERSION_MIN);                                                \
+  __op__(cuMemMap, CUDA_VERSION_MIN);                                                    \
+  __op__(cuMemUnmap, CUDA_VERSION_MIN);                                                  \
+  __op__(cuMemSetAccess, CUDA_VERSION_MIN);                                              \
+  __op__(cuMemGetAllocationGranularity, CUDA_VERSION_MIN);                               \
+  __op__(cuMemGetAllocationPropertiesFromHandle, CUDA_VERSION_MIN);                      \
+  __op__(cuMemExportToShareableHandle, CUDA_VERSION_MIN);                                \
+  __op__(cuMemImportFromShareableHandle, CUDA_VERSION_MIN);                              \
+  __op__(cuStreamWaitEvent, CUDA_VERSION_MIN);                                           \
+  __op__(cuStreamQuery, CUDA_VERSION_MIN);                                               \
+  __op__(cuMemGetAddressRange, CUDA_VERSION_MIN);                                        \
+  __op__(cuPointerGetAttributes, CUDA_VERSION_MIN);                                      \
+  __op__(cuDriverGetVersion, CUDA_VERSION_MIN);                                          \
+  __op__(cuMemAdvise, CUDA_VERSION_MIN);                                                 \
+  __op__(cuMemPrefetchAsync, CUDA_VERSION_MIN);                                          \
+  __op__(cuCtxSetSharedMemConfig, CUDA_VERSION_MIN);                                     \
+  __op__(cuCtxSetCacheConfig, CUDA_VERSION_MIN);                                         \
+  __op__(cuCtxSetLimit, CUDA_VERSION_MIN);                                               \
+  __op__(cuCtxGetLimit, CUDA_VERSION_MIN);                                               \
+  __op__(cuFuncSetAttribute, CUDA_VERSION_MIN);                                          \
+  __op__(cuFuncSetCacheConfig, CUDA_VERSION_MIN);                                        \
+  __op__(cuFuncSetSharedMemConfig, CUDA_VERSION_MIN);                                    \
+  __op__(cuFuncGetAttribute, CUDA_VERSION_MIN);                                          \
+  __op__(cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, CUDA_VERSION_MIN);        \
+  __op__(cuArray3DCreate, CUDA_VERSION_MIN);                                             \
+  __op__(cuArrayDestroy, CUDA_VERSION_MIN);                                              \
+  __op__(cuSurfObjectCreate, CUDA_VERSION_MIN);                                          \
+  __op__(cuSurfObjectDestroy, CUDA_VERSION_MIN);                                         \
+  __op__(cuLaunchCooperativeKernel, CUDA_VERSION_MIN);                                   \
+  __op__(cuModuleGetGlobal, CUDA_VERSION_MIN);                                           \
+  __op__(cuLaunchHostFunc, CUDA_VERSION_MIN);                                            \
+  __op__(cuCtxRecordEvent, 12050);                                                       \
+  __op__(cuArrayGetMemoryRequirements, CUDA_VERSION_MIN);
 
-#if CUDA_VERSION >= 11030
-// cuda 11.3+ gives us handy PFN_... types
-#define DECL_FNPTR_EXTERN(name, ver) extern PFN_##name name##_fnptr;
-#else
-    // before cuda 11.3, we have to rely on typeof/decltype
+// Make sure to only use decltype, to ensure it matches the cuda.h definition
 #define DECL_FNPTR_EXTERN(name, ver) extern decltype(&name) name##_fnptr;
-#endif
     CUDA_DRIVER_APIS(DECL_FNPTR_EXTERN);
 #undef DECL_FNPTR_EXTERN
 

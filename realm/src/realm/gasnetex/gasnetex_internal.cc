@@ -3373,8 +3373,8 @@ namespace Realm {
       if(gex_wrapper_handle.GEX_HAVE_MK_CLASS_HIP && module->cfg_bind_hipmem &&
          (memtype == NetworkSegmentInfo::HipDeviceMem)) {
         const Hip::GPU *gpu = reinterpret_cast<Hip::GPU *>(memextra);
-        int ret = gex_wrapper_handle.gex_mk_create_hip(&mk, client,
-                                                       gpu->info->device 0 /*flags*/);
+        int ret = gex_wrapper_handle.gex_mk_create_hip(&mk, client, gpu->info->device,
+                                                       0 /*flags*/);
         if(ret != GEX_WRAPPER_OK) {
           log_gex_bind.info() << "mk_create failed?  ret=" << ret << " mtype=" << memtype
                               << " extra=" << memextra

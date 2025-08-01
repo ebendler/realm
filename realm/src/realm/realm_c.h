@@ -697,12 +697,13 @@ realm_status_t REALM_EXPORT realm_memory_query_iter(realm_memory_query_t query,
  *
  * @param runtime The runtime instance to use.
  * @param[out] event The event to wait for.
+ * @param[out] poisoned Whether the event is poisoned.
  * @return Realm status indicating success or failure.
  *
  * @ingroup Event
  */
-realm_status_t REALM_EXPORT realm_event_wait(realm_runtime_t runtime,
-                                             realm_event_t event);
+realm_status_t REALM_EXPORT realm_event_wait(realm_runtime_t runtime, realm_event_t event,
+                                             int *poisoned);
 
 /**
  * @brief Merges multiple events into a single event.
@@ -711,13 +712,15 @@ realm_status_t REALM_EXPORT realm_event_wait(realm_runtime_t runtime,
  * @param wait_for The events to wait for.
  * @param num_events The number of events to wait for.
  * @param[out] event The merged event.
+ * @param ignore_faults Whether to ignore any poison on the input events.
  * @return Realm status indicating success or failure.
  *
  * @ingroup Event
  */
 realm_status_t REALM_EXPORT realm_event_merge(realm_runtime_t runtime,
                                               const realm_event_t *wait_for,
-                                              size_t num_events, realm_event_t *event);
+                                              size_t num_events, realm_event_t *event,
+                                              int ignore_faults);
 
 /*
  * @defgroup UserEvent UserEvent API
@@ -739,12 +742,16 @@ realm_status_t REALM_EXPORT realm_user_event_create(realm_runtime_t runtime,
  * @brief Triggers a user event.
  *
  * @param event The user event to be triggered.
+ * @param wait_on The event to wait on.
+ * @param ignore_faults Whether to ignore any poison on the input events.
  * @return Realm status indicating success or failure.
  *
  * @ingroup UserEvent
  */
 realm_status_t REALM_EXPORT realm_user_event_trigger(realm_runtime_t runtime,
-                                                     realm_user_event_t event);
+                                                     realm_user_event_t event,
+                                                     realm_event_t wait_on,
+                                                     int ignore_faults);
 
 /*
  * @defgroup RegionInstance RegionInstance API

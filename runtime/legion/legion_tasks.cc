@@ -3192,6 +3192,17 @@ namespace Legion {
           }
         }
       }
+      // This is a bit of a hairy case: since leaf tasks do not hold valid
+      // references on their instances after mapping, the mapped instances
+      // can become eligible for deferred deletions. However, if we have an
+      // unbounded pool then it can still try to do deferred allocations
+      // which might try to collect the instances we mapped in this task.
+      // To prevent this unbound pools need to capture valid references on
+      // any acquired instances for this task to ensure that we don't try
+      // to use our own instances to satisfy an unbounded pool allocation.
+      for (std::map<Memory,MemoryPool*>::const_iterator it =
+            leaf_memory_pools.begin(); it != leaf_memory_pools.end(); it++)
+        it->second->capture_local_instances(*acquired);
       if (free_acquired)
         delete acquired;
 

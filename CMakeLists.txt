@@ -828,7 +828,7 @@ else()
   set(REALM_ENABLE_GASNETEX OFF)
 endif()
 if (GASNet_INSTALL_DIR)
-  set(GASNET_ROOT_DIR ${GASNet_INSTALL_DIR})
+  set(GASNet_ROOT ${GASNet_INSTALL_DIR})
 endif()
 CPMFindPackage(NAME Realm
                SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/realm
@@ -836,7 +836,7 @@ CPMFindPackage(NAME Realm
                "REALM_ENABLE_INSTALL ON"
                "REALM_ENABLE_UCX ${REALM_ENABLE_UCX}"
                "REALM_ENABLE_GASNETEX ${REALM_ENABLE_GASNETEX}"
-               "GASNET_ROOT_DIR ${GASNET_ROOT_DIR}"
+               "GASNet_ROOT ${GASNet_ROOT}"
                "GASNET_CONDUIT ${GASNet_CONDUIT}"
                "REALM_ENABLE_GASNETEX_WRAPPER ${Legion_USE_GASNETEX_WRAPPER}"
                "REALM_MAX_DIM ${Legion_MAX_DIM}"

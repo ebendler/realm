@@ -66,6 +66,8 @@ namespace Realm {
     MemoryQueryImpl *impl;
   };
 
+  static const ProfilingRequestSet empty_prs_cxx;
+
 }; // namespace Realm
 
 Realm::Logger log_realm_c("realmc");
@@ -426,16 +428,12 @@ realm_status_t realm_processor_spawn(realm_runtime_t runtime,
 
   Realm::GenEventImpl *finish_event = Realm::GenEventImpl::create_genevent(runtime_impl);
   Realm::Event cxx_event = finish_event->current_event();
-  if(prs == nullptr) {
-    proc_impl->spawn_task(task_id, args, arglen, Realm::ProfilingRequestSet(),
-                          Realm::Event(wait_on), finish_event,
-                          Realm::ID(cxx_event).event_generation(), priority);
-  } else {
-    proc_impl->spawn_task(task_id, args, arglen,
-                          *reinterpret_cast<Realm::ProfilingRequestSet *>(prs),
-                          Realm::Event(wait_on), finish_event,
-                          Realm::ID(cxx_event).event_generation(), priority);
+  const Realm::ProfilingRequestSet *prs_cxx = &Realm::empty_prs_cxx;
+  if(prs != nullptr) {
+    prs_cxx = reinterpret_cast<const Realm::ProfilingRequestSet *>(prs);
   }
+  proc_impl->spawn_task(task_id, args, arglen, *prs_cxx, Realm::Event(wait_on),
+                        finish_event, Realm::ID(cxx_event).event_generation(), priority);
   *event = cxx_event;
   return REALM_SUCCESS;
 }
@@ -978,11 +976,9 @@ realm_status_t realm_region_instance_create(
     return REALM_REGION_INSTANCE_ERROR_INVALID_EVENT;
   }
 
-  // TODO: do not copy the prs, need to pass the prs pointer directly.
-  // profiling request set
-  Realm::ProfilingRequestSet prs_set;
+  const Realm::ProfilingRequestSet *prs_cxx = &Realm::empty_prs_cxx;
   if(prs != nullptr) {
-    prs_set = *reinterpret_cast<Realm::ProfilingRequestSet *>(prs);
+    prs_cxx = reinterpret_cast<const Realm::ProfilingRequestSet *>(prs);
   }
 
   Realm::RegionInstance inst = Realm::RegionInstance::NO_INST;
@@ -1001,7 +997,7 @@ realm_status_t realm_region_instance_create(
         upper_bound_long_long, instance_creation_params->field_ids,
         instance_creation_params->field_sizes, instance_creation_params->num_fields,
         instance_creation_params->block_size, instance_creation_params->external_resource,
-        prs_set, Realm::Event(wait_on), inst, out_event);
+        *prs_cxx, Realm::Event(wait_on), inst, out_event);
     break;
   }
   case REALM_COORD_TYPE_INT:
@@ -1015,8 +1011,8 @@ realm_status_t realm_region_instance_create(
         Realm::Memory(instance_creation_params->memory), lower_bound_int, upper_bound_int,
         instance_creation_params->field_ids, instance_creation_params->field_sizes,
         instance_creation_params->num_fields, instance_creation_params->block_size,
-        instance_creation_params->external_resource, prs_set, Realm::Event(wait_on), inst,
-        out_event);
+        instance_creation_params->external_resource, *prs_cxx, Realm::Event(wait_on),
+        inst, out_event);
     break;
   }
   default:
@@ -1088,11 +1084,9 @@ realm_status_t realm_region_instance_copy(
                           instance_copy_params->dsts[i].size);
   }
 
-  // TODO: do not copy the prs, need to pass the prs pointer directly.
-  // profiling request set
-  Realm::ProfilingRequestSet prs_set;
+  const Realm::ProfilingRequestSet *prs_cxx = &Realm::empty_prs_cxx;
   if(prs != nullptr) {
-    prs_set = *reinterpret_cast<Realm::ProfilingRequestSet *>(prs);
+    prs_cxx = reinterpret_cast<const Realm::ProfilingRequestSet *>(prs);
   }
 
   Realm::Event out_event = Realm::Event::NO_EVENT;
@@ -1108,7 +1102,7 @@ realm_status_t realm_region_instance_copy(
         instance_copy_params->num_dims, RealmRegionInstanceCopy(), runtime_impl,
         std::move(srcs_vec), std::move(dsts_vec), instance_copy_params->num_fields,
         lower_bound_long_long, upper_bound_long_long, instance_copy_params->num_dims,
-        instance_copy_params->sparsity_map, prs_set, Realm::Event(wait_on), priority,
+        instance_copy_params->sparsity_map, *prs_cxx, Realm::Event(wait_on), priority,
         out_event);
     break;
   }
@@ -1122,7 +1116,7 @@ realm_status_t realm_region_instance_copy(
         instance_copy_params->num_dims, RealmRegionInstanceCopy(), runtime_impl,
         std::move(srcs_vec), std::move(dsts_vec), instance_copy_params->num_fields,
         lower_bound_int, upper_bound_int, instance_copy_params->num_dims,
-        instance_copy_params->sparsity_map, prs_set, Realm::Event(wait_on), priority,
+        instance_copy_params->sparsity_map, *prs_cxx, Realm::Event(wait_on), priority,
         out_event);
     break;
   }

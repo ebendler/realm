@@ -774,6 +774,41 @@ realm_status_t realm_event_merge(realm_runtime_t runtime, const realm_event_t *w
   return REALM_SUCCESS;
 }
 
+realm_status_t realm_event_has_triggered(realm_runtime_t runtime, realm_event_t event,
+                                         int *has_triggered, int *poisoned)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_event_validity(event);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(has_triggered == nullptr) {
+    return REALM_ERROR_INVALID_PARAMETER;
+  }
+  // special case: NO_EVENT is always triggered
+  if(event == REALM_NO_EVENT) {
+    *has_triggered = 1;
+    if(poisoned != nullptr) {
+      *poisoned = 0;
+    }
+    return REALM_SUCCESS;
+  }
+
+  Realm::EventImpl *event_impl = runtime_impl->get_event_impl(Realm::Event(event));
+  bool poisoned_cxx = false;
+  bool has_triggered_cxx =
+      event_impl->has_triggered(Realm::ID(event).event_generation(), poisoned_cxx);
+  *has_triggered = has_triggered_cxx ? 1 : 0;
+  if(poisoned != nullptr) {
+    *poisoned = poisoned_cxx ? 1 : 0;
+  }
+  return REALM_SUCCESS;
+}
+
 /* UserEvent API */
 
 realm_status_t realm_user_event_create(realm_runtime_t runtime, realm_user_event_t *event)

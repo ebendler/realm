@@ -135,7 +135,7 @@ TEST_F(CEventTest, DISABLED_MergeEventsSuccess)
 
 TEST_F(CEventTest, DISABLED_MergeEventsWithPoisonedIgnoreFaults)
 {
-  int num_events = 2;
+  const int num_events = 2;
   realm_user_event_t wait_for_events[num_events];
   realm_runtime_t runtime = *runtime_impl;
   for(int i = 0; i < num_events; i++) {
@@ -152,7 +152,7 @@ TEST_F(CEventTest, DISABLED_MergeEventsWithPoisonedIgnoreFaults)
 
 TEST_F(CEventTest, DISABLED_MergeEventsWithPoisonedNoIgnoreFaults)
 {
-  int num_events = 2;
+  const int num_events = 2;
   realm_user_event_t wait_for_events[num_events];
   realm_runtime_t runtime = *runtime_impl;
   for(int i = 0; i < num_events; i++) {

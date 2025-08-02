@@ -730,6 +730,21 @@ realm_status_t REALM_EXPORT realm_event_merge(realm_runtime_t runtime,
                                               size_t num_events, realm_event_t *event,
                                               int ignore_faults);
 
+/**
+ * @brief Checks if an event has triggered.
+ *
+ * @param runtime The runtime instance to use.
+ * @param event The event to check.
+ * @param[out] has_triggered Whether the event has triggered.
+ * @param[out] poisoned Whether the event is poisoned.
+ * @return Realm status indicating success or failure.
+ *
+ * @ingroup Event
+ */
+realm_status_t REALM_EXPORT realm_event_has_triggered(realm_runtime_t runtime,
+                                                      realm_event_t event,
+                                                      int *has_triggered, int *poisoned);
+
 /*
  * @defgroup UserEvent UserEvent API
  * @ingroup Realm

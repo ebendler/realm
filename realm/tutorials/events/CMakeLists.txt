@@ -21,5 +21,8 @@ if(NOT TARGET Realm::Realm)
   find_package(Realm REQUIRED)
 endif()
 
+# Needed for designated initializers
+# TODO(apriakhin): to be removed
+target_compile_features(events PUBLIC cxx_std_20)
 add_executable(events events_basic.cc)
 target_link_libraries(events Realm::Realm)

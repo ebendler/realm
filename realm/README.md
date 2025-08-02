@@ -16,9 +16,10 @@ limitations under the License.
 -->
 
 [![ci](https://github.com/stanfordlegion/realm/actions/workflows/ci.yml/badge.svg)](https://github.com/StanfordLegion/realm/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/release/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/releases/latest)
+[![Release](https://img.shields.io/github/release/stanfordlegion/realm.svg?include_preleases)](https://github.com/StanfordLegion/realm/releases/latest)
 [![Documentation](https://img.shields.io/badge/docs-grey.svg?logo=doxygen&logoColor=white&labelColor=blue)](https://legion.stanford.edu/realm/doc)
 [![License](https://img.shields.io/github/license/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/blob/main/LICENSE.txt)
+[![REUSE Compliance](https://img.shields.io/reuse/compliance/github.com%2FStanfordLegion%2Frealm)](https://api.reuse.software/info/github.com/StanfordLegion/realm)
 [![Issues](https://img.shields.io/github/issues/stanfordlegion/realm.svg)](https://github.com/StanfordLegion/realm/issues)
 [![Chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://legion.zulipchat.com)
 

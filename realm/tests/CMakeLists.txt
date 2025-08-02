@@ -154,12 +154,13 @@ target_link_libraries(
 )
 
 include(GoogleTest)
-if((NOT REALM_SANITIZER OR REALM_SANITIZER STREQUAL "NONE") AND NOT WIN32)
+if((NOT REALM_SANITIZER OR REALM_SANITIZER STREQUAL "NONE") AND NOT WIN32 AND NOT CMAKE_CROSSCOMPILING)
   gtest_discover_tests(realm_unit_tests NO_PRETTY_TYPES NO_PRETTY_VALUES PROPERTIES LABELS "unit")
   gtest_discover_tests(realm_c_unit_tests NO_PRETTY_TYPES NO_PRETTY_VALUES PROPERTIES LABELS "unit")
 else()
   add_test(NAME realm_unit_tests COMMAND $<TARGET_FILE:realm_unit_tests>)
   add_test(NAME realm_c_unit_tests COMMAND $<TARGET_FILE:realm_c_unit_tests>)
+  set_tests_properties(realm_unit_tests realm_c_unit_tests PROPERTIES LABELS "unit")
 endif()
 
 if(REALM_SANITIZER STREQUAL "ASAN")

@@ -17,8 +17,8 @@
 
 #include "realm.h"
 #include "realm/cmdline.h"
-
-#include <unistd.h>
+#include <thread>
+#include <chrono>
 
 using namespace Realm;
 
@@ -50,7 +50,7 @@ void worker_task(const void *args, size_t arglen, const void *userdata, size_t u
 {
   const WorkerTaskArgs &task_args = *reinterpret_cast<const WorkerTaskArgs *>(args);
   log_app.info("worker %d on proc %llx", task_args.idx, p.id);
-  usleep(10000);
+  std::this_thread::sleep_for(std::chrono::microseconds(10000));
 }
 
 void cleancq_task(const void *args, size_t arglen, const void *userdata, size_t userlen,

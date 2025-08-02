@@ -15,8 +15,6 @@
  * limitations under the License.
  */
 
-#include <time.h>
-
 #include <cassert>
 #include <cmath>
 #include <csignal>
@@ -72,7 +70,11 @@ public:
     if(EXCLUSIVE)
       rhs1 += rhs2;
     else {
+#if defined(_MSC_VER)
+      InterlockedAdd((volatile LONG *)&rhs1, rhs2);
+#else
       __sync_fetch_and_add(&rhs1, rhs2);
+#endif
     }
   }
 };

@@ -19,7 +19,7 @@
 #include "realm/cmdline.h"
 #include "realm/network.h"
 
-#ifdef REALM_USE_OPENMP
+#if defined(HELLO_WORLD_USE_OPENMP)
 #include <omp.h>
 #endif
 
@@ -47,7 +47,7 @@ void hello_gpu_task(const void *args, size_t arglen, const void *userdata, size_
 }
 #endif
 
-#ifdef REALM_USE_OPENMP
+#ifdef HELLO_WORLD_USE_OPENMP
 void hello_omp_task(const void *args, size_t arglen, const void *userdata, size_t userlen,
                     Processor p)
 {
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
                                    0, 0)
       .wait();
 #endif
-#ifdef REALM_USE_OPENMP
+#if defined(REALM_USE_OPENMP) && defined(HELLO_WORLD_USE_OPENMP)
   Processor::register_task_by_kind(Processor::OMP_PROC, false /*!global*/, HELLO_TASK,
                                    CodeDescriptor(hello_omp_task), ProfilingRequestSet(),
                                    0, 0)

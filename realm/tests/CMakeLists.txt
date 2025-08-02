@@ -428,6 +428,7 @@ add_integration_test(c_processor_query "${REALM_TEST_DIR}/c/test_processor_query
 add_integration_test(c_memory_query "${REALM_TEST_DIR}/c/test_memory_query.cc")
 add_integration_test(c_event "${REALM_TEST_DIR}/c/test_event.cc")
 add_integration_test(c_inst "${REALM_TEST_DIR}/c/test_c_inst.cc")
+target_compile_features(c_inst PUBLIC cxx_std_20)
 add_integration_test(c_external_inst "${REALM_TEST_DIR}/c/test_c_external_inst.cc")
 add_integration_test(c_event_poisoned "${REALM_TEST_DIR}/c/test_event_poisoned.cc")
 target_link_libraries(c_external_inst ${TEST_GPU_LIBS})

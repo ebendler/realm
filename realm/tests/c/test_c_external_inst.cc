@@ -21,7 +21,6 @@
 #include "realm/cmdline.h"
 
 #include <stdio.h>
-#include <unistd.h>
 #ifdef REALM_USE_CUDA
 #include "realm/cuda/cuda_access.h"
 #include <cuda_runtime.h>

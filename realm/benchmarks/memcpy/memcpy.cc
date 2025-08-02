@@ -436,13 +436,7 @@ static void issue_copy_from_remote(std::vector<Realm::Event> &finish_events,
   Realm::Event remote_task_event =
       remote_p.spawn(REMOTE_COPY_TASK, &remote_args, sizeof(RemoteCopyTaskArgs));
   finish_events.push_back(remote_task_event);
-
-  // TODO: Add some validation of the copy here
-  // This is a dangling node (a node without children), so make sure to
-  // capture it's finish event as one that marks the graph as complete
-  if(!op.is_dependency) {
-    finish_events.push_back(remote_copy_event);
-  }
+  op.current_event = remote_copy_event;
 }
 
 static void issue_copy_from_local(std::vector<Realm::Event> &finish_events,
@@ -469,13 +463,6 @@ static void issue_copy_from_local(std::vector<Realm::Event> &finish_events,
       "Local Copy(%p) from src:%llx(%llx) to dst:%llx(%llx) is issued on processor %llx",
       &op, src_inst.id, src_inst.get_location().id, dst_inst.id,
       dst_inst.get_location().id, p.id);
-
-  // TODO: Add some validation of the copy here
-  // This is a dangling node (a node without children), so make sure to
-  // capture it's finish event as one that marks the graph as complete
-  if(!op.is_dependency) {
-    finish_events.push_back(op.current_event);
-  }
 }
 
 static Realm::Event run_graph(std::vector<CopyOperation> &graph, Realm::Event start_event,
@@ -520,6 +507,12 @@ static Realm::Event run_graph(std::vector<CopyOperation> &graph, Realm::Event st
       issue_copy_from_local(finish_events, op, wait_on, p);
     } else {
       issue_copy_from_remote(finish_events, op, wait_on, p, proc_map[src_rank]);
+    }
+    // TODO: Add some validation of the copy here
+    // This is a dangling node (a node without children), so make sure to
+    // capture it's finish event as one that marks the graph as complete
+    if(!op.is_dependency) {
+      finish_events.push_back(op.current_event);
     }
   }
   // And the final event signaling this graph is complete

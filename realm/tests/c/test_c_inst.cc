@@ -21,7 +21,6 @@
 #include "realm/cmdline.h"
 
 #include <stdio.h>
-#include <unistd.h>
 
 Realm::Logger log_app("app");
 

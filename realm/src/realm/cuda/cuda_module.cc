@@ -3786,17 +3786,12 @@ namespace Realm {
             // pageeable memory access that cuMemAdvise will work with pageeable memory.
             // It does on some systems, not on others.  Either way, make the attempt and
             // move on
-#if CUDA_VERSION < 12090
+#if CUDA_VERSION < 13000
             (void)CUDA_DRIVER_FNPTR(cuMemAdvise)(
                 reinterpret_cast<CUdeviceptr>(ptr), mem->size,
                 CU_MEM_ADVISE_SET_PREFERRED_LOCATION, CU_DEVICE_CPU);
 #else
-            // In cuda 12.9, there's some confusion about what function type for the
-            // loader should be, which forces an early deprecation of the original
-            // cuMemAdvise.  Since we'll need to make this update for 13.0 anyway,
-            // implement a quick implementation for now.
-            // TODO(cperry): pick a numa node closest to the owning GPU instead of the
-            // calling numa node
+            // Prepare for the default function change for 13.0
             CUmemLocation location;
             location.type = CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT;
             location.id = 0;

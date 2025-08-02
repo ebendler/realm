@@ -317,7 +317,7 @@ endif()
 if(REALM_ENABLE_COVERAGE)
   if(MSVC)
     find_program(
-      OPENCPPCOV OpenCppCoverage.exe REQUIRED HINTS $ENV{ProgramFiles\(x86\)}/OpenCppCoverage
+      OPENCPPCOV_PATH OpenCppCoverage.exe REQUIRED HINTS $ENV{ProgramFiles\(x86\)}/OpenCppCoverage
                                                     $ENV{ProgramFiles}/OpenCppCoverage
     )
   else()
@@ -1019,7 +1019,7 @@ target_compile_options(
 )
 if(REALM_ENABLE_COVERAGE AND NOT OPENCPPCOV_PATH)
   append_coverage_compiler_flags_to_target(realm_obj)
-  append_coverage_compiler_flags_to_target(realm)
+  append_coverage_compiler_flags_to_target(Realm)
 endif()
 #endregion
 

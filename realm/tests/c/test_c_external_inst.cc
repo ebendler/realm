@@ -27,8 +27,6 @@
 #include <cuda_runtime.h>
 #endif
 
-#include <stdlib.h>
-
 Realm::Logger log_app("app");
 
 enum

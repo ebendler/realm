@@ -85,6 +85,14 @@ void REALM_FNPTR top_level_task(const void *args, size_t arglen, const void *use
   assert(status == REALM_SUCCESS);
   status = realm_event_wait(runtime, merged_event, nullptr);
   assert(status == REALM_SUCCESS);
+
+  // test has_triggered
+  for(int i = 0; i < 10; i++) {
+    int has_triggered = 0;
+    status = realm_event_has_triggered(runtime, user_events[i], &has_triggered, nullptr);
+    assert(status == REALM_SUCCESS);
+    assert(has_triggered == 1);
+  }
 }
 
 int main(int argc, char **argv)

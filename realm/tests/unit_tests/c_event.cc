@@ -269,3 +269,74 @@ TEST_F(CEventTest, DISABLED_UserEventTriggerWithWaitPoisoned)
   Event(user_event).has_triggered_faultaware(poisoned);
   EXPECT_TRUE(poisoned);
 }
+
+TEST_F(CEventTest, EventHasTriggeredNullRuntime)
+{
+  realm_event_t event = REALM_NO_EVENT;
+  int has_triggered = 0;
+  int poisoned = 0;
+  realm_status_t status =
+      realm_event_has_triggered(nullptr, event, &has_triggered, &poisoned);
+  EXPECT_EQ(status, REALM_RUNTIME_ERROR_NOT_INITIALIZED);
+}
+
+TEST_F(CEventTest, EventHasTriggeredNoEvent)
+{
+  realm_runtime_t runtime = *runtime_impl;
+  realm_event_t event = REALM_NO_EVENT;
+  int has_triggered = 0;
+  int poisoned = 0;
+  realm_status_t status =
+      realm_event_has_triggered(runtime, event, &has_triggered, &poisoned);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EXPECT_EQ(has_triggered, 1); // NO_EVENT has always triggered
+  EXPECT_EQ(poisoned, 0);
+}
+
+TEST_F(CEventTest, DISABLED_EventHasTriggeredTriggeredEvent)
+{
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_runtime_t runtime = *runtime_impl;
+  ASSERT_REALM(realm_user_event_create(runtime, &event));
+  ASSERT_REALM(realm_user_event_trigger(runtime, event, REALM_NO_EVENT,
+                                        0)); // FIXME: this need runtime singleton
+
+  int has_triggered = 0;
+  int poisoned = 0;
+  realm_status_t status =
+      realm_event_has_triggered(runtime, event, &has_triggered, &poisoned);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EXPECT_EQ(has_triggered, 1);
+  EXPECT_EQ(poisoned, 0);
+}
+
+TEST_F(CEventTest, EventHasTriggeredNotTriggeredEvent)
+{
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_runtime_t runtime = *runtime_impl;
+  ASSERT_REALM(realm_user_event_create(runtime, &event));
+
+  int has_triggered = 0;
+  int poisoned = 0;
+  realm_status_t status =
+      realm_event_has_triggered(runtime, event, &has_triggered, &poisoned);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EXPECT_EQ(has_triggered, 0);
+  EXPECT_EQ(poisoned, 0);
+}
+
+TEST_F(CEventTest, DISABLED_EventHasTriggeredPoisoned)
+{
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_runtime_t runtime = *runtime_impl;
+  ASSERT_REALM(realm_user_event_create(runtime, &event));
+  UserEvent(event).cancel(); // FIXME: this need runtime singleton
+
+  int has_triggered = 0;
+  int poisoned = 0;
+  realm_status_t status =
+      realm_event_has_triggered(runtime, event, &has_triggered, &poisoned);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EXPECT_EQ(has_triggered, 0);
+  EXPECT_EQ(poisoned, 1);
+}

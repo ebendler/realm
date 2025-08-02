@@ -50,7 +50,8 @@ void test_merge(realm_runtime_t runtime, int ignore_faults, int *poisoned)
   assert(status == REALM_SUCCESS);
 }
 
-void test_trigger(realm_runtime_t runtime, int ignore_faults, int *poisoned)
+void test_trigger(realm_runtime_t runtime, int ignore_faults, bool use_wait,
+                  int *poisoned)
 {
   realm_user_event_t wait_on_event;
   realm_status_t status = realm_user_event_create(runtime, &wait_on_event);
@@ -61,8 +62,15 @@ void test_trigger(realm_runtime_t runtime, int ignore_faults, int *poisoned)
   assert(status == REALM_SUCCESS);
   status = realm_user_event_trigger(runtime, user_event, wait_on_event, ignore_faults);
   assert(status == REALM_SUCCESS);
-  status = realm_event_wait(runtime, user_event, poisoned);
-  assert(status == REALM_SUCCESS);
+  if(use_wait) {
+    status = realm_event_wait(runtime, user_event, poisoned);
+    assert(status == REALM_SUCCESS);
+  } else {
+    int has_triggered = 0;
+    status = realm_event_has_triggered(runtime, user_event, &has_triggered, poisoned);
+    assert(status == REALM_SUCCESS);
+    assert(has_triggered == 1);
+  }
 }
 
 void REALM_FNPTR main_task(const void *args, size_t arglen, const void *userdata,
@@ -84,9 +92,15 @@ void REALM_FNPTR main_task(const void *args, size_t arglen, const void *userdata
   assert(poisoned == 0);
 
   // test trigger poisoned event
-  test_trigger(runtime, 0, &poisoned);
+  test_trigger(runtime, 0, true, &poisoned);
   assert(poisoned == 1);
-  test_trigger(runtime, 1, &poisoned);
+  test_trigger(runtime, 1, true, &poisoned);
+  assert(poisoned == 0);
+
+  // test trigger poisoned event with has_triggered
+  test_trigger(runtime, 0, false, &poisoned);
+  assert(poisoned == 1);
+  test_trigger(runtime, 1, false, &poisoned);
   assert(poisoned == 0);
 }
 

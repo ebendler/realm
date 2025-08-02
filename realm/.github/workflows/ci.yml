@@ -204,7 +204,7 @@ jobs:
       
       - uses: test-summary/action@v2
         name: Upload Test Results
-        if: steps.run-tests.outcome == 'failure'
+        if: always() && hashFiles('test-results.xml')
         with:
           paths: "test-results.xml"
 
@@ -341,9 +341,9 @@ jobs:
 
       - uses: test-summary/action@v2
         name: Upload Test Results
-        if: steps.run-tests.outcome == 'failure'
+        if: always() && hashFiles('test-results.xml')
         with:
-          paths: "${{ github.workspace }}/test-results.xml"
+          paths: "test-results.xml"
 
       - name: Run Install
         run:

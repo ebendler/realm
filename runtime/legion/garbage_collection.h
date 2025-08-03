@@ -88,7 +88,7 @@ namespace Legion {
       OUTPUT_REGION_REF = 37,
       POINTWISE_DEPENDENCE_REF = 38,
       UNBOUNDED_POOL_REF = 39,
-      LAST_SOURCE_REF = 39,
+      LAST_SOURCE_REF = 40,
     };
 
     enum ReferenceKind {

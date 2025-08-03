@@ -224,7 +224,7 @@ jobs:
       - name: Update build log cache
         if: success()
         run: |
-          rm build.log
+          rm -f build.log
           mv build-new.log build.log
 
       - name: Run Tests

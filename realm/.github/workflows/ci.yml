@@ -403,7 +403,7 @@ jobs:
       - name: Check copyright year is current for changed files
         if: steps.changed-files.outputs.any_changed
         run: |
-          grep -H "Copyright " ${{ steps.changed-files.outputs.all_changed_files }} | grep -v $(date +%Y) > /tmp/copyright_lines.txt
+          grep -H "Copyright " ${{ steps.changed-files.outputs.all_changed_files }} | grep -v $(date +%Y) > /tmp/copyright_lines.txt || true
           if [ -s copyright_lines.txt ]; then
             echo "Copyright information out of date for files:";
             cut -d':' -f1 /tmp/copyright_lines.txt | sort | uniq

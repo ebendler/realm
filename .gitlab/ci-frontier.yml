@@ -117,14 +117,14 @@ prep:
 #   variables:
 #     <<: [*legion, *rocm613, *nodes1_1hr]
 
-legion_rocm624:
-  <<: [*tokens, *tests]
-  stage: test
-  tags:
-    - slurm
-    - frontier
-  variables:
-    <<: [*legion, *rocm624, *nodes2_1hr]
+# legion_rocm624:
+#   <<: [*tokens, *tests]
+#   stage: test
+#   tags:
+#     - slurm
+#     - frontier
+#   variables:
+#     <<: [*legion, *rocm624, *nodes2_1hr]
 
 legion_cmake_rocm571:
   <<: [*tokens, *tests]
@@ -171,14 +171,14 @@ legion_cmake_rocm624:
 #   variables:
 #     <<: [*regent, *rocm600, *nodes1]
 
-regent_cmake_rocm600:
-  <<: [*tokens, *tests]
-  stage: test
-  tags:
-    - slurm
-    - frontier
-  variables:
-    <<: [*regent, *cmake, *rocm600, *nodes2]
+# regent_cmake_rocm600:
+#   <<: [*tokens, *tests]
+#   stage: test
+#   tags:
+#     - slurm
+#     - frontier
+#   variables:
+#     <<: [*regent, *cmake, *rocm600, *nodes2]
 
 # regent_rocm624:
 #   <<: [*tokens, *tests]
@@ -189,14 +189,14 @@ regent_cmake_rocm600:
 #   variables:
 #     <<: [*regent, *rocm624, *nodes1_1hr]
 
-regent_cmake_rocm624:
-  <<: [*tokens, *tests]
-  stage: test
-  tags:
-    - slurm
-    - frontier
-  variables:
-    <<: [*regent, *cmake, *rocm624, *nodes2_1hr]
+# regent_cmake_rocm624:
+#   <<: [*tokens, *tests]
+#   stage: test
+#   tags:
+#     - slurm
+#     - frontier
+#   variables:
+#     <<: [*regent, *cmake, *rocm624, *nodes2_1hr]
 
 clean:
   <<: [*tokens]

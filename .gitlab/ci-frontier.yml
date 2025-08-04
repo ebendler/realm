@@ -168,7 +168,7 @@ legion_cmake_rocm624:
     - slurm
     - frontier
   variables:
-    <<: [*legion, *cmake, *ctest, *rocm624, *nodes2_1hr]
+    <<: [*legion, *cmake, *ctest, *rocm624, *nodes1_1hr]
 
 legion_cmake_rocm631:
   <<: [*tokens, *tests]
@@ -177,7 +177,7 @@ legion_cmake_rocm631:
     - slurm
     - frontier
   variables:
-    <<: [*legion, *cmake, *ctest, *rocm631, *nodes2_1hr]
+    <<: [*legion, *cmake, *ctest, *rocm631, *nodes1_1hr]
 
 legion_cmake_rocm641:
   <<: [*tokens, *tests]

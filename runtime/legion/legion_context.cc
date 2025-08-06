@@ -11183,7 +11183,7 @@ namespace Legion {
       Operation *op;
       GenerationID gen;
       {
-        // We 're just reading so only need the lock in read-only mode
+        // We're just reading so only need the lock in read-only mode
         AutoLock child_lock(child_op_lock,1,false/*exclusive*/);
         // If the context index is less than what is at the front of the
         // reorder buffer then this operation was already retired
@@ -20683,8 +20683,7 @@ namespace Legion {
       GenerationID gen;
       if (shard == owner_shard->shard_id)
       {
-        // We 're just reading so only need the lock in read-only mode
-        AutoLock child_lock(child_op_lock,1,false/*exclusive*/);
+        AutoLock child_lock(child_op_lock);
         if (reorder_buffer.empty())
         {
           // Already been retired so there is nothing to do

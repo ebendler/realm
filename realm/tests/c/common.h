@@ -1,4 +1,6 @@
-/* Copyright 2024 Stanford University, NVIDIA Corporation
+/*
+ * Copyright 2025 Stanford University, NVIDIA Corporation
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,3 +34,9 @@ static void realm_processor_query_first(realm_processor_query_t query,
   realm_status_t status = realm_processor_query_iter(query, retrieve_processor, proc, 1);
   assert(status == REALM_SUCCESS);
 }
+
+#define CHECK_REALM(expr)                                                                \
+  do {                                                                                   \
+    realm_status_t _status = (expr);                                                     \
+    assert(_status == REALM_SUCCESS);                                                    \
+  } while(0)

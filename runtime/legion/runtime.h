@@ -1435,12 +1435,15 @@ namespace Legion {
       struct MapperState {
       public:
         MapperState(void)
-          : queue_guard(false) { }
+          : queue_guard(false), queue_dirty(false) { }
       public:
         std::list<SingleTask*> ready_queue;
         RtEvent deferral_event;
         RtUserEvent queue_waiter;
         bool queue_guard;
+        // If new tasks were added to the ready queue while
+        // the queue_guard flag was set
+        bool queue_dirty;
       };
       // State for each mapper for scheduling purposes
       std::map<MapperID,MapperState> mapper_states;
@@ -1486,6 +1489,8 @@ namespace Legion {
       virtual size_t query_memory_limit(void) = 0;
       virtual size_t query_available_memory(void) = 0;
       virtual PoolBounds get_bounds(void) const = 0;
+      virtual void capture_local_instances(
+          const std::map<PhysicalManager*,unsigned>& instances) = 0;
       virtual FutureInstance* allocate_future(UniqueID creator_uid,
                                               size_t size) = 0;
       virtual PhysicalInstance allocate_instance(UniqueID creator_uid,
@@ -1535,6 +1540,8 @@ namespace Legion {
       virtual size_t query_memory_limit(void) override;
       virtual size_t query_available_memory(void) override;
       virtual PoolBounds get_bounds(void) const override;
+      virtual void capture_local_instances(
+          const std::map<PhysicalManager*,unsigned>& instances) override;
       virtual FutureInstance* allocate_future(UniqueID creator_uid,
                                               size_t size) override;
       virtual PhysicalInstance allocate_instance(UniqueID creator_uid,
@@ -1609,6 +1616,8 @@ namespace Legion {
       virtual size_t query_memory_limit(void) override;
       virtual size_t query_available_memory(void) override;
       virtual PoolBounds get_bounds(void) const override;
+      virtual void capture_local_instances(
+          const std::map<PhysicalManager*,unsigned>& instances) override;
       virtual FutureInstance* allocate_future(UniqueID creator_uid,
                                               size_t size) override;
       virtual PhysicalInstance allocate_instance(UniqueID creator_uid,
@@ -1625,6 +1634,7 @@ namespace Legion {
       virtual void release_pool(UniqueID creator) override;
       virtual void finalize_pool(RtEvent done) override;
       virtual void serialize(Serializer &rez) override;
+      void deserialize(Deserializer& derez, Runtime* runtime);
     private:
       PhysicalInstance find_local_freed_hole(size_t size,
           size_t &prev_size, RtEvent &previous_done, LgEvent &prev_unique);
@@ -1636,6 +1646,7 @@ namespace Legion {
         LgEvent unique_event;
       };
       std::map<size_t,std::list<FreedInstance> > freed_instances;
+      std::vector<PhysicalManager*> captured_instances;
       MemoryManager *const manager;
       const size_t max_freed_bytes;
       size_t freed_bytes;

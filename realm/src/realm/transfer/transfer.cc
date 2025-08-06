@@ -1,4 +1,6 @@
-/* Copyright 2024 Stanford University, NVIDIA Corporation
+/*
+ * Copyright 2025 Stanford University, NVIDIA Corporation
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -4996,31 +4998,58 @@ namespace Realm {
     return op->finish_event->make_event(op->finish_gen);
   }
 
-  template <int N, typename T>
-  Event IndexSpace<N, T>::copy(
-      const std::vector<CopySrcDstField> &srcs, const std::vector<CopySrcDstField> &dsts,
-      const std::vector<const typename CopyIndirection<N, T>::Base *> &indirects,
-      const Realm::ProfilingRequestSet &requests, Event wait_on, int priority) const
+  template <int N, typename T, typename SrcType, typename DstType>
+  static inline Event
+  copy_impl(const IndexSpace<N, T> &ispace, SrcType &&srcs, DstType &&dsts,
+            const std::vector<const typename CopyIndirection<N, T>::Base *> &indirects,
+            const Realm::ProfilingRequestSet &requests, Event wait_on, int priority)
   {
-    // create a (one-use) transfer description
-    TransferDesc *tdesc = new TransferDesc(*this, srcs, dsts, indirects, requests);
+    TransferDesc *tdesc =
+        new TransferDesc(ispace, std::forward<SrcType>(srcs), std::forward<DstType>(dsts),
+                         indirects, requests);
 
-    // and now an operation that uses it
     GenEventImpl *finish_event = GenEventImpl::create_genevent();
     Event ev = finish_event->current_event();
     TransferOperation *op = new TransferOperation(*tdesc, wait_on, finish_event,
                                                   ID(ev).event_generation(), priority);
     op->start_or_defer();
 
-    // remove our reference to the description (op holds one)
     tdesc->remove_reference();
-
     return ev;
+  }
+
+  template <int N, typename T>
+  CopyImplFn<N, T> CopyImplRouter<N, T>::impl =
+      &copy_impl<N, T, const std::vector<CopySrcDstField> &,
+                 const std::vector<CopySrcDstField> &>;
+
+  template <int N, typename T>
+  Event IndexSpace<N, T>::copy(
+      const std::vector<CopySrcDstField> &srcs, const std::vector<CopySrcDstField> &dsts,
+      const std::vector<const typename CopyIndirection<N, T>::Base *> &indirects,
+      const Realm::ProfilingRequestSet &requests, Event wait_on, int priority) const
+  {
+    return CopyImplRouter<N, T>::impl(*this, srcs, dsts, indirects, requests, wait_on,
+                                      priority);
+  }
+
+  template <int N, typename T>
+  Event IndexSpace<N, T>::copy(
+      std::vector<CopySrcDstField> &&srcs, std::vector<CopySrcDstField> &&dsts,
+      const std::vector<const typename CopyIndirection<N, T>::Base *> &indirects,
+      const Realm::ProfilingRequestSet &requests, Event wait_on, int priority) const
+  {
+    return CopyImplRouter<N, T>::impl(*this, std::move(srcs), std::move(dsts), indirects,
+                                      requests, wait_on, priority);
   }
 
 #define DOIT(N, T)                                                                       \
   template Event IndexSpace<N, T>::copy(                                                 \
       const std::vector<CopySrcDstField> &, const std::vector<CopySrcDstField> &,        \
+      const std::vector<const CopyIndirection<N, T>::Base *> &,                          \
+      const ProfilingRequestSet &, Event, int) const;                                    \
+  template Event IndexSpace<N, T>::copy(                                                 \
+      std::vector<CopySrcDstField> &&, std::vector<CopySrcDstField> &&,                  \
       const std::vector<const CopyIndirection<N, T>::Base *> &,                          \
       const ProfilingRequestSet &, Event, int) const;                                    \
   template class TransferIteratorIndexSpace<N, T>;                                       \

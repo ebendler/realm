@@ -1,7 +1,25 @@
+/*
+ * Copyright 2025 Stanford University, NVIDIA Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "realm/runtime_impl.h"
 #include "realm/machine_impl.h"
 #include "realm/proc_impl.h"
 #include "realm/mem_impl.h"
+#include "realm/inst_impl.h"
 #include <vector>
 
 using namespace Realm;
@@ -101,18 +119,30 @@ public:
                                               bool need_alloc_result, bool poisoned,
                                               TimeLimit work_until) override
   {
+    if(allocated_size + inst->metadata.layout->bytes_used > size) {
+      return AllocationResult::ALLOC_INSTANT_FAILURE;
+    }
+    allocated_size += inst->metadata.layout->bytes_used;
+    inst->metadata.inst_offset = allocated_size;
+    NodeSet early_reqs;
+    inst->metadata.mark_valid(early_reqs);
     return AllocationResult::ALLOC_INSTANT_SUCCESS;
   }
 
   void release_storage_immediate(RegionInstanceImpl *inst, bool poisoned,
                                  TimeLimit work_until) override
-  {}
+  {
+    allocated_size -= inst->metadata.layout->bytes_used;
+    inst->metadata.initiate_cleanup(inst->me.id, true);
+  }
 
   void get_bytes(off_t offset, void *dst, size_t size) override {}
 
   void put_bytes(off_t offset, const void *src, size_t size) override {}
 
   void *get_direct_ptr(off_t offset, size_t size) override { return nullptr; }
+
+  size_t allocated_size{0};
 };
 
 // MockRuntimeImpl for machine model tests

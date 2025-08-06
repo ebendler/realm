@@ -1,4 +1,6 @@
-/* Copyright 2024 Stanford University, NVIDIA Corporation
+/*
+ * Copyright 2025 Stanford University, NVIDIA Corporation
+ * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -160,10 +162,28 @@ namespace Realm {
       const std::vector<CopySrcDstField> &_dsts,
       const std::vector<const typename CopyIndirection<N, T>::Base *> &_indirects,
       const ProfilingRequestSet &requests)
+    : TransferDesc(_is, _srcs, _dsts, _indirects, requests, std::true_type())
+  {}
+
+  template <int N, typename T>
+  TransferDesc::TransferDesc(
+      IndexSpace<N, T> _is, std::vector<CopySrcDstField> &&_srcs,
+      std::vector<CopySrcDstField> &&_dsts,
+      const std::vector<const typename CopyIndirection<N, T>::Base *> &_indirects,
+      const ProfilingRequestSet &requests)
+    : TransferDesc(_is, std::move(_srcs), std::move(_dsts), _indirects, requests,
+                   std::true_type())
+  {}
+
+  template <int N, typename T, typename SrcVec, typename DstVec>
+  TransferDesc::TransferDesc(
+      IndexSpace<N, T> _is, SrcVec &&_srcs, DstVec &&_dsts,
+      const std::vector<const typename CopyIndirection<N, T>::Base *> &_indirects,
+      const ProfilingRequestSet &requests, std::true_type)
     : refcount(1)
     , deferred_analysis(this)
-    , srcs(_srcs)
-    , dsts(_dsts)
+    , srcs(std::forward<SrcVec>(_srcs))
+    , dsts(std::forward<DstVec>(_dsts))
     , prs(requests)
     , analysis_complete(false)
     , analysis_successful(false)

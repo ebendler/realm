@@ -205,6 +205,20 @@ typedef enum realm_runtime_attr_enum
   REALM_RUNTIME_ATTR_MAX = 0xFFFFFFFFFFFFFFFFULL,
 } realm_runtime_attr_t;
 
+typedef enum realm_region_instance_attr_enum
+{
+  REALM_REGION_INSTANCE_ATTR_MEMORY = 0x0ULL, // The memory of the region instance
+  REALM_REGION_INSTANCE_ATTR_NUM,
+  REALM_REGION_INSTANCE_ATTR_MAX = 0xFFFFFFFFFFFFFFFFULL,
+} realm_region_instance_attr_t;
+
+typedef struct realm_region_instance_attr_value_t {
+  realm_region_instance_attr_t type;
+  union {
+    realm_memory_t memory;
+  } value;
+} realm_region_instance_attr_value_t;
+
 // Different Processor types
 // clang-format off
 #define REALM_PROCESSOR_KINDS(__op__) \
@@ -317,6 +331,7 @@ typedef enum realm_status_enum
   REALM_REGION_INSTANCE_ERROR_INVALID_EVENT = -12004,
   REALM_REGION_INSTANCE_ERROR_INVALID_PARAMS = -12005,
   REALM_REGION_INSTANCE_ERROR_INVALID_COORD_TYPE = -12006,
+  REALM_REGION_INSTANCE_ERROR_INVALID_ATTRIBUTE = -12007,
   REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_RESOURCE = -13001,
   REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_BASE = -13002,
   REALM_EXTERNAL_INSTANCE_RESOURCE_ERROR_INVALID_SIZE = -13003,
@@ -847,6 +862,23 @@ realm_status_t REALM_EXPORT realm_region_instance_destroy(
 realm_status_t REALM_EXPORT realm_region_instance_fetch_metadata(
     realm_runtime_t runtime, realm_region_instance_t instance, realm_processor_t target,
     realm_event_t *event);
+
+/**
+ * @brief Gets the attributes of a region instance.
+ *
+ * @param runtime The runtime instance to use.
+ * @param instance The region instance to get the attributes of.
+ * @param attrs The attributes to get.
+ * @param[out] values The values of the attributes.
+ * @param num The number of attributes to get.
+ * @return Realm status indicating success or failure.
+ *
+ * @ingroup RegionInstance
+ */
+realm_status_t REALM_EXPORT realm_region_instance_get_attributes(
+    realm_runtime_t runtime, realm_region_instance_t instance,
+    realm_region_instance_attr_t *attrs, realm_region_instance_attr_value_t *values,
+    size_t num);
 
 /**
  * @brief Creates a new external CUDA memory resource.

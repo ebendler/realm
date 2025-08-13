@@ -1216,6 +1216,43 @@ realm_status_t realm_region_instance_fetch_metadata(realm_runtime_t runtime,
   return REALM_SUCCESS;
 }
 
+realm_status_t realm_region_instance_get_attributes(
+    realm_runtime_t runtime, realm_region_instance_t instance,
+    realm_region_instance_attr_t *attrs, realm_region_instance_attr_value_t *values,
+    size_t num)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_region_instance_validity(instance);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(attrs == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_ATTRIBUTE;
+  }
+  if(values == nullptr) {
+    return REALM_REGION_INSTANCE_ERROR_INVALID_ATTRIBUTE;
+  }
+
+  for(size_t i = 0; i < num; i++) {
+    switch(attrs[i]) {
+    case REALM_REGION_INSTANCE_ATTR_MEMORY:
+      values[i].type = REALM_REGION_INSTANCE_ATTR_MEMORY;
+      values[i].value.memory =
+          Realm::ID::make_memory(Realm::ID(instance).instance_owner_node(),
+                                 Realm::ID(instance).instance_mem_idx())
+              .convert<Realm::Memory>();
+      break;
+    default:
+      return REALM_REGION_INSTANCE_ERROR_INVALID_ATTRIBUTE;
+    }
+  }
+  return REALM_SUCCESS;
+}
+
 realm_status_t
 realm_external_instance_resource_create(realm_runtime_t runtime, const void *params,
                                         realm_external_instance_resource_t *resource)

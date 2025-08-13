@@ -46,8 +46,20 @@ namespace Realm {
     {
       impl = new ProcessorQueryImpl(machine_impl);
     }
+
     ~ProcessorQueryImplWrapper(void) { impl->remove_reference(); }
+
     operator ProcessorQueryImpl *&() { return impl; }
+
+    inline void restrict_to_kind(Realm::Processor::Kind kind)
+    {
+      impl->restrict_to_kind(kind);
+    }
+
+    inline void restrict_to_address_space(Realm::AddressSpace address_space)
+    {
+      impl->restrict_to_node(address_space);
+    }
 
   protected:
     ProcessorQueryImpl *impl;
@@ -59,8 +71,25 @@ namespace Realm {
     {
       impl = new MemoryQueryImpl(machine_impl);
     }
+
     ~MemoryQueryImplWrapper(void) { impl->remove_reference(); }
+
     operator MemoryQueryImpl *&() { return impl; }
+
+    inline void restrict_to_kind(Realm::Memory::Kind kind)
+    {
+      impl->restrict_to_kind(kind);
+    }
+
+    inline void restrict_to_address_space(Realm::AddressSpace address_space)
+    {
+      impl->restrict_to_node(address_space);
+    }
+
+    inline void restrict_by_capacity(size_t min_bytes)
+    {
+      impl->restrict_by_capacity(min_bytes);
+    }
 
   protected:
     MemoryQueryImpl *impl;
@@ -514,14 +543,13 @@ realm_status_t realm_processor_query_restrict_to_kind(realm_processor_query_t qu
   if(query == nullptr) {
     return REALM_PROCESSOR_QUERY_ERROR_INVALID_QUERY;
   }
-  Realm::ProcessorQueryImpl *query_impl =
-      *(reinterpret_cast<Realm::ProcessorQueryImplWrapper *>(query));
   realm_status_t status = check_processor_kind_validity(kind);
   if(status != REALM_SUCCESS) {
     return status;
   }
-  query_impl = query_impl->writeable_reference();
-  query_impl->restrict_to_kind(static_cast<Realm::Processor::Kind>(kind));
+  Realm::ProcessorQueryImplWrapper *query_impl_wrapper =
+      reinterpret_cast<Realm::ProcessorQueryImplWrapper *>(query);
+  query_impl_wrapper->restrict_to_kind(static_cast<Realm::Processor::Kind>(kind));
   return REALM_SUCCESS;
 }
 
@@ -532,10 +560,9 @@ realm_processor_query_restrict_to_address_space(realm_processor_query_t query,
   if(query == nullptr) {
     return REALM_PROCESSOR_QUERY_ERROR_INVALID_QUERY;
   }
-  Realm::ProcessorQueryImpl *query_impl =
-      *(reinterpret_cast<Realm::ProcessorQueryImplWrapper *>(query));
-  query_impl = query_impl->writeable_reference();
-  query_impl->restrict_to_node(address_space);
+  Realm::ProcessorQueryImplWrapper *query_impl_wrapper =
+      reinterpret_cast<Realm::ProcessorQueryImplWrapper *>(query);
+  query_impl_wrapper->restrict_to_address_space(address_space);
   return REALM_SUCCESS;
 }
 
@@ -655,14 +682,13 @@ realm_status_t realm_memory_query_restrict_to_kind(realm_memory_query_t query,
   if(query == nullptr) {
     return REALM_MEMORY_QUERY_ERROR_INVALID_QUERY;
   }
-  Realm::MemoryQueryImpl *query_impl =
-      *(reinterpret_cast<Realm::MemoryQueryImplWrapper *>(query));
   realm_status_t status = check_memory_kind_validity(kind);
   if(status != REALM_SUCCESS) {
     return status;
   }
-  query_impl = query_impl->writeable_reference();
-  query_impl->restrict_to_kind(static_cast<Realm::Memory::Kind>(kind));
+  Realm::MemoryQueryImplWrapper *query_impl_wrapper =
+      reinterpret_cast<Realm::MemoryQueryImplWrapper *>(query);
+  query_impl_wrapper->restrict_to_kind(static_cast<Realm::Memory::Kind>(kind));
   return REALM_SUCCESS;
 }
 
@@ -673,10 +699,9 @@ realm_memory_query_restrict_to_address_space(realm_memory_query_t query,
   if(query == nullptr) {
     return REALM_MEMORY_QUERY_ERROR_INVALID_QUERY;
   }
-  Realm::MemoryQueryImpl *query_impl =
-      *(reinterpret_cast<Realm::MemoryQueryImplWrapper *>(query));
-  query_impl = query_impl->writeable_reference();
-  query_impl->restrict_to_node(address_space);
+  Realm::MemoryQueryImplWrapper *query_impl_wrapper =
+      reinterpret_cast<Realm::MemoryQueryImplWrapper *>(query);
+  query_impl_wrapper->restrict_to_address_space(address_space);
   return REALM_SUCCESS;
 }
 
@@ -686,10 +711,9 @@ realm_status_t realm_memory_query_restrict_by_capacity(realm_memory_query_t quer
   if(query == nullptr) {
     return REALM_MEMORY_QUERY_ERROR_INVALID_QUERY;
   }
-  Realm::MemoryQueryImpl *query_impl =
-      *(reinterpret_cast<Realm::MemoryQueryImplWrapper *>(query));
-  query_impl = query_impl->writeable_reference();
-  query_impl->restrict_by_capacity(min_bytes);
+  Realm::MemoryQueryImplWrapper *query_impl_wrapper =
+      reinterpret_cast<Realm::MemoryQueryImplWrapper *>(query);
+  query_impl_wrapper->restrict_by_capacity(min_bytes);
   return REALM_SUCCESS;
 }
 

@@ -325,7 +325,7 @@ namespace Realm {
     void remove_from_free_list(unsigned index, Range &range);
     void grow_hole(unsigned index, Range &range, RT bound, bool before);
 
-    MemoryStats get_allocator_stats();
+    typename BasicRangeAllocator<RT, TT>::MemoryStats get_allocator_stats();
 
     static unsigned floor_log2(uint64_t size);
 

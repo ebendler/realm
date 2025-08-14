@@ -1477,13 +1477,23 @@ namespace Legion {
     {
       PartitionNode *parent_node = get_node(parent);
       IndexSpaceNode *color_space = parent_node->row_source->color_space;
-      LegionColor color = color_space->linearize_color(realm_color, type_tag);
       if (!color_space->contains_point(realm_color, type_tag))
+      {
+        DomainPoint bad_point;
+        color_space->convert_point(realm_color, type_tag, bad_point,
+            "get_logical_subregion_by_color");
+        std::stringstream ss;
+        ss << "(" << bad_point[0];
+        for (int dim = 1; dim < bad_point.get_dim(); dim++)
+          ss << "," << bad_point[dim];
+        ss << ")";
         REPORT_LEGION_ERROR(ERROR_INVALID_INDEX_SPACE_COLOR,
-                            "Invalid color space color for child %lld of "
-                            "logical partition (%d,%d,%d)", color,
+                            "Invalid color space color for child %s of "
+                            "logical partition (%d,%d,%d)", ss.str().c_str(),
                             parent.index_partition.id, parent.field_space.id,
                             parent.tree_id)
+      }
+      LegionColor color = color_space->linearize_color(realm_color, type_tag);
       IndexSpaceNode *index_node = parent_node->row_source->get_child(color);
       LogicalRegion result(parent.tree_id, index_node->handle,
                            parent.field_space);

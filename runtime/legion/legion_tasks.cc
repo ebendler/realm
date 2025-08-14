@@ -3192,6 +3192,17 @@ namespace Legion {
           }
         }
       }
+      // This is a bit of a hairy case: since leaf tasks do not hold valid
+      // references on their instances after mapping, the mapped instances
+      // can become eligible for deferred deletions. However, if we have an
+      // unbounded pool then it can still try to do deferred allocations
+      // which might try to collect the instances we mapped in this task.
+      // To prevent this unbound pools need to capture valid references on
+      // any acquired instances for this task to ensure that we don't try
+      // to use our own instances to satisfy an unbounded pool allocation.
+      for (std::map<Memory,MemoryPool*>::const_iterator it =
+            leaf_memory_pools.begin(); it != leaf_memory_pools.end(); it++)
+        it->second->capture_local_instances(*acquired);
       if (free_acquired)
         delete acquired;
 
@@ -12278,15 +12289,7 @@ namespace Legion {
       // Deactivate all our points 
       for (std::vector<PointTask*>::const_iterator it = points.begin();
             it != points.end(); it++)
-      {
-        // Check to see if we are origin mapped or not which 
-        // determines whether we should commit this operation or
-        // just deactivate it like normal
-        if (is_origin_mapped() && !is_remote())
-          (*it)->deactivate();
-        else
-          (*it)->commit_operation(true/*deactivate*/);
-      }
+        (*it)->deactivate();
       points.clear(); 
 #ifdef DEBUG_LEGION
       assert(local_regions.empty());

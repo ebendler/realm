@@ -3662,6 +3662,16 @@ namespace Legion {
 
     //--------------------------------------------------------------------------
     template<int DIM, typename T>
+    void IndexSpaceNodeT<DIM,T>::convert_point(const void *realm_point,
+        TypeTag type_tag, DomainPoint &point, const char* context)
+    //--------------------------------------------------------------------------
+    {
+      RealmPointConverter<DIM,Realm::DIMTYPES>::convert_from(
+          realm_point, type_tag, point, context);
+    }
+
+    //--------------------------------------------------------------------------
+    template<int DIM, typename T>
     LegionColor IndexSpaceNodeT<DIM,T>::get_max_linearized_color(void)
     //--------------------------------------------------------------------------
     {
@@ -6568,7 +6578,7 @@ namespace Legion {
       if (interesting_count < 2)
         return bounds.volume();
       else
-        return (1 << (morton_order * interesting_count));
+        return (1ULL << (morton_order * interesting_count));
     }
 
     //--------------------------------------------------------------------------

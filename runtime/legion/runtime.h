@@ -1171,6 +1171,7 @@ namespace Legion {
       PhaseBarrier get_legion_wait_phase_barrier(void);
       PhaseBarrier get_legion_arrive_phase_barrier(void);
       void advance_legion_handshake(void);
+      void record_external_handshake(Provenance *provenance);
     private:
       const bool init_in_ext;
     private:
@@ -1182,6 +1183,13 @@ namespace Legion {
       ApBarrier legion_wait_barrier;
       ApBarrier legion_next_barrier; // one gen ahead of wait
       ApBarrier legion_arrive_barrier;
+    private:
+      // For profiling
+      std::optional<long long> previous_external_time;
+      static std::atomic<Provenance*> external_wait;
+      static std::atomic<Provenance*> external_handoff;
+      static constexpr std::string_view EXTERNAL_WAIT = "External Legion Handshake Wait on Legion";
+      static constexpr std::string_view EXTERNAL_HANDOFF = "External Legion Handshake Handoff to Legion";
     };
 
     class MPIRankTable {
@@ -1427,12 +1435,15 @@ namespace Legion {
       struct MapperState {
       public:
         MapperState(void)
-          : queue_guard(false) { }
+          : queue_guard(false), queue_dirty(false) { }
       public:
         std::list<SingleTask*> ready_queue;
         RtEvent deferral_event;
         RtUserEvent queue_waiter;
         bool queue_guard;
+        // If new tasks were added to the ready queue while
+        // the queue_guard flag was set
+        bool queue_dirty;
       };
       // State for each mapper for scheduling purposes
       std::map<MapperID,MapperState> mapper_states;
@@ -1478,6 +1489,8 @@ namespace Legion {
       virtual size_t query_memory_limit(void) = 0;
       virtual size_t query_available_memory(void) = 0;
       virtual PoolBounds get_bounds(void) const = 0;
+      virtual void capture_local_instances(
+          const std::map<PhysicalManager*,unsigned>& instances) = 0;
       virtual FutureInstance* allocate_future(UniqueID creator_uid,
                                               size_t size) = 0;
       virtual PhysicalInstance allocate_instance(UniqueID creator_uid,
@@ -1527,6 +1540,8 @@ namespace Legion {
       virtual size_t query_memory_limit(void) override;
       virtual size_t query_available_memory(void) override;
       virtual PoolBounds get_bounds(void) const override;
+      virtual void capture_local_instances(
+          const std::map<PhysicalManager*,unsigned>& instances) override;
       virtual FutureInstance* allocate_future(UniqueID creator_uid,
                                               size_t size) override;
       virtual PhysicalInstance allocate_instance(UniqueID creator_uid,
@@ -1601,6 +1616,8 @@ namespace Legion {
       virtual size_t query_memory_limit(void) override;
       virtual size_t query_available_memory(void) override;
       virtual PoolBounds get_bounds(void) const override;
+      virtual void capture_local_instances(
+          const std::map<PhysicalManager*,unsigned>& instances) override;
       virtual FutureInstance* allocate_future(UniqueID creator_uid,
                                               size_t size) override;
       virtual PhysicalInstance allocate_instance(UniqueID creator_uid,
@@ -1617,6 +1634,7 @@ namespace Legion {
       virtual void release_pool(UniqueID creator) override;
       virtual void finalize_pool(RtEvent done) override;
       virtual void serialize(Serializer &rez) override;
+      void deserialize(Deserializer& derez, Runtime* runtime);
     private:
       PhysicalInstance find_local_freed_hole(size_t size,
           size_t &prev_size, RtEvent &previous_done, LgEvent &prev_unique);
@@ -1628,6 +1646,7 @@ namespace Legion {
         LgEvent unique_event;
       };
       std::map<size_t,std::list<FreedInstance> > freed_instances;
+      std::vector<PhysicalManager*> captured_instances;
       MemoryManager *const manager;
       const size_t max_freed_bytes;
       size_t freed_bytes;
@@ -2113,15 +2132,16 @@ namespace Legion {
       RtEvent last_message_event;
       MessageHeader header;
       unsigned packaged_messages;
+    public:
       // For unordered channels so we can group partial
       // messages from remote nodes
       unsigned partial_message_id;
       bool partial;
-    private:
       const bool ordered_channel;
       const bool profile_outgoing_messages;
       const LgPriority request_priority;
       const LgPriority response_priority;
+    private:
       static const unsigned MAX_UNORDERED_EVENTS = 32;
       std::set<RtEvent> unordered_events;
     private:
@@ -3044,7 +3064,7 @@ namespace Legion {
           size_t size, bool withargs, bool global, bool preregistered,
           bool deduplicate, size_t dedup_tag);
       void broadcast_startup_barrier(RtBarrier startup_barrier);
-      void finalize_runtime(std::vector<RtEvent> &shutdown_events);
+      void finalize_runtime(std::vector<Realm::Event> &shutdown_events);
       ApEvent launch_mapper_task(Mapper *mapper, Processor proc, TaskID tid,
                                  const UntypedBuffer &arg, MapperID map_id);
       void process_mapper_task_result(const MapperTaskArgs *args); 

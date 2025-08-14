@@ -107,17 +107,25 @@ namespace Legion {
     const PredUserEvent PredUserEvent::NO_PRED_USER_EVENT = {};
 
     //--------------------------------------------------------------------------
-    void LgEvent::begin_context_wait(Context ctx, bool from_application) const
+    void LgEvent::begin_wait(Context ctx, bool from_application) const
     //--------------------------------------------------------------------------
     {
-      ctx->begin_wait(*this, from_application);
+      if (ctx != nullptr)
+        ctx->begin_wait(*this, from_application);
+      else if ((implicit_profiler != nullptr) && 
+          implicit_profiler->is_external_thread())
+        implicit_profiler->begin_external_wait(*this);
     }
 
     //--------------------------------------------------------------------------
-    void LgEvent::end_context_wait(Context ctx, bool from_application) const
+    void LgEvent::end_wait(Context ctx, bool from_application) const
     //--------------------------------------------------------------------------
     {
-      ctx->end_wait(*this, from_application);
+      if (ctx != nullptr)
+        ctx->end_wait(*this, from_application);
+      else if ((implicit_profiler != nullptr) &&
+          implicit_profiler->is_external_thread())
+        implicit_profiler->end_external_wait(*this);
     }
     
     //--------------------------------------------------------------------------
@@ -128,11 +136,14 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    void LgEvent::record_event_wait(LegionProfInstance *profiler,
-                                    Realm::Backtrace &bt) const
+    void LgEvent::record_event_wait(Realm::Backtrace &bt) const
     //--------------------------------------------------------------------------
     {
-      profiler->record_event_wait(*this, bt);
+#ifdef DEBUG_LEGION
+      assert(exists());
+      assert(implicit_profiler != NULL);
+#endif
+      implicit_profiler->record_event_wait(*this, bt);
     }
 
     //--------------------------------------------------------------------------
@@ -1048,15 +1059,19 @@ namespace Legion {
       // escape back up the task tree
       if (producer_op == NULL)
         return;
-      const int context_depth = (implicit_context == NULL) ? producer_depth :
-        implicit_context->get_depth();
+      if (implicit_context == nullptr)
+        get_complete_event().external_wait(); 
+      else
+      {
+        const int context_depth = implicit_context->get_depth();
 #ifdef DEBUG_LEGION
-      assert(producer_depth <= context_depth);
+        assert(producer_depth <= context_depth);
 #endif
-      if (producer_depth < context_depth)
-        return;
-      context->record_blocking_call(coordinate.context_index);
-      context->wait_on_future(this, producer_op->get_commit_event(op_gen));
+        if (producer_depth < context_depth)
+          return;
+        context->record_blocking_call(coordinate.context_index);
+        context->wait_on_future(this, producer_op->get_commit_event(op_gen));
+      }
     }
     
     //--------------------------------------------------------------------------
@@ -3164,11 +3179,17 @@ namespace Legion {
 #ifdef DEBUG_LEGION
       FutureImpl *future = dynamic_cast<FutureImpl*>(dc);
       assert(future != NULL);
+      // For debug mode add an actual reference to avoid overzealous assertions
+      future->add_base_gc_ref(RUNTIME_REF);
+      future->unpack_global_ref();
+      future->unpack_future_result(derez);
+      if (future->remove_base_gc_ref(RUNTIME_REF))
+        delete future;
 #else
       FutureImpl *future = static_cast<FutureImpl*>(dc);
-#endif
       future->unpack_future_result(derez);
       future->unpack_global_ref();
+#endif
     }
 
     //--------------------------------------------------------------------------
@@ -6976,6 +6997,9 @@ namespace Legion {
     // Legion Handshake Impl 
     /////////////////////////////////////////////////////////////
 
+    /*static*/ std::atomic<Provenance*> LegionHandshakeImpl::external_wait = nullptr;
+    /*static*/ std::atomic<Provenance*> LegionHandshakeImpl::external_handoff = nullptr;
+
     //--------------------------------------------------------------------------
     LegionHandshakeImpl::LegionHandshakeImpl(bool init_ext)
       : init_in_ext(init_ext), split(false), runtime(NULL)
@@ -7015,13 +7039,17 @@ namespace Legion {
         // the external to the legion side will be the first ones to 
         // exhaust their generations and we know we need to generate
         // new barriers for both sides.
-        // Same trick as below for the profiler to tell it this is an 
-        // external handshake
-        const LgEvent previous_fevent = implicit_fevent;
-        implicit_fevent = ext_arrive_barrier;
         runtime->phase_barrier_arrive(ext_arrive_barrier, 1);
-        implicit_fevent = previous_fevent;
         Runtime::advance_barrier(ext_arrive_barrier);
+      }
+      if (runtime->profiler != nullptr)
+      {
+        if (external_wait.load() == nullptr)
+          external_wait.store(runtime->find_or_create_provenance(
+              EXTERNAL_WAIT.data(), EXTERNAL_WAIT.size()));
+        if (external_handoff.load() == nullptr)
+          external_handoff.store(runtime->find_or_create_provenance(
+                EXTERNAL_HANDOFF.data(), EXTERNAL_HANDOFF.size()));
       }
     }
 
@@ -7029,10 +7057,23 @@ namespace Legion {
     void LegionHandshakeImpl::ext_handoff_to_legion(void)
     //--------------------------------------------------------------------------
     {
-      if (implicit_fevent.exists())
+      if (Processor::get_executing_processor().exists())
+        REPORT_LEGION_ERROR(ERROR_ILLEGAL_HANDSHAKE,
+            "Illegal call to perform an external handshake hand-off to Legion "
+            "while on a Realm processor. All external calls must be done from "
+            "external threads.")
+      if (implicit_context != nullptr)
         REPORT_LEGION_ERROR(ERROR_ILLEGAL_HANDSHAKE,
             "Detected an illegal handshake calling 'ext_handoff_to_legion' "
             "from inside of a Legion task.")
+      if (runtime->profiler != nullptr)
+      {
+        if (implicit_profiler == nullptr)
+          implicit_profiler =
+            runtime->profiler->find_or_create_profiling_instance();
+        if (!previous_external_time)
+          previous_external_time = Realm::Clock::current_time_in_nanoseconds();
+      }
       // We need to detect the case where we are about to trigger the last
       // external barrier generation and update the legion side with new
       // barriers before we do that
@@ -7050,37 +7091,57 @@ namespace Legion {
         ext_arrive_barrier = legion_next_barrier;
         legion_arrive_barrier = ext_wait_barrier;
       }
-      // A little trick for profiling, nominally we don't have an fevent
-      // since we're external to Legion, but we need the profiling critical
-      // path logging to know this is an external handshake. We signal this
-      // by setting the implicit fevent to be the same as arrival barrier.
-      // The profiler will record this and recognize it as a handshake
-      implicit_fevent = to_arrive;
       runtime->phase_barrier_arrive(to_arrive, 1);
-      implicit_fevent = LgEvent::NO_LG_EVENT;
+      if (implicit_profiler != nullptr)
+        record_external_handshake(external_handoff.load());
     }
 
     //--------------------------------------------------------------------------
     void LegionHandshakeImpl::ext_wait_on_legion(void)
     //--------------------------------------------------------------------------
     {
-      if (implicit_fevent.exists())
+      if (Processor::get_executing_processor().exists())
+        REPORT_LEGION_ERROR(ERROR_ILLEGAL_HANDSHAKE,
+            "Illegal call to perform an external handshake wait on Legion "
+            "while on a Realm processor. All external calls must be done from "
+            "external threads.")
+      if (implicit_context != nullptr)
         REPORT_LEGION_ERROR(ERROR_ILLEGAL_HANDSHAKE,
             "Detected an illegal handshake calling 'ext_wait_on_legion' "
             "from inside of a Legion task.")
+      if (runtime->profiler != nullptr)
+      {
+        if (implicit_profiler == nullptr)
+          implicit_profiler =
+            runtime->profiler->find_or_create_profiling_instance();
+        if (!previous_external_time)
+          previous_external_time = Realm::Clock::current_time_in_nanoseconds();
+      }
       // Wait for ext to be ready to run
-      // Note we use the external wait to be sure 
-      // we don't get drafted by the Realm runtime
-      ext_wait_barrier.external_wait();
+      // Use LgEvent::wait so we will profile this correctly
+      ext_wait_barrier.wait_faultignorant();
       // Now we can advance our wait barrier
       Runtime::advance_barrier(ext_wait_barrier);
+      if (implicit_profiler != nullptr)
+        record_external_handshake(external_wait.load());
+    }
+
+    //--------------------------------------------------------------------------
+    void LegionHandshakeImpl::record_external_handshake(Provenance* provenance)
+    //--------------------------------------------------------------------------
+    {
+      const long long next_external_time =
+        Realm::Clock::current_time_in_nanoseconds();
+      implicit_profiler->record_application_range(provenance->pid, 
+          *previous_external_time, next_external_time);
+      previous_external_time = next_external_time;
     }
 
     //--------------------------------------------------------------------------
     void LegionHandshakeImpl::legion_handoff_to_ext(void)
     //--------------------------------------------------------------------------
     {
-      if (!implicit_fevent.exists())
+      if (implicit_context == nullptr)
         REPORT_LEGION_ERROR(ERROR_ILLEGAL_HANDSHAKE,
             "Detected an illegal handshake calling 'legion_handoff_to_ext' "
             "while not inside of a Legion task.")
@@ -7100,7 +7161,7 @@ namespace Legion {
     void LegionHandshakeImpl::legion_wait_on_ext(void)
     //--------------------------------------------------------------------------
     {
-      if (!implicit_fevent.exists())
+      if (implicit_context == nullptr)
         REPORT_LEGION_ERROR(ERROR_ILLEGAL_HANDSHAKE,
             "Detected an illegal handshake calling 'legion_wait_on_ext' "
             "while not inside of a Legion task.")
@@ -7138,7 +7199,7 @@ namespace Legion {
     void LegionHandshakeImpl::advance_legion_handshake(void)
     //--------------------------------------------------------------------------
     {
-      if (!implicit_fevent.exists())
+      if (implicit_context == nullptr)
         REPORT_LEGION_ERROR(ERROR_ILLEGAL_HANDSHAKE,
             "Detected an illegal handshake calling 'advance_legion_handshake ' "
             "while not inside of a Legion task.")
@@ -8302,6 +8363,8 @@ namespace Legion {
         increment_active_mappers();
       }
       map_state.ready_queue.push_back(task);
+      if (map_state.queue_guard)
+        map_state.queue_dirty = true;
       // Finally if this is a progress task increment it
       if (forward_progress_task)
         increment_progress_tasks();
@@ -8575,7 +8638,10 @@ namespace Legion {
                 // Set the queue guard so no one else tries to
                 // read the ready queue while we've checked it out
                 if (!input.ready_tasks.empty())
+                {
                   map_state.queue_guard = true;
+                  map_state.queue_dirty = false;
+                }
               }
             }
             else
@@ -8606,15 +8672,15 @@ namespace Legion {
             // Put this on the list of the deferred mappers
             AutoLock q_lock(queue_lock);
             MapperState &map_state = mapper_states[map_id];
+#ifdef DEBUG_LEGION
+            assert(!map_state.deferral_event.exists());
+            assert(map_state.queue_guard);
+#endif
             // We have to check to see if any new tasks were added to 
             // the ready queue while we were doing our mapper call, if 
             // they were then we need to invoke select_tasks_to_map again
-            if (map_state.ready_queue.empty())
+            if (!map_state.queue_dirty)
             {
-#ifdef DEBUG_LEGION
-              assert(!map_state.deferral_event.exists());
-              assert(map_state.queue_guard);
-#endif
               map_state.deferral_event = wait_on;
               // Decrement the number of active mappers
               decrement_active_mappers();
@@ -8834,7 +8900,10 @@ namespace Legion {
         derez.deserialize(scope);
         TaskTreeCoordinates coordinates;
         coordinates.deserialize(derez);
-        return new UnboundPool(manager, scope, coordinates, max_free_bytes);
+        UnboundPool *pool = 
+          new UnboundPool(manager, scope, coordinates, max_free_bytes);
+        pool->deserialize(derez, runtime);
+        return pool;
       }
     }
 
@@ -8919,6 +8988,15 @@ namespace Legion {
     //--------------------------------------------------------------------------
     {
       return PoolBounds(limit, max_alignment);
+    }
+
+    //--------------------------------------------------------------------------
+    void ConcretePool::capture_local_instances(
+        const std::map<PhysicalManager*,unsigned>& instances)
+    //--------------------------------------------------------------------------
+    {
+      // Nothing to do here since we know we won't be trying to do deferred
+      // deletions to satisfy allocations for this pool
     }
 
     //--------------------------------------------------------------------------
@@ -10049,6 +10127,25 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
+    void UnboundPool::capture_local_instances(
+        const std::map<PhysicalManager*,unsigned>& instances)
+    //--------------------------------------------------------------------------
+    {
+      const Memory memory = manager->memory;
+      // Capture valid references on any instances in the same memory as
+      // this unbounded pool to prevent them from being deferred deleted
+      // to satisfy allocations done by this pool
+      for (std::map<PhysicalManager*,unsigned>::const_iterator it =
+            instances.begin(); it != instances.end(); it++)
+      {
+        if (memory != it->first->get_memory())
+          continue;
+        it->first->add_base_valid_ref(UNBOUNDED_POOL_REF);
+        captured_instances.push_back(it->first);
+      }
+    }
+
+    //--------------------------------------------------------------------------
     FutureInstance* UnboundPool::allocate_future(UniqueID creator_uid,
                                                  size_t size)
     //--------------------------------------------------------------------------
@@ -10354,8 +10451,13 @@ namespace Legion {
           for (std::list<FreedInstance>::const_iterator it =
                 fit->second.begin(); it != fit->second.end(); it++)
             manager->free_task_local_instance(it->instance, it->precondition);
+        for (std::vector<PhysicalManager*>::const_iterator it =
+              captured_instances.begin(); it != captured_instances.end(); it++)
+          if ((*it)->remove_base_valid_ref(UNBOUNDED_POOL_REF))
+            delete (*it);
         manager->release_unbound_pool();
         freed_instances.clear();
+        captured_instances.clear();
         freed_bytes = 0;
         released = true;
       }
@@ -10380,6 +10482,44 @@ namespace Legion {
       rez.serialize(max_freed_bytes);
       rez.serialize(scope);
       coordinates.serialize(rez);
+      rez.serialize<size_t>(captured_instances.size());
+      for (std::vector<PhysicalManager*>::const_iterator it =
+            captured_instances.begin(); it != captured_instances.end(); it++)
+      {
+        rez.serialize((*it)->did);
+        (*it)->pack_valid_ref();
+        if ((*it)->remove_base_valid_ref(UNBOUNDED_POOL_REF))
+          delete (*it);
+      }
+      captured_instances.clear();
+    }
+
+    //--------------------------------------------------------------------------
+    void UnboundPool::deserialize(Deserializer& derez, Runtime* runtime)
+    //--------------------------------------------------------------------------
+    {
+      size_t num_instances;
+      derez.deserialize(num_instances);
+      std::vector<RtEvent> ready_events;
+      captured_instances.reserve(num_instances);
+      for (unsigned idx = 0; idx < num_instances; idx++)
+      {
+        DistributedID did;
+        derez.deserialize(did);
+        RtEvent ready;
+        captured_instances.push_back(
+            runtime->find_or_request_instance_manager(did, ready));
+        if (ready.exists())
+          ready_events.push_back(ready);
+      }
+      if (!ready_events.empty())
+        Runtime::merge_events(ready_events).wait();
+      for (std::vector<PhysicalManager*>::const_iterator it =
+            captured_instances.begin(); it != captured_instances.end(); it++)
+      {
+        (*it)->add_base_valid_ref(UNBOUNDED_POOL_REF);
+        (*it)->unpack_valid_ref();
+      }
     }
 
     /////////////////////////////////////////////////////////////
@@ -16863,11 +17003,24 @@ namespace Legion {
     {
       // Pull the channel off to do the receiving
       const char *buffer = (const char*)args;
-      VirtualChannelKind channel = *((const VirtualChannelKind*)buffer);
-      buffer += sizeof(channel);
-      arglen -= sizeof(channel);
-      channels[channel].process_message(buffer, arglen, runtime, 
-                                        remote_address_space);
+      VirtualChannelKind kind = *((const VirtualChannelKind*)buffer);
+      buffer += sizeof(kind);
+      arglen -= sizeof(kind);
+      VirtualChannel& channel = channels[kind];
+      // If this is an ordered virtual channel hook up the implicit fevent
+      // that we made with the original fevent for critical path analysis.
+      // Note we can't do this for the profiling virtual channel or we would
+      // end up introducing an infinite loop and never complete
+      if (channel.profile_outgoing_messages)
+      {
+        const LgEvent original_fevent =
+          runtime->profiler->find_message_fevent(
+              implicit_fevent, false/*remove*/);
+        if (channel.ordered_channel && (kind != PROFILING_VIRTUAL_CHANNEL))
+          implicit_profiler->record_event_trigger(
+              original_fevent, implicit_fevent);
+      }
+      channel.process_message(buffer, arglen, runtime, remote_address_space);
     }
 
     //--------------------------------------------------------------------------
@@ -21413,7 +21566,8 @@ namespace Legion {
     }
 
     //--------------------------------------------------------------------------
-    void Runtime::finalize_runtime(std::vector<RtEvent> &shutdown_preconditions)
+    void Runtime::finalize_runtime(
+                              std::vector<Realm::Event> &shutdown_preconditions)
     //--------------------------------------------------------------------------
     {
       if (!separate_runtime_instances)
@@ -21430,8 +21584,8 @@ namespace Legion {
           if (total_address_spaces <= next)
             break;
           MessageManager *messenger = find_messenger(next);
-          shutdown_preconditions.push_back(RtEvent(messenger->target.spawn(
-                  LG_SHUTDOWN_TASK_ID, NULL, 0, empty_requests)));
+          shutdown_preconditions.push_back(messenger->target.spawn(
+                  LG_SHUTDOWN_TASK_ID, NULL, 0, empty_requests));
         }
       }
       // Have the memory managers for deletion of all their instances
@@ -34692,12 +34846,19 @@ namespace Legion {
         REPORT_LEGION_ERROR(ERROR_ILLEGAL_IMPLICIT_TOP_LEVEL_TASK,
             "Implicit top-level tasks are not allowed to be started before "
             "the Legion runtime is started.")
+      if (Processor::get_executing_processor().exists())
+        REPORT_LEGION_ERROR(ERROR_ILLEGAL_IMPLICIT_TOP_LEVEL_TASK,
+            "Attempted to start implicit top-level task %d on a Realm "
+            "processor. Implicit top-level tasks can only be run on "
+            "external threads not managed by Realm.", top_task_id)
       // Check that we're not inside a task
       if (implicit_context != NULL)
         REPORT_LEGION_ERROR(ERROR_ILLEGAL_IMPLICIT_TOP_LEVEL_TASK,
             "Implicit top-level tasks are not allowed to be started inside "
             "of Legion tasks. Only external computations are permitted "
             "to create new implicit top-level tasks.")
+      if ((profiler != NULL) && (implicit_profiler == NULL))
+        implicit_profiler = profiler->find_or_create_profiling_instance();
       // Save the top-level task name if necessary
       // Record a fake variant if we're profiling
       if (task_name != NULL)
@@ -34778,10 +34939,21 @@ namespace Legion {
             "Illegal call to unbind a context for task %s (UID %lld) that "
             "is not an implicit top-level task",
             ctx->get_task_name(), ctx->get_unique_id())
-      ctx->begin_wait(LgEvent::NO_LG_EVENT, true/*from application*/);
+      if (ctx != implicit_context)
+        REPORT_LEGION_ERROR(ERROR_CONFUSED_USER,
+            "Illegal call to unbind an implicit top-level task %s (UID %lld) "
+            "when it is not bound to the current external thread.",
+            ctx->get_task_name(), ctx->get_unique_id())
+      if (implicit_profiler != nullptr)
+      {
+        ctx->begin_wait(LgEvent::NO_LG_EVENT, true/*from application*/);
+        implicit_fevent = implicit_profiler->external_fevent;
+        REPORT_LEGION_FATAL(LEGION_FATAL_UNIMPLEMENTED_FEATURE,
+            "Need support for profiling unbind implicit top-level tasks")
+      }
+      else
+        implicit_fevent = LgEvent::NO_LG_EVENT;
       implicit_context = NULL;
-      implicit_profiler = NULL;
-      implicit_fevent = LgEvent::NO_LG_EVENT;
       implicit_provenance = 0;
     }
 
@@ -34794,12 +34966,30 @@ namespace Legion {
             "Illegal call to bind a context for task %s (UID %lld) that "
             "is not an implicit top-level task",
             ctx->get_task_name(), ctx->get_unique_id())
+      if (Processor::get_executing_processor().exists())
+        REPORT_LEGION_ERROR(ERROR_ILLEGAL_IMPLICIT_TOP_LEVEL_TASK,
+            "Attempted to bind an implicit top-level task %s on a Realm "
+            "processor. Implicit top-level tasks can only be run on "
+            "external threads not managed by Realm.",
+            ctx->get_task_name())
+      if (implicit_context != nullptr)
+        REPORT_LEGION_ERROR(ERROR_CONFUSED_USER,
+            "Illegal call to bind an implicit top-level task %s (UID %lld) "
+            "to an external thread that already has an implicit top-level "
+            "task associated with it. Only one implicit top-level task "
+            "can be associated with an external thread at a time.",
+            ctx->get_task_name(), ctx->get_unique_id())
       ctx->end_wait(LgEvent::NO_LG_EVENT, true/*from application*/);
       if (implicit_runtime == NULL)
         implicit_runtime = this;
       if ((profiler != NULL) && (implicit_profiler == NULL))
+      {
         implicit_profiler = profiler->find_or_create_profiling_instance();
+        REPORT_LEGION_FATAL(LEGION_FATAL_UNIMPLEMENTED_FEATURE,
+            "Need support for profiling binding implicit top-level tasks")
+      }
       implicit_context = ctx;
+      implicit_fevent = ctx->owner_task->get_completion_event();
       implicit_provenance = ctx->owner_task->get_unique_op_id();
     }
 
@@ -34807,6 +34997,11 @@ namespace Legion {
     void Runtime::finish_implicit_task(TaskContext *ctx, ApEvent effects)
     //--------------------------------------------------------------------------
     {
+      if (implicit_context != ctx)
+        REPORT_LEGION_ERROR(ERROR_CONFUSED_USER,
+            "Illegal call to finish an implicit top-level  task %s (UID %lld) "
+            "which is not currently bound to the external thread.",
+            ctx->get_task_name(), ctx->get_unique_id())
       if (!ctx->implicit_task)
         REPORT_LEGION_ERROR(ERROR_CONFUSED_USER,
             "Illegal call to finish an implicit task for task %s (UID %lld) "
@@ -34816,9 +35011,11 @@ namespace Legion {
       ctx->end_task(NULL, 0, false/*owned*/, PhysicalInstance::NO_INST, 
           NULL/*callback functor*/, NULL/*resource*/,  NULL/*freefunc*/,
           NULL/*metadataptr*/, 0/*metadatasize*/, effects);
+      if (implicit_profiler != nullptr)
+        implicit_fevent = implicit_profiler->external_fevent;
+      else
+        implicit_fevent = LgEvent::NO_LG_EVENT;
       implicit_context = NULL;
-      implicit_profiler = NULL;
-      implicit_fevent = LgEvent::NO_LG_EVENT;
       implicit_provenance = 0;
     }
 
@@ -36034,16 +36231,13 @@ namespace Legion {
       implicit_profiler = NULL;
       implicit_fevent = LgEvent::NO_LG_EVENT;
       // Finalize the runtime and then delete it
-      std::vector<RtEvent> shutdown_events;
+      std::vector<Realm::Event> shutdown_events;
       runtime->finalize_runtime(shutdown_events);
       delete runtime;
       // If we have any shutdown events we need to wait for them to have
       // finished before we return and end up marking ourselves finished
       if (!shutdown_events.empty())
-      {
-        const RtEvent wait_on = Runtime::merge_events(shutdown_events);
-        wait_on.wait();
-      }
+        Realm::Event::merge_events(shutdown_events).wait();
     }
 
     //--------------------------------------------------------------------------

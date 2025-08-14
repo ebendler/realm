@@ -326,7 +326,7 @@ namespace Realm {
   template <typename RT, typename TT>
   inline typename BasicRangeAllocator<RT, TT>::MemoryStats BasicRangeAllocator<RT, TT>::get_allocator_stats()
   {
-    MemoryStats stats;
+    typename BasicRangeAllocator<RT, TT>::MemoryStats stats;
     size_t total_size = 0;
     unsigned range_idx = ranges[SENTINEL].next;
     while(range_idx != SENTINEL) {
@@ -659,9 +659,9 @@ namespace Realm {
   }
 
   template <typename RT, typename TT, bool SORTED>
-  inline typename SizedRangeAllocator<RT,TT,SORTED>::MemoryStats SizedRangeAllocator<RT,TT,SORTED>::get_allocator_stats()
+  inline typename BasicRangeAllocator<RT,TT>::MemoryStats SizedRangeAllocator<RT,TT,SORTED>::get_allocator_stats()
   {
-    MemoryStats stats;
+    typename BasicRangeAllocator<RT, TT>::MemoryStats stats;
     size_t total_size = 0;
 
     const auto &allocated = this->allocated;

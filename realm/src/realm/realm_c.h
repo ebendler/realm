@@ -279,6 +279,11 @@ typedef enum realm_file_mode_t
   LEGION_FILE_CREATE = REALM_FILE_CREATE,
 } realm_file_mode_t;
 
+typedef struct realm_affinity_details_t {
+  unsigned bandwidth; // in MB/s
+  unsigned latency;   // in nanoseconds
+} realm_affinity_details_t;
+
 // Prototype for a Realm task
 typedef void(REALM_FNPTR *realm_task_pointer_t)(const void * /*data*/, size_t /*datalen*/,
                                                 const void * /*userdata*/,
@@ -310,6 +315,7 @@ typedef enum realm_status_enum
   REALM_RUNTIME_ERROR_INVALID_RUNTIME = -3001,
   REALM_RUNTIME_ERROR_NOT_INITIALIZED = -3002,
   REALM_RUNTIME_ERROR_INVALID_ATTRIBUTE = -3003,
+  REALM_RUNTIME_ERROR_INVALID_AFFINITY = -3004,
   REALM_MACHINE_ERROR_INVALID_MACHINE = -4001,
   REALM_MEMORY_ERROR_INVALID_MEMORY = -5001,
   REALM_PROCESSOR_ERROR_INVALID_PROCESSOR = -6001,
@@ -475,6 +481,37 @@ realm_status_t REALM_EXPORT realm_runtime_collective_spawn(
 realm_status_t REALM_EXPORT realm_runtime_get_attributes(realm_runtime_t runtime,
                                                          realm_runtime_attr_t *attrs,
                                                          uint64_t *values, size_t num);
+
+/**
+ * @brief Checks if two memories have affinity. If there is a affinity, we can do one-hop
+ * copy between them.
+ *
+ * @param runtime The runtime instance to use.
+ * @param mem1 The first memory.
+ * @param mem2 The second memory.
+ * @param[out] details The details of the affinity.
+ * @return Realm status indicating success or failure.
+ *
+ * @ingroup Runtime
+ */
+realm_status_t REALM_EXPORT realm_runtime_get_memory_memory_affinity(
+    realm_runtime_t runtime, realm_memory_t mem1, realm_memory_t mem2,
+    realm_affinity_details_t *details);
+
+/**
+ * @brief Checks if a processor has affinity to a memory. If there is a affinity, the
+ * processor can access the memory directly.
+ * @param runtime The runtime instance to use.
+ * @param proc The processor.
+ * @param mem The memory.
+ * @param[out] details The details of the affinity.
+ * @return Realm status indicating success or failure.
+ *
+ * @ingroup Runtime
+ */
+realm_status_t REALM_EXPORT realm_runtime_get_processor_memory_affinity(
+    realm_runtime_t runtime, realm_processor_t proc, realm_memory_t mem,
+    realm_affinity_details_t *details);
 
 /*
  * @defgroup Processor Processor API

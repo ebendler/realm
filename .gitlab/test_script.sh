@@ -4,11 +4,7 @@ set -e
 set -x
 
 # job directory
-JOB_WORKDIR="${EXTERNAL_WORKDIR}_${CI_JOB_ID:-legion${TEST_LEGION_CXX:-1}_regent${TEST_REGENT:-1}}"
-rm -rf $JOB_WORKDIR
-cp -r $CI_PROJECT_DIR $JOB_WORKDIR
-cd $JOB_WORKDIR
-echo "Running tests in $JOB_WORKDIR"
+echo "Running tests in $PWD"
 
 # copy files from shared environment
 if [[ "$REALM_NETWORKS" == gasnet* ]]; then
@@ -20,6 +16,7 @@ ln -s $EXTERNAL_WORKDIR/terra language/terra
 if [[ "$LMOD_SYSTEM_NAME" = frontier ]]; then
     cat >>env.sh <<EOF
 module load PrgEnv-gnu
+module load cray-python
 module load rocm/$ROCM_VERSION
 export CC=cc
 export CXX=CC
@@ -33,6 +30,13 @@ fi
 # Important: Thrust must be in \$EXTERNAL_WORKDIR or else CMake sees it in-source
 export THRUST_PATH=\$EXTERNAL_WORKDIR/Thrust
 export REGENT_LLVM_PATH="\$EXTERNAL_WORKDIR/llvm"
+
+# Proxy settings for Frontier: https://docs.olcf.ornl.gov/software/analytics/pytorch_frontier.html#proxy-settings
+export all_proxy=socks://proxy.ccs.ornl.gov:3128/
+export ftp_proxy=ftp://proxy.ccs.ornl.gov:3128/
+export http_proxy=http://proxy.ccs.ornl.gov:3128/
+export https_proxy=http://proxy.ccs.ornl.gov:3128/
+export no_proxy='localhost,127.0.0.0/8,*.ccs.ornl.gov'
 EOF
 else
     echo "Don't know how to build on this system"
@@ -43,11 +47,11 @@ fi
 if [[ "$REALM_NETWORKS" == gasnet* ]]; then
     if [[ "$GASNET_DEBUG" -eq 1 ]]; then
         cat >>env.sh <<EOF
-export GASNET_ROOT="\$JOB_WORKDIR/gasnet/debug"
+export GASNET_ROOT="$PWD/gasnet/debug"
 EOF
     else
         cat >>env.sh <<EOF
-export GASNET_ROOT="\$JOB_WORKDIR/gasnet/release"
+export GASNET_ROOT="$PWD/gasnet/release"
 EOF
     fi
 fi
@@ -76,6 +80,7 @@ grep 'model name' /proc/cpuinfo | uniq -c || true
 which $CXX
 $CXX --version
 free
+
 if [[ -z "$TEST_PYTHON_EXE" ]]; then
     export TEST_PYTHON_EXE=`which python3 python | head -1`
 fi

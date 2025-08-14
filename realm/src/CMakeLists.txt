@@ -1,19 +1,21 @@
 # Copyright 2025 Stanford University, NVIDIA Corporation
+# SPDX-License-Identifier: Apache-2.0
 #
-# Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
-# in compliance with the License. You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software distributed under the License
-# is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
-# or implied. See the License for the specific language governing permissions and limitations under
-# the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 set(REALM_SOURCES
     activemsg.cc
     network.cc
-    cmdline.cc
     codedesc.cc
     logging.cc
     mutex.cc
@@ -45,6 +47,8 @@ set(REALM_SOURCES
     threads.cc
     shm.cc
     hardware_topology.cc
+    realm_c.cc
+    fragmented_message.cc
     transfer/lowlevel_disk.cc
     transfer/address_list.cc
     transfer/channel_common.cc
@@ -64,7 +68,7 @@ set(REALM_SOURCES
     procset/procset_module.cc
 )
 
-if(TARGET CUDA::cuda_driver)
+if(TARGET CUDA::cuda_driver AND REALM_USE_CUDA)
   list(APPEND REALM_SOURCES cuda/cuda_module.cc cuda/cuda_internal.cc cuda/cuda_access.cc)
   if(REALM_USE_NVTX)
     list(APPEND REALM_SOURCES nvtx.cc)
@@ -72,7 +76,7 @@ if(TARGET CUDA::cuda_driver)
   list(APPEND REALM_CUDA_SOURCES cuda/cuda_memcpy.cu)
 endif()
 
-if(TARGET hip::hip_host)
+if(TARGET hip::host)
   list(APPEND REALM_SOURCES hip/hip_module.cc hip/hip_internal.cc hip/hip_access.cc)
 endif()
 
@@ -89,6 +93,10 @@ if(REALM_USE_OPENMP)
   if(REALM_OPENMP_KMP_SUPPORT OR REALM_OPENMP_GOMP_SUPPORT)
     list(APPEND REALM_SOURCES openmp/openmp_threadpool.cc openmp/openmp_api.cc)
   endif()
+endif()
+
+if(REALM_USE_PREALM)
+  list(APPEND REALM_SOURCES prealm/prealm.cc)
 endif()
 
 if(TARGET Python3::Python)
@@ -128,10 +136,10 @@ list(TRANSFORM REALM_SOURCES PREPEND "${REALM_SOURCE_DIR}/")
 list(TRANSFORM REALM_CUDA_SOURCES PREPEND "${REALM_SOURCE_DIR}/")
 
 # Generated sources
-# TODO(cperry): fix path
+# TODO(cperry): fix path so realm_defines.h lives in realm directory
 configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/realm_defines.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/../include/realm/realm_defines.h" @ONLY
+  "${PROJECT_SOURCE_DIR}/cmake/realm_defines.h.in" "${PROJECT_BINARY_DIR}/include/realm_defines.h"
+  @ONLY
 )
 
 # generate per-dimension object files for deppart stuff
@@ -140,7 +148,7 @@ foreach(INST_N1 RANGE 1 ${REALM_MAX_DIM})
     foreach(SRCFILE realm/deppart/image realm/deppart/preimage realm/deppart/byfield)
       set(_result_file "${CMAKE_CURRENT_BINARY_DIR}/${SRCFILE}_${INST_N1}_${INST_N2}.cc")
       # use cmake's configure_file for a portable way of creating wrapper source files
-      configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/deppart_tmpl.cc.in" "${_result_file}")
+      configure_file("${PROJECT_SOURCE_DIR}/cmake/deppart_tmpl.cc.in" "${_result_file}")
       list(APPEND REALM_SOURCES "${_result_file}")
     endforeach()
   endforeach()

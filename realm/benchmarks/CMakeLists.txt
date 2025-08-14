@@ -1,17 +1,19 @@
 # Copyright 2025 Stanford University, NVIDIA Corporation
+# SPDX-License-Identifier: Apache-2.0
 #
-# Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
-# in compliance with the License. You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing, software distributed under the License
-# is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
-# or implied. See the License for the specific language governing permissions and limitations under
-# the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 #region Benchmark Properties
-set(BENCHMARK_RESOURCE_LOCK)
 set(BENCHMARK_DEFAULT_ARGS)
 set(BENCHMARK_ARGS
     ""
@@ -33,9 +35,13 @@ if(MPIEXEC_EXECUTABLE)
 endif()
 
 if(REALM_USE_CUDA OR REALM_USE_HIP)
-  set(BENCHMARK_RESOURCE_LOCK gpu)
   set(BENCHMARK_DEFAULT_ARGS -ll:gpu 1)
   set(BENCHMARK_USE_GPU TRUE)
+  set(TEST_GPU_LIBS $<TARGET_NAME_IF_EXISTS:CUDA::cudart> $<TARGET_NAME_IF_EXISTS:hip::host>)
+endif()
+
+if(REALM_USE_KOKKOS AND REALM_USE_OPENMP)
+  list(APPEND BENCHMARK_DEFAULT_ARGS -ll:ocpu 1 -ll:onuma 0)
 endif()
 
 if(NOT BENCHMARK_ARGS)
@@ -53,7 +59,7 @@ cmake_path(CONVERT "${TEST_LIB_PATH}" TO_NATIVE_PATH_LIST TEST_LIB_PATH NORMALIZ
 #endregion
 
 # TODO(cperry): Move these tests to this directory
-set(REALM_BENCH_DIR "../../test/performance/realm")
+set(REALM_BENCH_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 cmake_path(ABSOLUTE_PATH REALM_BENCH_DIR BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" NORMALIZE)
 
 #region Benchmarks
@@ -63,12 +69,16 @@ set(_bench_list)
 # TODO(cperry): make a cmake script that will allow to override test arguments at runtime
 macro(add_benchmark target)
   add_executable(${target} ${ARGN})
+  if(REALM_USE_HIP)
+    set(SRC_LIST ${ARGN})
+    list(FILTER SRC_LIST INCLUDE REGEX "\.cu")
+    list(TRANSFORM SRC_LIST REPLACE ".*:(.*\.cu)>" "\\1")
+    set_source_files_properties(${SRC_LIST} PROPERTIES LANGUAGE HIP)
+  endif()
   target_link_libraries(${target} Realm::Realm)
-  add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}> ${TEST_ARGS} ${${target}_ARGS})
-  set_property(
-    TEST ${target} PROPERTY RESOURCE_LOCK $<REMOVE_DUPLICATES:${TEST_RESOURCE_LOCK}
-                            ${${target}_RESOURCE_LOCK}>
-  )
+  add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}> ${BENCHMARK_ARGS} ${${target}_ARGS})
+  # Benchmarks need to be run in isolation to get accurate results
+  set_property(TEST ${target} PROPERTY RUN_SERIAL TRUE)
   if(REALM_USE_UCX)
     add_dependencies(${target} realm_ucp_bootstrap_mpi)
   endif()
@@ -78,20 +88,24 @@ endmacro()
 add_benchmark(memcpy "${REALM_BENCH_DIR}/memcpy/memcpy.cc")
 add_benchmark(event_latency "${REALM_BENCH_DIR}/event_latency/event_latency.cc")
 add_benchmark(event_throughput "${REALM_BENCH_DIR}/event_throughput/event_throughput.cc")
+set(event_ubench_ARGS -s 100)
 add_benchmark(event_ubench "${REALM_BENCH_DIR}/event_ubench/event_ubench.cc")
 add_benchmark(lock_chains "${REALM_BENCH_DIR}/lock_chains/lock_chains.cc")
 add_benchmark(lock_contention "${REALM_BENCH_DIR}/lock_contention/lock_contention.cc")
+set(reducetest_ARGS -batches 1) # Run short version
 add_benchmark(reducetest "${REALM_BENCH_DIR}/reducetest/reducetest.cc")
 
 add_benchmark(
   task_throughput "${REALM_BENCH_DIR}/task_throughput/task_throughput.cc"
   "$<$<BOOL:BENCH_USE_GPU>:${REALM_BENCH_DIR}/task_throughput/task_throughput_gpu.cu>"
 )
+target_link_libraries(task_throughput ${TEST_GPU_LIBS})
 
 add_benchmark(
   task_ubench "${REALM_BENCH_DIR}/task_throughput/task_throughput.cc"
   "$<$<BOOL:BENCH_USE_GPU>:${REALM_BENCH_DIR}/task_throughput/task_throughput_gpu.cu>"
 )
+target_link_libraries(task_ubench ${TEST_GPU_LIBS})
 
 set_tests_properties(
   ${_bench_list}

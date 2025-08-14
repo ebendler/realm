@@ -16,7 +16,7 @@
 #
 
 from __future__ import print_function
-import argparse, datetime, glob, json, multiprocessing, os, platform, shlex, shutil, subprocess, sys, traceback, tempfile
+import argparse, datetime, glob, json, multiprocessing, os, platform, shlex, shlex, shutil, subprocess, sys, traceback, tempfile
 import signal
 from pathlib import Path
 
@@ -59,15 +59,13 @@ legion_cxx_tests = [
     ['examples/dynamic_registration/dynamic_registration', []],
     ['examples/ghost/ghost', ['-ll:cpu', '4']],
     ['examples/ghost_pull/ghost_pull', ['-ll:cpu', '4']],
-    ['examples/realm_saxpy/realm_saxpy', []],
-    ['examples/realm_stencil/realm_stencil', ['-ll:cpu', '4']],
     ['examples/spmd_cgsolver/spmd_cgsolver', ['-ll:cpu', '4', '-perproc']],
     ['examples/virtual_map/virtual_map', []],
     ['examples/attach_2darray_c_fortran_layout/attach_2darray', []],
     ['examples/attach_array_daxpy/attach_array_daxpy', []],
     ['examples/attach_index_space/index_space_attach', []],
     ['examples/predication/predication', []],
-    ['examples/layout_constraints/transpose', []],
+    ['examples/layout_constraints/layout_constraints', []],
     ['examples/padded_instances/padded_instances', []],
     ['examples/inline_tasks/inline_tasks', []],
     ['examples/allreduce/allreduce', []],
@@ -83,6 +81,7 @@ legion_cxx_tests = [
     #['examples/implicit_top_task/implicit_top_task', []],
 
     # Tests
+    ['test/attach_file_mini/attach_file_mini', []],
     ['test/rendering/rendering', ['-i', '2', '-n', '64', '-ll:cpu', '4']],
     ['test/output_requirements/output_requirements', []],
     ['test/output_requirements/output_requirements', ['-replicate']],
@@ -100,27 +99,7 @@ legion_cxx_tests = [
     ['test/ctrl_repl_safety/ctrl_repl_safety', [':1:0', '-ll:cpu', '4']],
     ['test/ctrl_repl_safety/ctrl_repl_safety', [':1:1', '-ll:cpu', '4', '-lg:safe_ctrlrepl', '1']],
     ['test/mapper/mapper', []],
-
-    # Tutorial/realm
-    ['tutorial/realm/hello_world/realm_hello_world', []],
-    ['tutorial/realm/machine_model/realm_machine_model', []],
-    ['tutorial/realm/events/realm_events', []],
-    ['tutorial/realm/region_instances/realm_region_instances', []],
-    ['tutorial/realm/deferred_allocation/realm_deferred_allocation', []],
-    ['tutorial/realm/index_space_ops/realm_index_space_ops', []],
-    ['tutorial/realm/index_space_copy_fill/realm_index_space_copy_fill', []],
-    ['tutorial/realm/reductions/realm_reductions', []],
-    ['tutorial/realm/barrier/realm_barrier', []],
-    ['tutorial/realm/subgraph/realm_subgraph', []],
-    ['tutorial/realm/reservation/realm_reservation', []],
-    ['tutorial/realm/completion_queue/realm_completion_queue', []],
-    ['tutorial/realm/profiling/realm_profiling', []],
 ]
-
-if 'USE_CUDA' in os.environ and os.environ['USE_CUDA'] == 1:
-    legion_cxx_tests += [
-        ['tutorial/realm/cuda_interop/realm_cuda_interop', []],
-    ]
 
 legion_cxx_prof_tests = [
     ['examples/provenance/provenance', []],
@@ -131,11 +110,6 @@ legion_cxx_prof_tests = [
     ['test/gather_perf/gather_perf', ['-m', '5']],
     ['test/gather_perf/gather_perf', ['-m', '6']],
     ['test/gather_perf/gather_perf', ['-m', '7']],
-]
-
-prealm_cxx_prof_tests = [
-    ['test/prealm/saxpy/prealm_saxpy', []],
-    ['test/prealm/stencil/prealm_stencil', ['-ll:cpu', '4']],
 ]
 
 legion_fortran_tests = [
@@ -151,12 +125,6 @@ legion_fortran_tests = [
     ['tutorial/fortran/09_region_2d/region_2d_fortran', []],
     ['tutorial/fortran/10_attach_array/attach_array_fortran', []],
 ]
-
-if platform.system() != 'Darwin':
-    legion_cxx_tests += [
-        # FIXME: Fails non-deterministically on Mac OS: https://github.com/StanfordLegion/legion/issues/213
-        ['test/attach_file_mini/attach_file_mini', []],
-    ]
 
 legion_network_cxx_tests = [
     # Examples
@@ -225,15 +193,12 @@ legion_python_cxx_tests = [
 ]
 
 legion_hdf_cxx_tests = [
+    # Examples
+    ['examples/attach_file/attach_file', ['-h', 'data.h5', '-d', '/path/to/data']],
+
     # Tests
     ['test/hdf_attach_subregion_parallel/hdf_attach_subregion_parallel', ['-ll:cpu', '4']],
 ]
-
-if platform.system() != 'Darwin':
-    legion_hdf_cxx_tests += [
-        # FIXME: Fails non-deterministically on Mac OS: https://github.com/StanfordLegion/legion/issues/213
-        ['examples/attach_file/attach_file', ['-h', 'data.h5', '-d', '/path/to/data']],
-    ]
 
 def get_legion_cxx_perf_tests(nodes, cores_per_node):
     return [
@@ -268,6 +233,15 @@ def get_regent_perf_tests(nodes, cores_per_node):
           '-fvectorize-unsafe', '1']],
     ]
 
+def append_ld_lib(env, path):
+    # Be aware this doesn't really work on subprocessses on MacOS systems that have their system
+    # integrity protections enabled which will prevent this from having any effect
+    # https://stackoverflow.com/questions/35568122/why-isnt-dyld-library-path-being-propagated-here
+    LD_LIB_ENVVAR = 'LD_LIBRARY_PATH'
+    if platform.system() == 'Darwin':
+        LD_LIB_ENVVAR = 'DYLD_LIBRARY_PATH'
+    env[LD_LIB_ENVVAR] = ':'.join(filter(None, [env.get(LD_LIB_ENVVAR), path]))
+
 class TestTimeoutException(Exception):
     pass
 
@@ -275,8 +249,7 @@ def sigalrm_handler(signum, frame):
     raise TestTimeoutException
 
 def cmd(command, env=None, cwd=None, timelimit=None):
-    print(' '.join(command))
-    sys.stdout.flush()  # python 2 doesn't have flush option in print
+    print(shlex.join(command), flush=True)
     if timelimit:
         child = subprocess.Popen(command, env=env, cwd=cwd)
         signal.signal(signal.SIGALRM, sigalrm_handler)
@@ -389,7 +362,7 @@ def run_test_legion_python_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread
         ('PYTHONPATH', ':'.join([env.get('PYTHONPATH'), python_dir])),
     ])
     if bin_dir is None:
-        env['LD_LIBRARY_PATH'] = python_dir
+        append_ld_lib(env, python_dir)
     # If we're not already using shared libraries, clean up because
     # we're going to force them
     if bin_dir is None and env['SHARED_OBJECTS'] != '1':
@@ -405,7 +378,7 @@ def run_test_legion_jupyter_cxx(launcher, root_dir, tmp_dir, bin_dir, env, threa
     python_dir = os.path.join(root_dir, 'bindings', 'python')
     env = env.copy()
     if bin_dir is None:
-        env['LD_LIBRARY_PATH'] = python_dir
+        append_ld_lib(env, python_dir)
     # If we're not already using shared libraries, clean up because
     # we're going to force them
     if bin_dir is None and env['SHARED_OBJECTS'] != '1':
@@ -437,17 +410,6 @@ def run_test_legion_prof_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread_c
         test_dir = test_file_path.parent.absolute()
         run_prof_test(root_dir, test_dir, tmp_dir)
 
-def run_test_prealm_prof_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit):
-    flags = ['-pr:logfile', 'prof_%.gz']
-    flags.extend(get_default_args(env))
-    from tools.test_prof import run_prof_test
-    for test_file, test_flags in prealm_cxx_prof_tests:
-        prof_test = [[test_file, test_flags],]
-        run_cxx(prof_test, flags, launcher, root_dir, bin_dir, env, thread_count, timelimit)
-        test_file_path = Path(os.path.join(root_dir, test_file))
-        test_dir = test_file_path.parent.absolute()
-        run_prof_test(root_dir, test_dir, tmp_dir)
-
 def run_test_legion_hdf_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit):
     flags = ['-logfile', 'out_%.log']
     flags.extend(get_default_args(env))
@@ -466,20 +428,8 @@ def run_test_fuzzer(launcher, root_dir, tmp_dir, bin_dir, env, thread_count):
     cmd(['git', 'checkout', 'deppart'], cwd=fuzz_dir)
     cmd(['python3', 'main.py'], env=env, cwd=fuzz_dir)
 
-def run_test_realm(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit):
-    test_dir = os.path.join(root_dir, 'test/realm')
-    cmd([make_exe, '-C', test_dir, 'DEBUG=0', 'clean'], env=env)
-    cmd([make_exe, '-C', test_dir, 'DEBUG=0', '-j', str(thread_count), 'build'], env=env)
-    cmd([make_exe, '-C', test_dir, 'DEBUG=0', 'run_all'], env=env, timelimit=timelimit)
-
 def run_test_external1(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit):
     flags = ['-logfile', 'out_%.log']
-
-    # Realm perf test (move back to perf test when integrated with perf.py)
-    perf_dir = os.path.join(root_dir, 'test/performance/realm')
-    cmd([make_exe, '-C', perf_dir, 'DEBUG=0', 'clean_all'], env=env)
-    cmd([make_exe, '-C', perf_dir, 'DEBUG=0', 'build_all'], env=env)
-    cmd([make_exe, '-C', perf_dir, 'DEBUG=0', 'RUNMODE=short', 'run_all'], env=env, timelimit=timelimit)
 
     # Fast Direct Solver
     # Contact: Chao Chen <cchen10@stanford.edu>
@@ -527,24 +477,26 @@ def run_test_external2(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, 
     # clone_github('stanfordhpccenter', 'HTR-solver', htr_dir, tmp_dir)
     # NOTE: the legion-ci branch currently requires g++ (not clang) to build and
     #  is REALLY slow unless you set DEBUG=0
-    cmd(['git', 'clone', '-b', 'legion-ci', 'git@gitlab.com:insieme1/htr/htr-solver.git', htr_dir])
+    cmd(['git', 'clone', '-b', 'legion-ci-cmake', 'git@gitlab.com:insieme1/htr/htr-solver.git', htr_dir])
     htr_env = dict(list(env.items()) + [
         ('LEGION_DIR', root_dir),
-        ('LD_LIBRARY_PATH', '%s:%s' % (env.get('LD_LIBRARY_PATH', ''), os.path.join(root_dir, 'bindings', 'regent'))),
         ('HTR_DIR', htr_dir),
         ('CC', 'gcc'),
         ('CXX', 'g++'),
         ('DEBUG', '0'),
     ])
 
+    append_ld_lib(htr_env, os.path.join(root_dir, 'bindings', 'regent'))
+
     # Try to auto-detect the runner's GPU_ARCH for the test
     if env['USE_CUDA'] == '1' and 'GPU_ARCH' not in env:
+        query_cmd = ['nvidia-smi', '-i', '0', '-q']
         try:
-            device_query = subprocess.check_output(['nvidia-smi', '-i', '0', '-q']).decode('utf-8').splitlines()
+            device_query = subprocess.check_output(query_cmd).decode('utf-8').splitlines()
             htr_env['GPU_ARCH'] = [line.split()[-1].lower() for line in device_query if line.strip().startswith('Product Architecture')][0]
             print("Auto-detected GPU_ARCH='%s'" % htr_env['GPU_ARCH'])
         except OSError:
-            print('Command failed: %s' % cmd, file=sys.stderr, flush=True)
+            print('Command failed: %s' % shlex.join(query_cmd), file=sys.stderr, flush=True)
             raise
 
     cmd(['python3', os.path.join(htr_dir, 'unitTests', 'testAll.py')], env=htr_env)
@@ -582,7 +534,7 @@ def run_test_external2(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, 
         # Soleil-X
         # Contact: Manolis Papadakis <mpapadak@stanford.edu>
         soleil_dir = os.path.join(tmp_dir, 'soleil-x')
-        clone_github('stanfordhpccenter', 'soleil-x', soleil_dir, tmp_dir)
+        clone_github('stanfordhpccenter', 'soleil-x', soleil_dir, tmp_dir, branch='legion-ci')
         soleil_env = dict(list(env.items()) + [
             ('LEGION_DIR', root_dir),
             ('SOLEIL_DIR', soleil_dir),
@@ -624,7 +576,9 @@ def run_test_ctest(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, time
     build_dir = os.path.join(tmp_dir, 'build')
     args = ['ctest', '--output-on-failure']
     # do not run tests in parallel if they use GPUs - might not all fit
-    if env['USE_CUDA'] != '1' and env['USE_HIP'] != '1':
+    # do not run tests in parallel if a network is in use, as it may require limited resources
+    # This should really be done within the cmake test definition as a resource constraint
+    if env['USE_CUDA'] != '1' and env['USE_HIP'] != '1' and not env.get('REALM_NETWORKS',''):
         args.extend(['-j', str(thread_count)])
     if timelimit:
         args.extend(['--timeout', str(timelimit)])
@@ -804,7 +758,6 @@ def check_test_legion_cxx(root_dir):
     for test_file, test_flags in tests:
         actual_tests.add(os.path.dirname(test_file))
 
-    actual_tests.add('test/realm') # We test Realm separately.
     actual_tests.add('test/performance') # We test performance separately.
 
     # Check that all tests that SHOULD be covered are ACTUALLY covered.
@@ -821,8 +774,8 @@ def check_test_legion_cxx(root_dir):
         raise Exception('There are tests that are NOT in the test suite')
 
 def build_cmake(root_dir, tmp_dir, env, thread_count,
-                test_regent, test_legion_cxx,
-                test_external1, test_external2, test_perf, test_ctest, test_realm_unit_ctest):
+                test_prof, test_regent, test_legion_cxx,
+                test_external1, test_external2, test_perf, test_ctest):
     build_dir = os.path.join(tmp_dir, 'build')
     install_dir = os.path.join(tmp_dir, 'install')
     os.mkdir(build_dir)
@@ -870,8 +823,6 @@ def build_cmake(root_dir, tmp_dir, env, thread_count,
         if 'LAUNCHER' in env:
             cmake_cmd.append('-DLegion_TEST_LAUNCHER=%s' % env['LAUNCHER'])
         cmake_cmd.append('-DLegion_TEST_ARGS=%s' % ' '.join(get_default_args(env)))
-        if test_realm_unit_ctest:
-            cmake_cmd.append('-DLegion_BUILD_REALM_UNIT_TESTS=ON')
     else:
         cmake_cmd.append('-DLegion_ENABLE_TESTING=OFF')
     if test_regent or (test_legion_cxx and (env['USE_PYTHON'] == '1')):
@@ -882,6 +833,8 @@ def build_cmake(root_dir, tmp_dir, env, thread_count,
                         '-DLegion_BUILD_TUTORIAL=ON',
                         '-DLegion_BUILD_TESTS=ON',
                         ])
+    if test_prof:
+        cmake_cmd.append('-DLegion_USE_PREALM=ON')
     # several different conditions force the use of shared libraries
     if test_regent or test_external1 or test_external2 or (env['USE_PYTHON'] == '1') or (env['SHARED_OBJECTS'] == '1'):
         cmake_cmd.append('-DBUILD_SHARED_LIBS=ON')
@@ -920,9 +873,14 @@ def build_cmake(root_dir, tmp_dir, env, thread_count,
 def build_legion_prof_rs(root_dir, tmp_dir, env):
     legion_prof_dir = os.path.join(root_dir, 'tools', 'legion_prof_rs')
 
+    # Note: always shut off debug info in all profiles
+
     # Check the build with various settings to make sure we're not breaking anything
     allow_unused_variables_env = dict(list(env.items()) + [
-        ('RUSTFLAGS', '-Aunused_variables'), # When not all features are enabled, some variables may be unused
+        ('RUSTFLAGS', '-Aunused_variables -C debuginfo=0'), # When not all features are enabled, some variables may be unused
+    ])
+    env = dict(list(env.items()) + [
+        ('RUSTFLAGS', '-C debuginfo=0'),
     ])
     cmd(['cargo', 'check', '--no-default-features'],
         env=allow_unused_variables_env, cwd=legion_prof_dir)
@@ -936,7 +894,7 @@ def build_legion_prof_rs(root_dir, tmp_dir, env):
          '--path', legion_prof_dir,
          '--root', tmp_dir],
         env=env)
-    cmd(['cargo', 'test', '--all-features'], env=env, cwd=legion_prof_dir)
+    cmd(['cargo', 'test'], env=env, cwd=legion_prof_dir)
     cmd(['cargo', 'fmt', '--all', '--', '--check'], env=env, cwd=legion_prof_dir)
 
 def build_regent(root_dir, env):
@@ -977,15 +935,7 @@ def build_make(root_dir, tmp_dir, env, thread_count, networks):
     cmd([make_exe, '-C', build_dir, 'install', '-j', str(thread_count)], env=local_env)
     # Setup the LEGION_DIR for the Makefile to use that instead of building everything from source
     env['LG_INSTALL_DIR'] = install_dir
-    if platform.system() == 'Darwin':
-        # Be aware this doesn't really work on subprocessses on MacOS systems that have their system
-        # integrity protections enabled which will prevent this from having any effect
-        # https://stackoverflow.com/questions/35568122/why-isnt-dyld-library-path-being-propagated-here
-        ld_path = env.get('DYLD_LIBRARY_PATH', '')
-        env['DYLD_LIBRARY_PATH'] = ld_path+':'+os.path.join(install_dir,'lib')
-    else:
-        ld_path = env.get('LD_LIBRARY_PATH', '')
-        env['LD_LIBRARY_PATH'] = ld_path+':'+os.path.join(install_dir,'lib')
+    append_ld_lib(env, os.path.join(install_dir, 'lib'))
 
 def option_enabled(option, options, default, envprefix='', envname=None):
     if options is not None: return option in options
@@ -1006,8 +956,7 @@ class Stage(object):
         print('#'*60)
         print('### Entering Stage: %s' % self.name)
         print('#'*60)
-        print()
-        sys.stdout.flush()
+        print(flush=True)
     def __exit__(self, exc_type, exc_val, exc_tb):
         end_time = datetime.datetime.now()
         print()
@@ -1016,13 +965,12 @@ class Stage(object):
         print('###   * Exception Type: %s' % exc_type)
         print('###   * Elapsed Time: %s' % (end_time - self.begin_time))
         print('#'*60)
-        print()
-        sys.stdout.flush()
+        print(flush=True)
 
 def report_mode(debug, max_dim, launcher,
-                test_regent, test_legion_cxx, test_fuzzer, test_realm,
+                test_regent, test_legion_cxx, test_fuzzer,
                 test_external1, test_external2, test_private,
-                test_perf, test_ctest, test_realm_unit_ctest, test_jupyter, networks,
+                test_perf, test_ctest, test_jupyter, networks,
                 use_cuda, use_hip, hip_target, use_openmp, use_kokkos, use_python, use_llvm,
                 use_hdf, use_fortran, use_spy, use_prof,
                 use_bounds_checks, use_privilege_checks, use_complex,
@@ -1042,13 +990,11 @@ def report_mode(debug, max_dim, launcher,
     print('###   * Regent:     %s' % test_regent)
     print('###   * Legion C++: %s' % test_legion_cxx)
     print('###   * Fuzzer:     %s' % test_fuzzer)
-    print('###   * Realm:      %s' % test_realm)
     print('###   * External1:  %s' % test_external1)
     print('###   * External2:  %s' % test_external2)
     print('###   * Private:    %s' % test_private)
     print('###   * Perf:       %s' % test_perf)
     print('###   * CTest:      %s' % test_ctest)
-    print('###   * Realm Unit CTest:      %s' % test_realm_unit_ctest)
     print('###   * Jupyter:    %s' % test_jupyter)
     print('###')
     print('### Build Flags:')
@@ -1075,8 +1021,7 @@ def report_mode(debug, max_dim, launcher,
     print('###   * Max DIM:    %s' % max_dim)
     print('###   * C++ STD:    %s' % cxx_standard)
     print('#'*60)
-    print()
-    sys.stdout.flush()
+    print(flush=True)
 
 def run_tests(test_modules=None,
               debug=True,
@@ -1113,13 +1058,11 @@ def run_tests(test_modules=None,
     test_regent = module_enabled('regent')
     test_legion_cxx = module_enabled('legion_cxx')
     test_fuzzer = module_enabled('fuzzer', False)
-    test_realm = module_enabled('realm', not debug)
     test_external1 = module_enabled('external1', False)
     test_external2 = module_enabled('external2', False)
     test_private = module_enabled('private', False)
     test_perf = module_enabled('perf', False)
     test_ctest = module_enabled('ctest', False)
-    test_realm_unit_ctest = module_enabled('realm_unit_ctest', False)
     test_jupyter = module_enabled('jupyter', False)
 
     # Determine which features to build with.
@@ -1192,9 +1135,9 @@ def run_tests(test_modules=None,
         return
 
     report_mode(debug, max_dim, launcher,
-                test_regent, test_legion_cxx, test_fuzzer, test_realm,
+                test_regent, test_legion_cxx, test_fuzzer,
                 test_external1, test_external2, test_private,
-                test_perf, test_ctest, test_realm_unit_ctest, test_jupyter,
+                test_perf, test_ctest, test_jupyter,
                 networks,
                 use_cuda, use_hip, hip_target, use_openmp, use_kokkos, use_python, use_llvm,
                 use_hdf, use_fortran, use_spy, use_prof,
@@ -1237,6 +1180,7 @@ def run_tests(test_modules=None,
         ('TEST_SPY', '1' if use_spy else '0'),
         ('USE_PROF', '1' if use_prof else '0'),
         ('TEST_PROF', '1' if use_prof else '0'),
+        ('USE_PREALM', '1' if use_prof else '0'),
         ('BOUNDS_CHECKS', '1' if use_bounds_checks else '0'),
         ('PRIVILEGE_CHECKS', '1' if use_privilege_checks else '0'),
         ('USE_COMPLEX', '1' if use_complex else '0'),
@@ -1258,6 +1202,12 @@ def run_tests(test_modules=None,
                        if 'LDFLAGS' in os.environ else gcov_flags)),
         ] if use_gcov else []))
 
+
+    # If Realm's root is set, add it to the library path, regardless of how we
+    # build or what tests we run
+    if 'Realm_ROOT' in env:
+        append_ld_lib(env, os.path.join(env['Realm_ROOT'], 'lib'))
+
     try:
         # Build tests.
         with Stage('build'):
@@ -1271,10 +1221,10 @@ def run_tests(test_modules=None,
                 # (ask @eslaught for details about Regent cases)
                 assert test_ctest or test_regent
                 bin_dir, python_dir = build_cmake(
-                    root_dir, tmp_dir, env, thread_count,
+                    root_dir, tmp_dir, env, thread_count, use_prof,
                     test_regent, test_legion_cxx, test_external1,
                     test_external2,
-                    test_perf, test_ctest, test_realm_unit_ctest)
+                    test_perf, test_ctest)
             else:
                 # With GNU Make, builds happen inline. But clean here.
                 build_make_clean(
@@ -1302,7 +1252,6 @@ def run_tests(test_modules=None,
                 run_test_legion_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit)
                 if use_prof:
                     run_test_legion_prof_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit)
-                    run_test_prealm_prof_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit)
                 if networks:
                     run_test_legion_network_cxx(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit)
                 if use_openmp:
@@ -1318,9 +1267,6 @@ def run_tests(test_modules=None,
         if test_fuzzer:
             with Stage('fuzzer'):
                 run_test_fuzzer(launcher, root_dir, tmp_dir, bin_dir, env, thread_count)
-        if test_realm and not test_ctest:
-            with Stage('realm'):
-                run_test_realm(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit)
         if test_external1:
             with Stage('external1'):
                 run_test_external1(launcher, root_dir, tmp_dir, bin_dir, env, thread_count, timelimit)
@@ -1391,7 +1337,7 @@ def driver():
     parser.add_argument(
         '--test', dest='test_modules', action=ExtendAction,
         choices=MultipleChoiceList('regent', 'legion_cxx', 'fuzzer',
-                                   'realm', 'external1', 'external2',
+                                   'external1', 'external2',
                                    'private', 'perf', 'ctest', 'jupyter'),
         type=lambda s: s.split(','),
         default=None,

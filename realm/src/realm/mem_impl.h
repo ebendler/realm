@@ -296,7 +296,7 @@ namespace Realm {
     void free_range(unsigned index);
   };
 
-    // An alternative memory allocator that keeps track of free ranges grouped
+  // An alternative memory allocator that keeps track of free ranges grouped
   // by sizes, these free lists can optionally be kept in sorted order
   template <typename RT, typename TT, bool SORTED>
   class SizedRangeAllocator : public BasicRangeAllocator<RT, TT> {
@@ -337,7 +337,6 @@ namespace Realm {
     // ...
     std::vector<unsigned> size_based_free_lists;
   };
-
 
   // a memory that manages its own allocations
   class LocalManagedMemory : public MemoryImpl {

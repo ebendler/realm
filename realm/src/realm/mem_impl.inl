@@ -324,7 +324,7 @@ namespace Realm {
   }
 
   template <typename RT, typename TT>
-  inline MemoryStats BasicRangeAllocator<RT, TT>::get_allocator_stats()
+  inline BasicRangeAllocator<RT, TT>::MemoryStats BasicRangeAllocator<RT, TT>::get_allocator_stats()
   {
     MemoryStats stats;
     size_t total_size = 0;
@@ -659,7 +659,7 @@ namespace Realm {
   }
 
   template <typename RT, typename TT, bool SORTED>
-  inline MemoryStats SizedRangeAllocator<RT,TT,SORTED>::get_allocator_stats()
+  inline SizedRangeAllocator<RT,TT,SORTED> MemoryStats SizedRangeAllocator<RT,TT,SORTED>::get_allocator_stats()
   {
     MemoryStats stats;
     size_t total_size = 0;

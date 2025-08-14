@@ -399,8 +399,8 @@ namespace Realm {
     //                completed allocations and any ready releases
 
     // Pick which kind of range allocator we want to use
-    // using RangeAllocator = BasicRangeAllocator<size_t, RegionInstance>;
-    using RangeAllocator = SizedRangeAllocator<size_t, RegionInstance, false>;
+    using RangeAllocator = BasicRangeAllocator<size_t, RegionInstance>;
+    // using RangeAllocator = SizedRangeAllocator<size_t, RegionInstance, false>;
 
     RangeAllocator current_allocator, future_allocator, release_allocator;
     unsigned cur_release_seqid;

@@ -197,10 +197,18 @@ public:
     unsigned int latency;
   };
 
+  struct MockMemoryMemoryAffinity {
+    unsigned int mem1_idx;
+    unsigned int mem2_idx;
+    unsigned int bandwidth;
+    unsigned int latency;
+  };
+
   struct ProcessorMemoriesToBeAdded {
     std::vector<MockProcessorInfo> proc_infos;
     std::vector<MockMemoryInfo> mem_infos;
     std::vector<MockProcessorMemoryAffinity> proc_mem_affinities;
+    std::vector<MockMemoryMemoryAffinity> mem_mem_affinities;
   };
 
   void setup_mock_proc_mems(const ProcessorMemoriesToBeAdded &procs_mems)
@@ -235,6 +243,20 @@ public:
       pma.bandwidth = pma_info.bandwidth;
       pma.latency = pma_info.latency;
       add_proc_mem_affinity(pma);
+    }
+
+    // add memory-memory affinities
+    for(const MockMemoryMemoryAffinity &mma_info : procs_mems.mem_mem_affinities) {
+      Machine::MemoryMemoryAffinity mma;
+      mma.m1 = mems[mma_info.mem1_idx];
+      mma.m2 = mems[mma_info.mem2_idx];
+      mma.bandwidth = mma_info.bandwidth;
+      mma.latency = mma_info.latency;
+      MachineNodeInfo *node_info =
+          machine->nodeinfos[mems[mma_info.mem1_idx].address_space()];
+      node_info->add_memory(mems[mma_info.mem1_idx]);
+      node_info->add_memory(mems[mma_info.mem2_idx]);
+      node_info->add_mem_mem_affinity(mma);
     }
 
     machine->update_kind_maps();

@@ -400,6 +400,58 @@ realm_status_t realm_runtime_get_attributes(realm_runtime_t runtime,
   return REALM_SUCCESS;
 }
 
+realm_status_t realm_runtime_get_memory_memory_affinity(realm_runtime_t runtime,
+                                                        realm_memory_t mem1,
+                                                        realm_memory_t mem2,
+                                                        realm_affinity_details_t *details)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_memory_validity(mem1);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_memory_validity(mem2);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(details == nullptr) {
+    return REALM_ERROR_INVALID_PARAMETER;
+  }
+  bool has_affinity = runtime_impl->machine->has_affinity(Realm::Memory(mem1),
+                                                          Realm::Memory(mem2), details);
+  return has_affinity ? REALM_SUCCESS : REALM_RUNTIME_ERROR_INVALID_AFFINITY;
+}
+
+realm_status_t
+realm_runtime_get_processor_memory_affinity(realm_runtime_t runtime,
+                                            realm_processor_t proc, realm_memory_t mem,
+                                            realm_affinity_details_t *details)
+{
+  Realm::RuntimeImpl *runtime_impl = nullptr;
+  realm_status_t status = check_runtime_validity_and_assign(runtime, runtime_impl);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_processor_validity(proc);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  status = check_memory_validity(mem);
+  if(status != REALM_SUCCESS) {
+    return status;
+  }
+  if(details == nullptr) {
+    return REALM_ERROR_INVALID_PARAMETER;
+  }
+  bool has_affinity = runtime_impl->machine->has_affinity(Realm::Processor(proc),
+                                                          Realm::Memory(mem), details);
+  return has_affinity ? REALM_SUCCESS : REALM_RUNTIME_ERROR_INVALID_AFFINITY;
+}
+
 /* Processor API */
 
 realm_status_t realm_processor_register_task_by_kind(

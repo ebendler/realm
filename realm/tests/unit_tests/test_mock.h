@@ -111,7 +111,9 @@ public:
   MockMemoryImpl(RuntimeImpl *_runtime_impl, Memory _me, size_t _size, MemoryKind _kind,
                  Memory::Kind _lowlevel_kind, NetworkSegment *_segment)
     : MemoryImpl(_runtime_impl, _me, _size, _kind, _lowlevel_kind, _segment)
-  {}
+  {
+    buffer.resize(_size);
+  }
 
   ~MockMemoryImpl() {}
 
@@ -142,7 +144,23 @@ public:
 
   void *get_direct_ptr(off_t offset, size_t size) override { return nullptr; }
 
+  ExternalInstanceResource *generate_resource_info(RegionInstanceImpl *inst,
+                                                   const IndexSpaceGeneric *subspace,
+                                                   span<const FieldID> fields,
+                                                   bool read_only) override
+  {
+    return new ExternalMemoryResource(reinterpret_cast<uintptr_t>(buffer.data()),
+                                      buffer.size(), read_only);
+  }
+
+  bool attempt_register_external_resource(RegionInstanceImpl *inst,
+                                          size_t &inst_offset) override
+  {
+    return true;
+  }
+
   size_t allocated_size{0};
+  std::vector<char> buffer;
 };
 
 // MockRuntimeImpl for machine model tests

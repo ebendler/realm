@@ -684,6 +684,7 @@ namespace Legion {
         multi_scale_factor(config.auto_tracing_ruler_function),
         min_trace_length(config.auto_tracing_min_trace_length),
         max_trace_length(config.auto_tracing_max_trace_length),
+        max_inflight_requests(config.auto_tracing_turbo_lag),
         watcher(ctx, config), unique_hash_value(0), wait_interval(1)
     //--------------------------------------------------------------------------
     {
@@ -746,18 +747,23 @@ namespace Legion {
       {
         // Insert the sentinel token before launching the meta task.
         hashes.push_back(SENTINEL);
-        repeat_results.emplace_back(FindRepeatsResult());
-        FindRepeatsResult &repeat = repeat_results.back();
-        FindRepeatsTaskArgs args(this, &repeat);
+        FindRepeatsResult &repeat = 
+          repeat_results.emplace_back(FindRepeatsResult());
         repeat.start = &hashes.front();
         repeat.size = hashes.size();
         repeat.opidx = opidx;
         hashes.swap(repeat.hashes);
         // Runtime meta-task in program order
-        repeat.finish_event = implicit_runtime->issue_runtime_meta_task(args,
-            LG_THROUGHPUT_WORK_PRIORITY, repeat_results.size() > 1 ?
-            repeat_results[repeat_results.size()-2].finish_event :
-            RtEvent::NO_RT_EVENT);
+        if (max_inflight_requests > 0)
+        {
+          FindRepeatsTaskArgs args(this, &repeat);
+          repeat.finish_event = implicit_runtime->issue_runtime_meta_task(args,
+              LG_THROUGHPUT_WORK_PRIORITY, repeat_results.size() > 1 ?
+              repeat_results[repeat_results.size()-2].finish_event :
+              RtEvent::NO_RT_EVENT);
+        }
+        else
+          compute_longest_nonoverlapping_repeats(repeat);
         hashes.reserve(batchsize + 1);
         return true;
       }
@@ -770,20 +776,25 @@ namespace Legion {
         uint64_t index = hashes.size() / multi_scale_factor;
         uint64_t window_size = (index & ~(index - 1)) * multi_scale_factor;
         uint64_t start = hashes.size() - window_size;
-        repeat_results.emplace_back(FindRepeatsResult());
-        FindRepeatsResult &repeat = repeat_results.back();
+        FindRepeatsResult &repeat = 
+          repeat_results.emplace_back(FindRepeatsResult());
         repeat.start = &hashes[start];
         repeat.size = window_size;
         repeat.opidx = opidx;
-        FindRepeatsTaskArgs args(this, &repeat);
-        // We're going to be a little sneaky around re-using memory for the
-        // async jobs, so we're going to make sure that our processing jobs
-        // execute in order, because we'll have earlier jobs point to the
-        // same memory that later jobs will also use.
-        repeat.finish_event = implicit_runtime->issue_runtime_meta_task(args,
-            LG_THROUGHPUT_WORK_PRIORITY, repeat_results.size() > 1 ?
-            repeat_results[repeat_results.size()-2].finish_event :
-            RtEvent::NO_RT_EVENT);
+        if (max_inflight_requests > 0)
+        {
+          FindRepeatsTaskArgs args(this, &repeat);
+          // We're going to be a little sneaky around re-using memory for the
+          // async jobs, so we're going to make sure that our processing jobs
+          // execute in order, because we'll have earlier jobs point to the
+          // same memory that later jobs will also use.
+          repeat.finish_event = implicit_runtime->issue_runtime_meta_task(args,
+              LG_THROUGHPUT_WORK_PRIORITY, repeat_results.size() > 1 ?
+              repeat_results[repeat_results.size()-2].finish_event :
+              RtEvent::NO_RT_EVENT);
+        }
+        else
+          compute_longest_nonoverlapping_repeats(repeat);
         return true;
       }
       else
@@ -801,6 +812,10 @@ namespace Legion {
       // and if not then we just keep going
       if (opidx < (repeat_results.front().opidx + wait_interval))
         return;
+      // If we've hit the maximum number of inflight requests, then wait
+      // on one of them to make sure that it gets processed.
+      if (max_inflight_requests <= repeat_results.size())
+        repeat_results.front().finish_event.wait();
       // Scan through the queue and find out how many results are ready
       unsigned ready = 0;
       for (unsigned idx = 0; idx < repeat_results.size(); idx++)
@@ -1172,18 +1187,12 @@ namespace Legion {
       if (unordered || (this->current_trace != NULL) || !outermost)
         return T::add_to_dependence_queue(
             op, dependences, unordered, true/*outermost*/);
-      else if (op->record_trace_hash(this->recognizer, this->opidx))
-      {
-        this->opidx++;
+      else if (op->record_trace_hash(this->recognizer, this->opidx++))
         return true;
-      }
-      else
-      {
-        // Increment the current trace blocking index so we know
-        // when we need to flush operations under blocking calls
-        this->current_trace_blocking_index = this->next_blocking_index;
-        return T::add_to_dependence_queue(op, dependences);
-      }
+      // Increment the current trace blocking index so we know
+      // when we need to flush operations under blocking calls
+      this->current_trace_blocking_index = this->next_blocking_index;
+      return T::add_to_dependence_queue(op, dependences);
     }
 
     //--------------------------------------------------------------------------

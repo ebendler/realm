@@ -45,9 +45,12 @@ namespace Legion {
       // also makes the it clearer that there is no lazy evaluation until
       // we actually start observing traces.
       if (trie.empty())
-        return false;
-      else if (operations.empty())
-        operation_start_idx = opidx;
+      {
+        operation_start_idx++;
+        context->add_to_dependence_queue(op, nullptr, false/*unordered*/,
+            false/*outermost*/);
+        return true;
+      }
       // We only start lazily 
       operations.emplace(op);
       // Update all watching pointers. This is very similar to the advancing
@@ -280,8 +283,13 @@ namespace Legion {
 #ifdef DEBUG_LEGION
       assert(is_operation_ignorable_in_traces(op));
 #endif
-      if (trie.empty() || operations.empty())
-        return false;
+      if (trie.empty())
+      {
+        operation_start_idx++;
+        context->add_to_dependence_queue(op, nullptr, false/*unordered*/,
+            false/*outermost*/);
+        return true;
+      }
       // If the operation is a noop during traces, then the replayer
       // takes a much simpler process. In particular, none of the pointers
       // advance or are cancelled, but their depth increases to account
@@ -1190,12 +1198,18 @@ namespace Legion {
           this->task_executed)
         return T::add_to_dependence_queue(
             op, dependences, unordered, true/*outermost*/);
-      else if (op->record_trace_hash(this->recognizer, this->opidx++))
+      else if (op->record_trace_hash(this->recognizer, this->opidx))
+      {
+        this->opidx++;
         return true;
-      // Increment the current trace blocking index so we know
-      // when we need to flush operations under blocking calls
-      this->current_trace_blocking_index = this->next_blocking_index;
-      return T::add_to_dependence_queue(op, dependences);
+      }
+      else
+      {
+        // Increment the current trace blocking index so we know
+        // when we need to flush operations under blocking calls
+        this->current_trace_blocking_index = this->next_blocking_index;
+        return T::add_to_dependence_queue(op, dependences);
+      }
     }
 
     //--------------------------------------------------------------------------

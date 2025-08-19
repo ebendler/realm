@@ -6809,6 +6809,7 @@ namespace Legion {
       output.profiling_priority = LG_THROUGHPUT_WORK_PRIORITY;
       output.copy_fill_priority = 0;
       output.compute_preimages = false;
+      output.shadow_indirections = false;
       if (mapper == NULL)
       {
         Processor exec_proc = parent_ctx->get_executing_processor();

@@ -145,7 +145,16 @@ int main(int argc, char **argv)
       printf("Missing logfile in command line arguments\n");
       return 1;
     }
-    std::ifstream file(argv[*file_index]);
+    std::string filename(argv[*file_index]);
+    // Check if there is a '%' in the file name, if so replace it
+    // with '0'. We only need to check on this on node zero anyway
+    // as tracing will be the same across all nodes with control replication.
+    for (unsigned idx = 0; idx < filename.size(); idx++)
+    {
+      if (filename[idx] == '%')
+        filename[idx] = '0';
+    }
+    std::ifstream file(filename);
     if (!file.is_open())
     {
       printf("Could not open file %s\n", argv[*file_index]);

@@ -3619,6 +3619,7 @@ namespace Legion {
       context_configuration.auto_tracing_min_trace_length = 5;
       context_configuration.auto_tracing_max_trace_length = UINT_MAX;
       context_configuration.auto_tracing_visit_threshold = 10;
+      context_configuration.auto_tracing_turbo_lag = 16;
       if (mapper == NULL)
         mapper = runtime->find_mapper(current_proc, map_id);
       mapper->invoke_configure_context(this, context_configuration);

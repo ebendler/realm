@@ -328,6 +328,7 @@ namespace Legion {
       const uint64_t multi_scale_factor;
       const uint64_t min_trace_length;
       const uint64_t max_trace_length;
+      const unsigned max_inflight_requests;
       static constexpr Murmur3Hasher::Hash SENTINEL = {};
     private:
       OccurrenceWatcher watcher;
@@ -361,6 +362,12 @@ namespace Legion {
       // about that, so override TaskContext::record_blocking_call().
       virtual void record_blocking_call(uint64_t future_coordinate,
                                         bool invalidate_trace = true) override;
+      virtual void end_task(const void *res, size_t res_size, bool owned,
+                      PhysicalInstance inst, FutureFunctor *callback_functor,
+                      const Realm::ExternalInstanceResource *resource,
+                      void (*freefunc)(const Realm::ExternalInstanceResource&),
+                      const void *metadataptr, size_t metadatasize, 
+                      ApEvent effects) override;
     private:
       TraceRecognizer recognizer;
       uint64_t opidx;

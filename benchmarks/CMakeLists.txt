@@ -126,14 +126,14 @@ if(MSVC)
     ${_bench_list}
     PROPERTIES
       ENVIRONMENT_MODIFICATION
-      "REALM_DEFAULT_ARGS=string_prepend:${BENCHMARK_ARGS};PATH=path_list_append:${TEST_LIB_PATH}"
+      "REALM_DEFAULT_ARGS=string_prepend:${BENCHMARK_ARGS} ;PATH=path_list_append:${TEST_LIB_PATH}"
   )
 else()
   set_tests_properties(
     ${_bench_list}
     PROPERTIES
       ENVIRONMENT_MODIFICATION
-      "REALM_DEFAULT_ARGS=string_prepend:${BENCHMARK_ARGS};LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
+      "REALM_DEFAULT_ARGS=string_prepend:${BENCHMARK_ARGS} ;LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
   )
 endif()
 

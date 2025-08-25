@@ -481,14 +481,14 @@ if(MSVC)
     ${_integ_list}
     PROPERTIES
       ENVIRONMENT_MODIFICATION
-      "REALM_DEFAULT_ARGS=string_prepend:${TEST_ARGS};PATH=path_list_append:${TEST_LIB_PATH}"
+      "REALM_DEFAULT_ARGS=string_prepend:${TEST_ARGS} ;PATH=path_list_append:${TEST_LIB_PATH}"
   )
 else()
   set_tests_properties(
     ${_integ_list}
     PROPERTIES
       ENVIRONMENT_MODIFICATION
-      "REALM_DEFAULT_ARGS=string_prepend:${TEST_ARGS};LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
+      "REALM_DEFAULT_ARGS=string_prepend:${TEST_ARGS} ;LD_LIBRARY_PATH=path_list_append:${TEST_LIB_PATH}"
   )
 endif()
 

@@ -119,6 +119,8 @@ list(
   topology_test.cc
   hash.cc
   hpp_span_test.cc
+  hpp_runtime_test.cc
+  hpp_event_test.cc
 )
 list(TRANSFORM REALM_UNIT_TESTS PREPEND "${REALM_TEST_DIR}/unit_tests/")
 add_executable(realm_unit_tests ${REALM_UNIT_TESTS})
@@ -166,7 +168,7 @@ if((NOT REALM_SANITIZER OR REALM_SANITIZER STREQUAL "NONE")
 else()
   add_test(NAME realm_unit_tests COMMAND $<TARGET_FILE:realm_unit_tests>)
   add_test(NAME realm_c_unit_tests COMMAND $<TARGET_FILE:realm_c_unit_tests>)
-  set_tests_properties(realm_unit_tests realm_c_unit_tests PROPERTIES LABELS "unit")
+  set_tests_properties(realm_unit_tests realm_c_unit_tests  PROPERTIES LABELS "unit")
 endif()
 
 if(REALM_SANITIZER STREQUAL "ASAN")

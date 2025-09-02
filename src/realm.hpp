@@ -69,9 +69,6 @@ namespace REALM_NAMESPACE {
   template <int N, typename T>
   class IndexSpace;
 
-#if __cplusplus >= 202002L
-  using std::span;
-#else
   const size_t dynamic_extent = size_t(-1);
   template <typename T, size_t Extent = dynamic_extent>
   class span;
@@ -126,7 +123,7 @@ namespace REALM_NAMESPACE {
      * \param v The vector to create a span over
      */
     span(const std::vector<typename std::remove_const<T>::type> &v)
-      : base(v.data())
+      : base(const_cast<T *>(v.data()))
       , length(v.size())
     {}
 
@@ -174,6 +171,18 @@ namespace REALM_NAMESPACE {
      */
     bool empty() const { return (length == 0); }
 
+    // Iterator support
+  public:
+    typedef T *iterator;
+    typedef const T *const_iterator;
+
+    iterator begin() { return base; }
+    iterator end() { return base + length; }
+    const_iterator begin() const { return base; }
+    const_iterator end() const { return base + length; }
+    const_iterator cbegin() const { return base; }
+    const_iterator cend() const { return base + length; }
+
   private:
     T *base;
     size_t length;
@@ -212,7 +221,13 @@ namespace REALM_NAMESPACE {
   {
     return span<T, dynamic_extent>(base, length);
   }
+
+#if __cplusplus >= 202002L
+  using std::span;
+#else
+  using REALM_NAMESPACE::span;
 #endif
+
   /**
    * \class Event
    * Event is created by the runtime and is used to synchronize

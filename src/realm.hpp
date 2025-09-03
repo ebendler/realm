@@ -26,6 +26,7 @@
 #include <iostream>
 #include <cstddef>
 #include <stdexcept>
+#include <functional>
 #if __cplusplus >= 202002L
 #include <span>
 #endif
@@ -2221,7 +2222,23 @@ namespace REALM_NAMESPACE {
   private:
     realm_memory_query_t impl;
   };
-#undef REALM_TYPE_KINDS
+
 } // namespace REALM_NAMESPACE
+
+#define REALM_HASH_DEFINE(C)                                                             \
+  template <>                                                                            \
+  struct std::hash<C> {                                                                  \
+    std::size_t operator()(const C &c) const noexcept                                    \
+    {                                                                                    \
+      return std::hash<realm_id_t>()(c);                                                 \
+    }                                                                                    \
+  }
+
+REALM_HASH_DEFINE(REALM_NAMESPACE::Memory);
+REALM_HASH_DEFINE(REALM_NAMESPACE::Processor);
+REALM_HASH_DEFINE(REALM_NAMESPACE::Event);
+REALM_HASH_DEFINE(REALM_NAMESPACE::UserEvent);
+
+#undef REALM_HASH_DEFINE
 
 #endif // REALM_HPP

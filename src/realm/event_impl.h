@@ -116,10 +116,13 @@ namespace Realm {
     static bool detect_event_chain(Event search_from, Event target, int max_depth,
                                    bool print_chain);
 
+    static bool check_is_cancellable(Event e);
+
   public:
     ID me;
     ProcessorImpl *owning_processor;
     NodeID owner;
+    bool is_cancellable;
   };
 
   class GenEventImpl;

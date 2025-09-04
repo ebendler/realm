@@ -4051,6 +4051,9 @@ namespace Realm {
         CHECK_CU(res);
       }
       UserEvent realm_event = UserEvent::create_user_event();
+      EventImpl *e = get_runtime()->get_event_impl(realm_event);
+      e->is_cancellable = false;
+
       bool free_stream = false;
       CUstream cuda_stream = 0;
       if(ThreadLocal::current_gpu_stream != nullptr) {
@@ -4082,6 +4085,9 @@ namespace Realm {
         CHECK_CU(res);
       }
       UserEvent realm_event = UserEvent::create_user_event();
+      EventImpl *e = get_runtime()->get_event_impl(realm_event);
+      e->is_cancellable = false;
+
       CHECK_CU(CUDA_DRIVER_FNPTR(cuLaunchHostFunc)(
           cuda_stream, event_trigger_callback, reinterpret_cast<void *>(realm_event.id)));
       return realm_event;

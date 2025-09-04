@@ -46,6 +46,11 @@ namespace Realm {
                                               waiter);
   }
 
+  inline bool EventImpl::check_is_cancellable(Event e)
+  {
+    return get_event_impl(e)->is_cancellable;
+  }
+
   ////////////////////////////////////////////////////////////////////////
   //
   // class GenEventImpl

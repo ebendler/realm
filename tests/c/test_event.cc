@@ -67,6 +67,11 @@ void REALM_FNPTR top_level_task(const void *args, size_t arglen, const void *use
 
   realm_event_t merged_event;
   CHECK_REALM(realm_event_merge(runtime, task_events, 10, &merged_event, 0));
+
+  // ensure the merged event is not cancellable as expected
+  realm_status_t status = realm_event_cancel_operation(runtime, merged_event, nullptr, 0);
+  assert(status == REALM_EVENT_ERROR_NOT_CANCELLABLE);
+
   CHECK_REALM(realm_event_wait(runtime, merged_event, REALM_WAIT_INFINITE, nullptr));
 
   // set a timer on the wait_on event before triggering it

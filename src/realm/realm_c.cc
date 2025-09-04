@@ -941,6 +941,9 @@ realm_status_t realm_event_cancel_operation(realm_runtime_t runtime, realm_event
   if(cxx_event.has_triggered_faultaware(poisoned)) {
     return REALM_SUCCESS;
   }
+  if(!Realm::EventImpl::check_is_cancellable(cxx_event)) {
+    return REALM_EVENT_ERROR_NOT_CANCELLABLE;
+  }
   cxx_event.cancel_operation(reason_data, reason_size);
   return REALM_SUCCESS;
 }

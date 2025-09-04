@@ -345,6 +345,10 @@ namespace Realm {
     if(e->has_triggered(gen, poisoned)) {
       return;
     }
+    if(!e->is_cancellable) {
+      // merged Events and UserEvents created from CUDA structs are not cancellable
+      return;
+    }
 
     op = e->get_trigger_op(gen);
     if(op != nullptr) {
@@ -447,6 +451,12 @@ namespace Realm {
 
   void UserEvent::cancel(void) const
   {
+    EventImpl *e = get_runtime()->get_event_impl(*this);
+    if(!e->is_cancellable) {
+      // merged Events and UserEvents created from CUDA structs are not cancellable
+      return;
+    }
+
     log_event.info() << "user event cancelled: event=" << *this;
     GenEventImpl::trigger(*this, true /*poisoned*/);
   }
@@ -932,6 +942,7 @@ namespace Realm {
     : me((ID::IDType)-1)
     , owning_processor(nullptr)
     , owner(-1)
+    , is_cancellable(true)
   {}
 
   EventImpl::~EventImpl(void) {}
@@ -1170,6 +1181,7 @@ namespace Realm {
     Event finish_event = event_impl->current_event();
     EventMerger *m = &(event_impl->merger);
 
+    event_impl->is_cancellable = false;
     m->prepare_merger(finish_event, ignore_faults, wait_for.size() - first_wait);
 
     for(size_t i = first_wait; i < wait_for.size(); i++) {
@@ -1244,6 +1256,8 @@ namespace Realm {
     GenEventImpl *event_impl = GenEventImpl::create_genevent();
     Event finish_event = event_impl->current_event();
     EventMerger *m = &(event_impl->merger);
+
+    event_impl->is_cancellable = false;
     m->prepare_merger(finish_event, false /*!ignore faults*/, 6);
 
     if(ev1.exists()) {

@@ -87,6 +87,7 @@ TEST_F(GenEventTest, GetCurrentEvent)
             ID::make_event(creator_node, event_index, 1).event_generation());
   EXPECT_EQ(ID(event.current_event()).event_creator_node(), creator_node);
   EXPECT_EQ(ID(event.current_event()).event_gen_event_idx(), event_index);
+  EXPECT_TRUE(event.is_cancellable);
 }
 
 TEST_F(GenEventTest, LocalAddWaiter)

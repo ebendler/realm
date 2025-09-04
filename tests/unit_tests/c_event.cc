@@ -548,3 +548,22 @@ TEST_F(CEventTest, DISABLED_EventCancelOperationBoundaryReasonSize)
       runtime, event, large_buffer.data(), large_buffer.size());
   EXPECT_EQ(status2, REALM_SUCCESS);
 }
+
+// This test is disabled because merge requires get_runtime
+TEST_F(CEventTest, DISABLED_MergeEventsNotCancellable)
+{
+  const int num_events = 2;
+  realm_user_event_t wait_for_events[num_events];
+  realm_runtime_t runtime = *runtime_impl;
+  for(int i = 0; i < num_events; i++) {
+    ASSERT_REALM(realm_user_event_create(runtime, &wait_for_events[i]));
+  }
+  realm_user_event_t event = REALM_NO_EVENT;
+  realm_status_t status =
+      realm_event_merge(runtime, wait_for_events, num_events, &event, 0);
+  EXPECT_EQ(status, REALM_SUCCESS);
+  EXPECT_TRUE(ID(event).is_event());
+
+  status = realm_event_cancel_operation(runtime, event, nullptr, 0);
+  EXPECT_EQ(status, REALM_EVENT_ERROR_NOT_CANCELLABLE);
+}

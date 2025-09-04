@@ -1081,7 +1081,9 @@ if(REALM_BUILD_DOCS AND DOXYGEN_FOUND)
   endif()
   # This should include all public header files and nothing else.
   file(GLOB_RECURSE REALM_DOC_FILES "src/*.h")
-  list(APPEND REALM_DOC_FILES ${CMAKE_CURRENT_BINARY_DIR}/include)
+  list(APPEND REALM_DOC_FILES ${CMAKE_CURRENT_BINARY_DIR}/include
+                              ${CMAKE_CURRENT_SOURCE_DIR}/README.md
+  )
   doxygen_add_docs(docs ${REALM_DOC_FILES} COMMENT "Generate docs" ALL)
 endif()
 #endregion

@@ -64,116 +64,138 @@ namespace REALM_NAMESPACE {
   template <int N, typename T>
   class IndexSpace;
 
+  namespace Detail {
+    const size_t dynamic_extent = size_t(-1);
+    template <typename T, size_t Extent = dynamic_extent>
+    class span;
+    /**
+     * \class span
+     * \brief A lightweight view over a contiguous sequence of objects.
+     *
+     * Provides a C++11/14/17 compatible implementation of std::span for projects
+     * that cannot use C++20. This class provides a non-owning view over a
+     * contiguous sequence of objects with compile-time or runtime bounds.
+     *
+     * \tparam T The element type
+     */
+    template <typename T>
+    class span<T, dynamic_extent> {
+    public:
+      typedef typename std::remove_const<T>::type value_type;
+      static const size_t extent = dynamic_extent;
+
+      /**
+       * \brief Default constructor creating an empty span.
+       */
+      span()
+        : base(0)
+        , length(0)
+      {}
+
+      /**
+       * \brief Construct a span from a pointer and length.
+       * \param _base Pointer to the first element
+       * \param _length Number of elements in the sequence
+       */
+      span(T *_base, size_t _length)
+        : base(_base)
+        , length(_length)
+      {}
+
+      /**
+       * \brief Copy constructor from another span with different extent.
+       * \tparam Extent2 The extent of the source span
+       * \param copy_from The span to copy from
+       */
+      template <size_t Extent2>
+      span(span<T, Extent2> copy_from)
+        : base(copy_from.data())
+        , length(copy_from.size())
+      {}
+
+      /**
+       * \brief Construct a span from a vector.
+       * \param v The vector to create a span over
+       */
+      // For const spans
+      span(const std::vector<typename std::remove_const<T>::type> &v)
+        : base(v.data())
+        , length(v.size())
+      {}
+      // For non-const spans
+      span(std::vector<T> &v)
+        : base(v.data())
+        , length(v.size())
+      {}
+
+      /**
+       * \brief Construct a span from a single scalar reference.
+       * \param v Reference to the scalar element
+       */
+      span(T &v)
+        : base(&v)
+        , length(1)
+      {}
+
+      /**
+       * \brief Construct a span from a C-style array.
+       * \param arr Reference to the C-style array
+       */
+      template <size_t N>
+      span(T (&arr)[N])
+        : base(arr)
+        , length(N)
+      {}
+
+      /**
+       * \brief Access element at specified index.
+       * \param idx Index of the element to access
+       * \return Reference to the element at the specified index
+       */
+      T &operator[](size_t idx) const { return base[idx]; }
+
+      /**
+       * \brief Get pointer to the underlying data.
+       * \return Pointer to the first element
+       */
+      T *data() const { return base; }
+
+      /**
+       * \brief Get the number of elements in the span.
+       * \return Number of elements
+       */
+      size_t size() const { return length; }
+
+      /**
+       * \brief Check if the span is empty.
+       * \return true if the span contains no elements, false otherwise
+       */
+      bool empty() const { return (length == 0); }
+
+      // Iterator support
+    public:
+      typedef T *iterator;
+      typedef const T *const_iterator;
+
+      iterator begin() { return base; }
+      iterator end() { return base + length; }
+      const_iterator begin() const { return base; }
+      const_iterator end() const { return base + length; }
+      const_iterator cbegin() const { return base; }
+      const_iterator cend() const { return base + length; }
+
+    private:
+      T *base;
+      size_t length;
+    };
+  } // namespace Detail
 #if __cplusplus >= 202002L
+  using std::dynamic_extent;
   using std::span;
 #else
-  const size_t dynamic_extent = size_t(-1);
-  template <typename T, size_t Extent = dynamic_extent>
-  class span;
-
-  /**
-   * \class span
-   * \brief A lightweight view over a contiguous sequence of objects.
-   *
-   * Provides a C++11/14/17 compatible implementation of std::span for projects
-   * that cannot use C++20. This class provides a non-owning view over a
-   * contiguous sequence of objects with compile-time or runtime bounds.
-   *
-   * \tparam T The element type
-   */
-  template <typename T>
-  class span<T, dynamic_extent> {
-  public:
-    typedef typename std::remove_const<T>::type value_type;
-    static const size_t extent = dynamic_extent;
-
-    /**
-     * \brief Default constructor creating an empty span.
-     */
-    span()
-      : base(0)
-      , length(0)
-    {}
-
-    /**
-     * \brief Construct a span from a pointer and length.
-     * \param _base Pointer to the first element
-     * \param _length Number of elements in the sequence
-     */
-    span(T *_base, size_t _length)
-      : base(_base)
-      , length(_length)
-    {}
-
-    /**
-     * \brief Copy constructor from another span with different extent.
-     * \tparam Extent2 The extent of the source span
-     * \param copy_from The span to copy from
-     */
-    template <size_t Extent2>
-    span(span<T, Extent2> copy_from)
-      : base(copy_from.data())
-      , length(copy_from.size())
-    {}
-
-    /**
-     * \brief Construct a span from a vector.
-     * \param v The vector to create a span over
-     */
-    span(const std::vector<typename std::remove_const<T>::type> &v)
-      : base(v.data())
-      , length(v.size())
-    {}
-
-    /**
-     * \brief Construct a span from a single scalar reference.
-     * \param v Reference to the scalar element
-     */
-    span(T &v)
-      : base(&v)
-      , length(1)
-    {}
-
-    /**
-     * \brief Construct a span from a C-style array.
-     * \param arr Reference to the C-style array
-     */
-    template <size_t N>
-    span(T (&arr)[N])
-      : base(arr)
-      , length(N)
-    {}
-
-    /**
-     * \brief Access element at specified index.
-     * \param idx Index of the element to access
-     * \return Reference to the element at the specified index
-     */
-    T &operator[](size_t idx) const { return base[idx]; }
-
-    /**
-     * \brief Get pointer to the underlying data.
-     * \return Pointer to the first element
-     */
-    T *data() const { return base; }
-
-    /**
-     * \brief Get the number of elements in the span.
-     * \return Number of elements
-     */
-    size_t size() const { return length; }
-
-    /**
-     * \brief Check if the span is empty.
-     * \return true if the span contains no elements, false otherwise
-     */
-    bool empty() const { return (length == 0); }
-
-  private:
-    T *base;
-    size_t length;
-  };
-
+  using Detail::dynamic_extent;
+  using Detail::span;
+#endif
   /**
    * \class empty_span
    * \brief A helper class that can be implicitly converted to any span type.
@@ -207,7 +229,7 @@ namespace REALM_NAMESPACE {
   {
     return span<T, dynamic_extent>(base, length);
   }
-#endif
+
   /**
    * \class Event
    * Event is created by the runtime and is used to synchronize

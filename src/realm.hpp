@@ -1869,17 +1869,22 @@ namespace REALM_NAMESPACE {
    * all matching criteria is returned.
    */
   class Machine::ProcessorQuery {
+  private:
+    std::shared_ptr<realm_processor_query_st> impl = {nullptr};
+
   public:
     /**
      * \brief Construct a processor query for the given machine.
      * \param m The machine to query processors from
      */
     explicit ProcessorQuery(const Machine &m)
-      : impl(nullptr)
     {
       realm_runtime_t runtime;
       REALM_CHECK(realm_runtime_get_runtime(&runtime));
-      REALM_CHECK(realm_processor_query_create(runtime, &impl));
+      realm_processor_query_t query_handle;
+      REALM_CHECK(realm_processor_query_create(runtime, &query_handle));
+      impl = std::shared_ptr<realm_processor_query_st>(query_handle,
+                                                       realm_processor_query_destroy);
     }
 
     /**
@@ -1891,23 +1896,28 @@ namespace REALM_NAMESPACE {
     {}
 
     /**
+     * \brief Copy constructor from a raw query handle.
+     * \param q The raw query handle to copy from
+     */
+    ProcessorQuery(realm_processor_query_t q)
+      : impl(std::shared_ptr<realm_processor_query_st>(q, realm_processor_query_destroy))
+    {}
+
+    /**
      * \brief Destructor that cleans up the query resources.
      */
-    ~ProcessorQuery(void)
-    {
-      if(impl) {
-        realm_processor_query_destroy(impl);
-      }
-    }
+    // shared_ptr automatically handles cleanup when reference count reaches 0
+    ~ProcessorQuery(void) {}
 
     ProcessorQuery &operator=(const ProcessorQuery &q)
     {
-      throw std::logic_error("Not implemented");
+      impl = q.impl;
+      pset.clear(); // Invalidate cache after assignment
+      return *this;
     }
 
     bool operator==(const ProcessorQuery &compare_to) const
     {
-      // Stub implementation
       return impl == compare_to.impl;
     }
 
@@ -1917,7 +1927,7 @@ namespace REALM_NAMESPACE {
     }
 
     // implicit conversion to raw query handle
-    operator realm_processor_query_t(void) const { return impl; }
+    operator realm_processor_query_t(void) const { return impl.get(); }
 
     // filter predicates (returns self-reference for chaining)
     // if multiple predicates are used, they must all match (i.e. the intersection is
@@ -1932,7 +1942,7 @@ namespace REALM_NAMESPACE {
     {
       if(impl != nullptr) {
         REALM_CHECK(realm_processor_query_restrict_to_kind(
-            impl, static_cast<realm_processor_kind_t>(kind)));
+            impl.get(), static_cast<realm_processor_kind_t>(kind)));
       }
       return *this;
     }
@@ -1955,7 +1965,8 @@ namespace REALM_NAMESPACE {
         REALM_CHECK(realm_processor_query_create(runtime, &query));
 
         runtime_space = static_cast<realm_address_space_t>(values);
-        REALM_CHECK(realm_processor_query_restrict_to_address_space(impl, runtime_space));
+        REALM_CHECK(
+            realm_processor_query_restrict_to_address_space(impl.get(), runtime_space));
       }
       return *this;
     }
@@ -2016,26 +2027,53 @@ namespace REALM_NAMESPACE {
      * \brief Get the number of processors matching the query criteria.
      * \return Number of matching processors
      */
-    size_t count(void) const { throw std::logic_error("Not implemented"); }
+    size_t count(void) const
+    {
+      ensure_result_set();
+      return pset.size();
+    }
 
     /**
      * \brief Get the first processor matching the query criteria.
      * \return First matching processor, or NO_PROC if none match
      */
-    Processor first(void) const { throw std::logic_error("Not implemented"); }
+    Processor first(void) const
+    {
+      ensure_result_set();
+      return pset.empty() ? Processor(REALM_NO_PROC) : Processor(pset[0]);
+    }
 
     /**
      * \brief Get the next processor after the specified one that matches the criteria.
      * \param after The processor to search after
      * \return Next matching processor, or NO_PROC if none found
      */
-    Processor next(Processor after) const { throw std::logic_error("Not implemented"); }
+    Processor next(Processor after) const
+    {
+      ensure_result_set();
+      auto it =
+          std::find(pset.begin(), pset.end(), static_cast<realm_processor_t>(after));
+      if(it != pset.end()) {
+        ++it;
+        if(it != pset.end()) {
+          return Processor(*it);
+        }
+      }
+      return Processor(REALM_NO_PROC);
+    }
 
     /**
      * \brief Get a random processor matching the query criteria.
      * \return Random matching processor, or NO_PROC if none match
      */
-    Processor random(void) const { throw std::logic_error("Not implemented"); }
+    Processor random(void) const
+    {
+      ensure_result_set();
+      if(pset.empty()) {
+        return Processor(REALM_NO_PROC);
+      }
+      return Processor(pset[std::rand() % pset.size()]);
+    }
 
     typedef MachineQueryIterator<ProcessorQuery, Processor> iterator;
 
@@ -2043,16 +2081,35 @@ namespace REALM_NAMESPACE {
      * \brief Get an iterator to enumerate all matching processors.
      * \return Iterator pointing to the first matching processor
      */
-    iterator begin(void) const { return iterator(*this, first()); }
+    iterator begin() const
+    {
+      ensure_result_set();
+      return iterator(*this, first());
+    }
 
     /**
      * \brief Get an iterator representing the end of the query results.
      * \return End iterator
      */
-    iterator end(void) const { return iterator(*this, Processor(REALM_NO_PROC)); }
+    iterator end() const
+    {
+      ensure_result_set();
+      return iterator(*this, Processor(REALM_NO_PROC));
+    }
 
   private:
-    realm_processor_query_t impl;
+    void ensure_result_set() const
+    {
+      if(pset.empty() && impl != nullptr) {
+        REALM_CHECK(realm_processor_query_iter(
+            impl.get(), &Machine::collect_handle_into_vector_cb<realm_processor_t>, &pset,
+            SIZE_MAX));
+      }
+    }
+
+    // 'pset' is marked mutable because it is modified by ensure_result_set(), which is
+    // called from const member functions to allow lazy evaluation/caching.
+    mutable std::vector<realm_processor_t> pset;
   };
 
   /**

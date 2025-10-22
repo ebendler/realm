@@ -123,6 +123,7 @@ list(
   hpp_event_test.cc
   hpp_machine_tests.cc
   hpp_proc_query_tests.cc
+  hpp_mem_query_tests.cc
 )
 list(TRANSFORM REALM_UNIT_TESTS PREPEND "${REALM_TEST_DIR}/unit_tests/")
 add_executable(realm_unit_tests ${REALM_UNIT_TESTS})

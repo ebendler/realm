@@ -2119,17 +2119,22 @@ namespace REALM_NAMESPACE {
    * capacity, and affinity relationships with processors.
    */
   class Machine::MemoryQuery {
+  private:
+    std::shared_ptr<realm_memory_query_st> impl = {nullptr};
+
   public:
     /**
      * \brief Construct a query for all memories in the machine.
      * \param m The machine to query
      */
     explicit MemoryQuery(const Machine &m)
-      : impl(nullptr)
     {
       realm_runtime_t runtime;
       REALM_CHECK(realm_runtime_get_runtime(&runtime));
-      REALM_CHECK(realm_memory_query_create(runtime, &impl));
+      realm_memory_query_t query_handle;
+      REALM_CHECK(realm_memory_query_create(runtime, &query_handle));
+      impl = std::shared_ptr<realm_memory_query_st>(query_handle,
+                                                    realm_memory_query_destroy);
     }
 
     /**
@@ -2141,14 +2146,18 @@ namespace REALM_NAMESPACE {
     {}
 
     /**
+     * \brief Copy constructor from a raw query handle.
+     * \param q The raw query handle to copy from
+     */
+    MemoryQuery(realm_memory_query_t q)
+      : impl(std::shared_ptr<realm_memory_query_st>(q, realm_memory_query_destroy))
+    {}
+
+    /**
      * \brief Destructor.
      */
-    ~MemoryQuery(void)
-    {
-      if(impl != nullptr) {
-        realm_memory_query_destroy(impl);
-      }
-    }
+    ~MemoryQuery(void) {
+    } // shared_ptr automatically handles cleanup when reference count reaches 0
 
     /**
      * \brief Assignment operator.
@@ -2157,7 +2166,9 @@ namespace REALM_NAMESPACE {
      */
     MemoryQuery &operator=(const MemoryQuery &q)
     {
-      throw std::logic_error("Not implemented");
+      impl = q.impl;
+      mset.clear(); // Invalidate cache after assignment
+      return *this;
     }
 
     /**
@@ -2167,7 +2178,6 @@ namespace REALM_NAMESPACE {
      */
     bool operator==(const MemoryQuery &compare_to) const
     {
-      // Stub implementation
       return impl == compare_to.impl;
     }
 
@@ -2182,7 +2192,7 @@ namespace REALM_NAMESPACE {
     }
 
     // implicit conversion to raw query handle
-    operator realm_memory_query_t(void) const { return impl; }
+    operator realm_memory_query_t(void) const { return impl.get(); }
 
     // filter predicates (returns self-reference for chaining)
     // if multiple predicates are used, they must all match (i.e. the intersection is
@@ -2197,7 +2207,7 @@ namespace REALM_NAMESPACE {
     {
       if(impl != nullptr) {
         REALM_CHECK(realm_memory_query_restrict_to_kind(
-            impl, static_cast<realm_memory_kind_t>(kind)));
+            impl.get(), static_cast<realm_memory_kind_t>(kind)));
       }
       return *this;
     }
@@ -2220,7 +2230,8 @@ namespace REALM_NAMESPACE {
         REALM_CHECK(realm_memory_query_create(runtime, &query));
 
         runtime_space = static_cast<realm_address_space_t>(values);
-        REALM_CHECK(realm_memory_query_restrict_to_address_space(impl, runtime_space));
+        REALM_CHECK(
+            realm_memory_query_restrict_to_address_space(impl.get(), runtime_space));
       }
       return *this;
     }
@@ -2307,8 +2318,8 @@ namespace REALM_NAMESPACE {
      */
     MemoryQuery &has_capacity(size_t min_bytes)
     {
-      if(impl) {
-        REALM_CHECK(realm_memory_query_restrict_by_capacity(impl, min_bytes));
+      if(impl != nullptr) {
+        REALM_CHECK(realm_memory_query_restrict_by_capacity(impl.get(), min_bytes));
       }
       return *this;
     }
@@ -2321,26 +2332,52 @@ namespace REALM_NAMESPACE {
      * \brief Get the number of memories matching the query criteria.
      * \return Number of matching memories
      */
-    size_t count(void) const { throw std::logic_error("Not implemented"); }
+    size_t count(void) const
+    {
+      ensure_result_set();
+      return mset.size();
+    }
 
     /**
      * \brief Get the first memory matching the query criteria.
      * \return First matching memory, or NO_MEMORY if none match
      */
-    Memory first(void) const { throw std::logic_error("Not implemented"); }
+    Memory first(void) const
+    {
+      ensure_result_set();
+      return mset.empty() ? Memory(REALM_NO_MEM) : Memory(mset[0]);
+    }
 
     /**
      * \brief Get the next memory after the specified one that matches the criteria.
      * \param after The memory to search after
      * \return Next matching memory, or NO_MEMORY if none found
      */
-    Memory next(Memory after) const { throw std::logic_error("Not implemented"); }
+    Memory next(Memory after) const
+    {
+      ensure_result_set();
+      auto it = std::find(mset.begin(), mset.end(), static_cast<realm_memory_t>(after));
+      if(it != mset.end()) {
+        ++it;
+        if(it != mset.end()) {
+          return Memory(*it);
+        }
+      }
+      return Memory(REALM_NO_MEM);
+    }
 
     /**
      * \brief Get a random memory matching the query criteria.
      * \return Random matching memory, or NO_MEMORY if none match
      */
-    Memory random(void) const { throw std::logic_error("Not implemented"); }
+    Memory random(void) const
+    {
+      ensure_result_set();
+      if(mset.empty()) {
+        return Memory(REALM_NO_MEM);
+      }
+      return Memory(mset[std::rand() % mset.size()]);
+    }
 
     typedef MachineQueryIterator<MemoryQuery, Memory> iterator;
 
@@ -2348,16 +2385,35 @@ namespace REALM_NAMESPACE {
      * \brief Get an iterator to enumerate all matching memories.
      * \return Iterator pointing to the first matching memory
      */
-    iterator begin(void) const { return iterator(*this, first()); }
+    iterator begin() const
+    {
+      ensure_result_set();
+      return iterator(*this, first());
+    }
 
     /**
      * \brief Get an iterator representing the end of the query results.
      * \return End iterator
      */
-    iterator end(void) const { return iterator(*this, Memory(REALM_NO_MEM)); }
+    iterator end() const
+    {
+      ensure_result_set();
+      return iterator(*this, Memory(REALM_NO_MEM));
+    }
 
   private:
-    realm_memory_query_t impl;
+    void ensure_result_set() const
+    {
+      if(mset.empty() && impl != nullptr) {
+        REALM_CHECK(realm_memory_query_iter(
+            impl.get(), &Machine::collect_handle_into_vector_cb<realm_memory_t>, &mset,
+            SIZE_MAX));
+      }
+    }
+
+    // 'mset' is marked mutable because it is modified by ensure_result_set(), which is
+    // called from const member functions to allow lazy evaluation/caching.
+    mutable std::vector<realm_memory_t> mset;
   };
 
   inline const Processor Processor::NO_PROC{REALM_NO_PROC};
